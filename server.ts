@@ -2,7 +2,17 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
-import { fetchAllTasksFromDB, upsertTaskToDB, deleteTaskFromDB, syncBatchTasksToDB, isCloudDBConfigured } from "./server/db.js";
+import { 
+  fetchAllTasksFromDB, 
+  upsertTaskToDB, 
+  deleteTaskFromDB, 
+  syncBatchTasksToDB, 
+  isCloudDBConfigured,
+  registerUser,
+  authenticateUser,
+  getUserById
+} from "./server/db.js";
+import { signToken, verifyToken, extractUserIdFromReq } from "./server/auth.js";
 
 dotenv.config();
 
@@ -17,8 +27,81 @@ async function startServer() {
     res.json({ status: "ok", timestamp: Date.now() });
   });
 
-  // Cloud Tasks Persistence API (Vercel Postgres / Neon / Local fallback)
-  app.get("/api/tasks", async (_req, res) => {
+  // User Authentication Endpoints
+  app.get("/api/auth", async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).json({ authenticated: false, error: "未提供身份凭证" });
+      }
+      const match = authHeader.match(/^Bearer\s+(.+)$/i);
+      if (!match) {
+        return res.status(401).json({ authenticated: false, error: "凭证格式无效" });
+      }
+      const payload = verifyToken(match[1].trim());
+      if (!payload) {
+        return res.status(401).json({ authenticated: false, error: "凭证已过期或无效" });
+      }
+      return res.json({ authenticated: true, user: { id: payload.uid, username: payload.username } });
+    } catch (e: any) {
+      return res.status(500).json({ error: e?.message || "Auth verify error" });
+    }
+  });
+
+  app.post("/api/auth", async (req, res) => {
+    try {
+      const action = req.query.action || req.body.action || "login";
+      const { username, password } = req.body || {};
+
+      if (action === "register") {
+        if (!username || typeof username !== "string" || username.trim().length < 2) {
+          return res.status(400).json({ error: "用户名长度至少为 2 位" });
+        }
+        if (!password || typeof password !== "string" || password.length < 6) {
+          return res.status(400).json({ error: "密码长度至少为 6 位" });
+        }
+
+        if (!isCloudDBConfigured()) {
+          const mockUser = { id: `local_${Date.now()}`, username: username.trim().toLowerCase() };
+          const token = signToken(mockUser);
+          return res.json({ success: true, user: mockUser, token, isLocalMode: true });
+        }
+
+        const newUser = await registerUser(username, password);
+        if (!newUser) {
+          return res.status(500).json({ error: "注册失败，请稍后再试" });
+        }
+        const token = signToken(newUser);
+        return res.json({ success: true, user: newUser, token });
+      }
+
+      if (action === "login") {
+        if (!username || !password) {
+          return res.status(400).json({ error: "请输入用户名和密码" });
+        }
+
+        if (!isCloudDBConfigured()) {
+          const mockUser = { id: `local_${username.trim().toLowerCase()}`, username: username.trim().toLowerCase() };
+          const token = signToken(mockUser);
+          return res.json({ success: true, user: mockUser, token, isLocalMode: true });
+        }
+
+        const user = await authenticateUser(username, password);
+        if (!user) {
+          return res.status(401).json({ error: "用户名或密码错误" });
+        }
+        const token = signToken(user);
+        return res.json({ success: true, user, token });
+      }
+
+      return res.status(400).json({ error: "Unsupported action" });
+    } catch (e: any) {
+      return res.status(500).json({ error: e?.message || "Auth process failed" });
+    }
+  });
+
+  // Cloud Tasks Persistence API with strict user-level data isolation
+  app.get("/api/tasks", async (req, res) => {
     try {
       if (!isCloudDBConfigured()) {
         return res.json({
@@ -28,9 +111,21 @@ async function startServer() {
           message: "未检测到 POSTGRES_URL，已自动启用客户端 LocalStorage 离线存储。"
         });
       }
-      const tasks = await fetchAllTasksFromDB();
+
+      const userId = extractUserIdFromReq(req);
+      if (!userId) {
+        return res.status(401).json({
+          configured: true,
+          authenticated: false,
+          error: "请先登录后访问您的待办清单",
+          tasks: []
+        });
+      }
+
+      const tasks = await fetchAllTasksFromDB(userId);
       return res.json({
         configured: true,
+        authenticated: true,
         source: "vercel_postgres",
         tasks: tasks || []
       });
@@ -45,13 +140,19 @@ async function startServer() {
       if (!isCloudDBConfigured()) {
         return res.json({ configured: false, success: true, source: "local_storage" });
       }
+
+      const userId = extractUserIdFromReq(req);
+      if (!userId) {
+        return res.status(401).json({ error: "请先登录" });
+      }
+
       const body = req.body || {};
       if (body.action === "batch_sync" && Array.isArray(body.tasks)) {
-        await syncBatchTasksToDB(body.tasks);
+        await syncBatchTasksToDB(body.tasks, userId);
         return res.json({ configured: true, success: true, count: body.tasks.length });
       }
       if (body.task) {
-        await upsertTaskToDB(body.task);
+        await upsertTaskToDB(body.task, userId);
         return res.json({ configured: true, success: true });
       }
       return res.status(400).json({ error: "Missing task" });
@@ -66,9 +167,15 @@ async function startServer() {
       if (!isCloudDBConfigured()) {
         return res.json({ configured: false, success: true });
       }
+
+      const userId = extractUserIdFromReq(req);
+      if (!userId) {
+        return res.status(401).json({ error: "请先登录" });
+      }
+
       const id = (req.query?.id as string) || req.body?.id;
       if (!id) return res.status(400).json({ error: "Missing id" });
-      await deleteTaskFromDB(id);
+      await deleteTaskFromDB(id, userId);
       return res.json({ configured: true, success: true });
     } catch (e: any) {
       return res.status(500).json({ error: e?.message || "DB delete failed" });

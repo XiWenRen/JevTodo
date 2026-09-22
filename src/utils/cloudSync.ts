@@ -1,4 +1,5 @@
 import { TaskItem } from '../types';
+import { getAuthHeaders } from './auth';
 
 export interface CloudSyncState {
   isCloudConfigured: boolean;
@@ -9,15 +10,29 @@ export interface CloudSyncState {
 
 export async function checkAndFetchCloudTasks(): Promise<{
   configured: boolean;
+  authenticated: boolean;
   tasks: TaskItem[];
   source: string;
 }> {
   try {
-    const res = await fetch('/api/tasks');
+    const res = await fetch('/api/tasks', {
+      headers: getAuthHeaders()
+    });
+    
+    if (res.status === 401) {
+      return {
+        configured: true,
+        authenticated: false,
+        tasks: [],
+        source: 'unauthenticated'
+      };
+    }
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return {
       configured: Boolean(data.configured),
+      authenticated: data.authenticated !== false,
       tasks: Array.isArray(data.tasks) ? data.tasks : [],
       source: data.source || 'local_storage'
     };
@@ -25,6 +40,7 @@ export async function checkAndFetchCloudTasks(): Promise<{
     console.warn('Cloud tasks fetch failed, falling back to local storage:', e);
     return {
       configured: false,
+      authenticated: false,
       tasks: [],
       source: 'local_storage'
     };
@@ -35,7 +51,7 @@ export async function syncTaskToCloud(task: TaskItem): Promise<boolean> {
   try {
     const res = await fetch('/api/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ task })
     });
     return res.ok;
@@ -48,7 +64,8 @@ export async function syncTaskToCloud(task: TaskItem): Promise<boolean> {
 export async function deleteTaskFromCloud(id: string): Promise<boolean> {
   try {
     const res = await fetch(`/api/tasks?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     });
     return res.ok;
   } catch (e) {
@@ -61,7 +78,7 @@ export async function batchSyncTasksToCloud(tasks: TaskItem[]): Promise<boolean>
   try {
     const res = await fetch('/api/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         action: 'batch_sync',
         tasks

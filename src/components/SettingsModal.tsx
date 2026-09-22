@@ -19,6 +19,7 @@ import {
   Layers
 } from 'lucide-react';
 import { AppSettings, AppTheme } from '../types';
+import { AuthUser } from '../utils/auth';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -27,6 +28,8 @@ interface SettingsModalProps {
   onSaveSettings: (newSettings: AppSettings) => void;
   isCloudConfigured?: boolean;
   onTriggerCloudSync?: () => Promise<void>;
+  currentUser?: AuthUser | null;
+  onOpenAuth?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -35,7 +38,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onSaveSettings,
   isCloudConfigured = false,
-  onTriggerCloudSync
+  onTriggerCloudSync,
+  currentUser,
+  onOpenAuth
 }) => {
   const [apiKey, setApiKey] = useState(settings.jevApiKey || '');
   const [endpoint, setEndpoint] = useState(settings.jevEndpoint || 'https://ai-gateway.vercel.sh/typesafe/v1/systemone');
@@ -268,6 +273,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   ? '系统已成功接入云端 Postgres 数据库，待办项在多台电脑、手机或桌面小组件间实时同步。'
                   : '目前待办数据存储在本地浏览器 LocalStorage 中。部署到 Vercel 并免费开通 Vercel Postgres（或 Neon）后，填入 POSTGRES_URL 环境变量即可瞬间激活全自动云端同步。'}
               </p>
+
+              <div className="pt-1.5 border-t border-[var(--border-subtle)] flex items-center justify-between">
+                <span className="text-[11px] text-[var(--text-faint)]">
+                  {currentUser ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                      当前账号: {currentUser.username} (行级数据隔离已生效)
+                    </span>
+                  ) : (
+                    <span>未登录账号 (游客数据仅保存在当前浏览器)</span>
+                  )}
+                </span>
+                {onOpenAuth && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenAuth();
+                    }}
+                    className="text-[11px] text-[var(--text-main)] hover:underline font-medium"
+                  >
+                    {currentUser ? '管理账号 / 退出' : '登录或注册'}
+                  </button>
+                )}
+              </div>
 
               {syncMessage && (
                 <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">

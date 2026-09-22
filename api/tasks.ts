@@ -1,16 +1,20 @@
 import { fetchAllTasksFromDB, upsertTaskToDB, deleteTaskFromDB, syncBatchTasksToDB, isCloudDBConfigured } from '../server/db.js';
+import { extractUserIdFromReq } from '../server/auth.js';
 
 export default async function handler(req: any, res: any) {
   // CORS & headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
   const isConfigured = isCloudDBConfigured();
+
+  // Extract user ID from Bearer token
+  const userId = extractUserIdFromReq(req);
 
   try {
     if (req.method === 'GET') {
@@ -23,9 +27,21 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      const tasks = await fetchAllTasksFromDB();
+      // If user is not logged in, return empty or 401
+      if (!userId) {
+        return res.status(401).json({
+          configured: true,
+          authenticated: false,
+          error: '请先登录后访问您的个人待办事项',
+          tasks: []
+        });
+      }
+
+      // Strictly scoped to the authenticated user ID (anti-IDOR)
+      const tasks = await fetchAllTasksFromDB(userId);
       return res.status(200).json({
         configured: true,
+        authenticated: true,
         source: 'vercel_postgres',
         tasks: tasks || []
       });
@@ -41,14 +57,18 @@ export default async function handler(req: any, res: any) {
         });
       }
 
+      if (!userId) {
+        return res.status(401).json({ error: '请先登录' });
+      }
+
       const body = req.body || {};
       if (body.action === 'batch_sync' && Array.isArray(body.tasks)) {
-        await syncBatchTasksToDB(body.tasks);
+        await syncBatchTasksToDB(body.tasks, userId);
         return res.status(200).json({ configured: true, success: true, count: body.tasks.length });
       }
 
       if (body.task) {
-        await upsertTaskToDB(body.task);
+        await upsertTaskToDB(body.task, userId);
         return res.status(200).json({ configured: true, success: true });
       }
 
@@ -60,12 +80,17 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({ configured: false, success: true });
       }
 
+      if (!userId) {
+        return res.status(401).json({ error: '请先登录' });
+      }
+
       const id = req.query?.id || req.body?.id;
       if (!id) {
         return res.status(400).json({ error: 'Missing id to delete' });
       }
 
-      await deleteTaskFromDB(id);
+      // Delete strictly checks user_id matches
+      await deleteTaskFromDB(id, userId);
       return res.status(200).json({ configured: true, success: true });
     }
 

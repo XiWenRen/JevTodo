@@ -1,6 +1,6 @@
 /**
  * Jev Minimal Todo - Desktop Widget & Mobile Responsive
- * Powered by TypeSafe Jev Decision Logic
+ * Powered by TypeSafe Jev Decision Logic with Multi-Tenant Data Isolation
  */
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -16,7 +16,10 @@ import {
   Briefcase,
   Cloud,
   CloudCheck,
-  HardDrive
+  HardDrive,
+  User,
+  ShieldCheck,
+  LogIn
 } from 'lucide-react';
 import { TaskItem, TaskCategory, AppSettings, AppTheme } from './types';
 import { evaluateWithJev, analyzeTasksWithJev } from './utils/jev';
@@ -26,6 +29,12 @@ import {
   deleteTaskFromCloud, 
   batchSyncTasksToCloud 
 } from './utils/cloudSync';
+import { 
+  AuthUser, 
+  getStoredUser, 
+  clearStoredAuth, 
+  checkCurrentUser 
+} from './utils/auth';
 import { TaskSection } from './components/TaskSection';
 import { FloatingInputBar } from './components/FloatingInputBar';
 import { JevInsightsBanner } from './components/JevInsightsBanner';
@@ -33,9 +42,10 @@ import { JevCleanupModal } from './components/JevCleanupModal';
 import { ShortcutPluginModal } from './components/ShortcutPluginModal';
 import { SettingsModal } from './components/SettingsModal';
 import { PMSimulationModal } from './components/PMSimulationModal';
+import { AuthModal } from './components/AuthModal';
 import { generatePMSimulatedTasks } from './data/pmScenarios';
 
-const STORAGE_KEY_TASKS = 'jev_minimal_todo_tasks_v1';
+const STORAGE_KEY_GUEST_TASKS = 'jev_minimal_todo_guest_tasks_v1';
 const STORAGE_KEY_SETTINGS = 'jev_minimal_todo_settings_v1';
 
 const INITIAL_TASKS: TaskItem[] = generatePMSimulatedTasks();
@@ -48,10 +58,21 @@ const THEMES: { id: AppTheme; label: string; icon: string }[] = [
 ];
 
 export default function App() {
-  // Persistence state
+  // Current logged in user
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredUser());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Derive local storage key based on active user to isolate browser cache
+  const currentStorageKey = useMemo(() => {
+    return currentUser ? `jev_tasks_user_${currentUser.id}_v1` : STORAGE_KEY_GUEST_TASKS;
+  }, [currentUser]);
+
+  // Tasks state
   const [tasks, setTasks] = useState<TaskItem[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_TASKS);
+      const user = getStoredUser();
+      const key = user ? `jev_tasks_user_${user.id}_v1` : STORAGE_KEY_GUEST_TASKS;
+      const saved = localStorage.getItem(key);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -91,10 +112,12 @@ export default function App() {
     isConfigured: boolean;
     source: string;
     isSyncing: boolean;
+    isAuthenticated: boolean;
   }>({
     isConfigured: false,
     source: 'local_storage',
-    isSyncing: false
+    isSyncing: false,
+    isAuthenticated: false
   });
 
   // UI Modals
@@ -113,44 +136,56 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', currentTheme);
   }, [settings.theme]);
 
-  // Initial cloud check & task synchronization
+  // Load cloud tasks for current authenticated user
+  const refreshTasksFromCloud = useCallback(async () => {
+    setCloudStatus(prev => ({ ...prev, isSyncing: true }));
+    const res = await checkAndFetchCloudTasks();
+
+    setCloudStatus({
+      isConfigured: res.configured,
+      source: res.source,
+      isSyncing: false,
+      isAuthenticated: res.authenticated
+    });
+
+    if (res.configured && res.authenticated) {
+      if (res.tasks.length > 0) {
+        setTasks(res.tasks);
+      } else {
+        // If user has local tasks in this session but remote has 0, offer to sync
+        const userSaved = localStorage.getItem(currentStorageKey);
+        if (userSaved) {
+          const parsed = JSON.parse(userSaved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setTasks(parsed);
+            await batchSyncTasksToCloud(parsed);
+          }
+        }
+      }
+    }
+  }, [currentStorageKey]);
+
+  // Verify auth session on mount & fetch user tasks
   useEffect(() => {
     let isMounted = true;
-    checkAndFetchCloudTasks().then(res => {
+    checkCurrentUser().then(user => {
       if (!isMounted) return;
-      if (res.configured) {
-        setCloudStatus({
-          isConfigured: true,
-          source: res.source,
-          isSyncing: false
-        });
-        if (res.tasks.length > 0) {
-          setTasks(res.tasks);
-        } else if (tasks.length > 0) {
-          // Push initial local tasks to newly connected cloud database
-          batchSyncTasksToCloud(tasks);
-        }
-      } else {
-        setCloudStatus({
-          isConfigured: false,
-          source: 'local_storage',
-          isSyncing: false
-        });
-      }
+      setCurrentUser(user);
+      refreshTasksFromCloud();
     });
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [refreshTasksFromCloud]);
 
-  // Save tasks to localStorage on change (as offline backup)
+  // Save tasks to user-specific localStorage cache
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+      localStorage.setItem(currentStorageKey, JSON.stringify(tasks));
     } catch (e) {
       console.warn('Error saving tasks:', e);
     }
-  }, [tasks]);
+  }, [tasks, currentStorageKey]);
 
   // Save settings to localStorage
   const handleSaveSettings = (newSettings: AppSettings) => {
@@ -160,6 +195,32 @@ export default function App() {
     } catch (e) {
       console.warn('Error saving settings:', e);
     }
+  };
+
+  // User Auth Handlers
+  const handleAuthSuccess = async (user: AuthUser) => {
+    setCurrentUser(user);
+    const userStorageKey = `jev_tasks_user_${user.id}_v1`;
+    // If user has previously cached tasks locally, load them first
+    const cached = localStorage.getItem(userStorageKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) setTasks(parsed);
+      } catch {}
+    } else {
+      // If brand new user with no local tasks, start with empty list or clean demo
+      setTasks([]);
+    }
+    // Refresh from cloud Postgres strictly scoped to this user
+    await refreshTasksFromCloud();
+  };
+
+  const handleLogout = () => {
+    clearStoredAuth();
+    setCurrentUser(null);
+    setTasks(INITIAL_TASKS);
+    setCloudStatus(prev => ({ ...prev, isAuthenticated: false }));
   };
 
   // Quick theme cycle
@@ -217,7 +278,7 @@ export default function App() {
 
       setTasks(prev => [newTask, ...prev]);
 
-      if (cloudStatus.isConfigured) {
+      if (cloudStatus.isConfigured && currentUser) {
         syncTaskToCloud(newTask);
       }
     } catch (err) {
@@ -238,7 +299,7 @@ export default function App() {
             completedAt: !t.completed ? Date.now() : undefined,
             updatedAt: Date.now()
           };
-          if (cloudStatus.isConfigured) {
+          if (cloudStatus.isConfigured && currentUser) {
             syncTaskToCloud(updated);
           }
           return updated;
@@ -251,7 +312,7 @@ export default function App() {
   // Update task
   const handleUpdateTask = (updated: TaskItem) => {
     setTasks(prev => prev.map(t => (t.id === updated.id ? updated : t)));
-    if (cloudStatus.isConfigured) {
+    if (cloudStatus.isConfigured && currentUser) {
       syncTaskToCloud(updated);
     }
   };
@@ -259,7 +320,7 @@ export default function App() {
   // Delete task
   const handleDeleteTask = (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
-    if (cloudStatus.isConfigured) {
+    if (cloudStatus.isConfigured && currentUser) {
       deleteTaskFromCloud(id);
     }
   };
@@ -267,7 +328,7 @@ export default function App() {
   // Apply Jev intelligent ranking
   const handleApplyRanking = () => {
     setTasks(analysis.rankedTasks);
-    if (cloudStatus.isConfigured) {
+    if (cloudStatus.isConfigured && currentUser) {
       batchSyncTasksToCloud(analysis.rankedTasks);
     }
   };
@@ -279,7 +340,7 @@ export default function App() {
       prev.forEach(task => {
         const action = actions[task.id];
         if (action === 'archive') {
-          if (cloudStatus.isConfigured) {
+          if (cloudStatus.isConfigured && currentUser) {
             deleteTaskFromCloud(task.id);
           }
           return;
@@ -291,7 +352,7 @@ export default function App() {
             updatedAt: Date.now()
           };
           remaining.push(deferred);
-          if (cloudStatus.isConfigured) {
+          if (cloudStatus.isConfigured && currentUser) {
             syncTaskToCloud(deferred);
           }
         } else {
@@ -314,7 +375,7 @@ export default function App() {
             dueDate: '顺延至近期',
             updatedAt: Date.now()
           };
-          if (cloudStatus.isConfigured) {
+          if (cloudStatus.isConfigured && currentUser) {
             syncTaskToCloud(updated);
           }
           return updated;
@@ -328,7 +389,7 @@ export default function App() {
   const handleResetSampleData = () => {
     if (window.confirm('是否重置为 PM 工作流演示数据？')) {
       setTasks(INITIAL_TASKS);
-      if (cloudStatus.isConfigured) {
+      if (cloudStatus.isConfigured && currentUser) {
         batchSyncTasksToCloud(INITIAL_TASKS);
       }
     }
@@ -336,26 +397,7 @@ export default function App() {
 
   // Manual trigger cloud sync
   const handleManualCloudSync = async () => {
-    setCloudStatus(prev => ({ ...prev, isSyncing: true }));
-    const res = await checkAndFetchCloudTasks();
-    if (res.configured) {
-      setCloudStatus({
-        isConfigured: true,
-        source: res.source,
-        isSyncing: false
-      });
-      if (res.tasks.length > 0) {
-        setTasks(res.tasks);
-      } else if (tasks.length > 0) {
-        await batchSyncTasksToCloud(tasks);
-      }
-    } else {
-      setCloudStatus({
-        isConfigured: false,
-        source: 'local_storage',
-        isSyncing: false
-      });
-    }
+    await refreshTasksFromCloud();
   };
 
   // Filter tasks by category & search
@@ -409,10 +451,10 @@ export default function App() {
                 <span className="text-[10px] bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-sub)] font-mono px-1 py-0.2 rounded">
                   DECISION
                 </span>
-                {cloudStatus.isConfigured ? (
+                {cloudStatus.isConfigured && currentUser ? (
                   <span 
                     className="text-[9px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-mono px-1 py-0.2 rounded flex items-center gap-0.5"
-                    title="已连接 Vercel Postgres 云端数据库，实时自动同步"
+                    title={`已连接 Vercel Postgres 云数据库，当前用户: ${currentUser.username}`}
                   >
                     <CloudCheck className="w-2.5 h-2.5" />
                     云同步
@@ -420,7 +462,7 @@ export default function App() {
                 ) : (
                   <span 
                     className="text-[9px] bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-faint)] font-mono px-1 py-0.2 rounded flex items-center gap-0.5"
-                    title="当前运行于客户端 LocalStorage 离线存储模式"
+                    title="本地离线隔离存储模式"
                   >
                     <HardDrive className="w-2.5 h-2.5" />
                     本地
@@ -435,6 +477,29 @@ export default function App() {
 
           {/* Top Control Icons */}
           <div className="flex items-center gap-1">
+            {/* User Login/Register or Account Button */}
+            {currentUser ? (
+              <button
+                type="button"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="px-2 py-1 bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--chip-border)] rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors"
+                title={`当前登录：${currentUser.username}，已启动数据隔离保护`}
+              >
+                <ShieldCheck className="w-3 h-3 text-emerald-500" />
+                <span className="max-w-[65px] truncate">{currentUser.username}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="px-2 py-1 bg-[var(--accent-bg)] hover:opacity-90 text-[var(--accent-fg)] rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all shadow-sm"
+                title="注册/登录个人账号，享受云端数据隔离与防越权保护"
+              >
+                <LogIn className="w-3 h-3" />
+                <span>登录/注册</span>
+              </button>
+            )}
+
             {/* Quick Theme Switcher Pill */}
             <button
               type="button"
@@ -508,6 +573,23 @@ export default function App() {
 
         {/* Main Body */}
         <main className="acrylic-panel rounded-b-2xl p-3.5 sm:p-4 pt-2.5 pb-24 shadow-2xl min-h-[560px]">
+          {/* Cloud Database Connected but Not Logged In Tip Banner */}
+          {cloudStatus.isConfigured && !currentUser && (
+            <div className="mb-3 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs text-amber-600 dark:text-amber-300">
+              <span className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                <span>已连接云端数据库，注册或登录账号后即可独占专属数据空间</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="px-2 py-0.5 rounded bg-amber-500 text-black font-semibold text-[11px] hover:opacity-90 transition-opacity whitespace-nowrap"
+              >
+                立即登录
+              </button>
+            </div>
+          )}
+
           {/* Jev Decision Insights & Progress Banner */}
           <JevInsightsBanner
             tasks={tasks}
@@ -595,7 +677,11 @@ export default function App() {
             <span className="flex items-center gap-1">
               <span>共 {tasks.length} 项待办</span>
               <span>·</span>
-              <span>{cloudStatus.isConfigured ? 'Vercel Postgres 云存储' : '本地 LocalStorage'}</span>
+              <span>
+                {currentUser 
+                  ? `${currentUser.username} (独立空间)` 
+                  : (cloudStatus.isConfigured ? '未登录 (点击顶栏登录)' : '本地离线模式')}
+              </span>
             </span>
             <button
               type="button"
@@ -617,6 +703,14 @@ export default function App() {
       />
 
       {/* Modals */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUser={currentUser}
+        onAuthSuccess={handleAuthSuccess}
+        onLogout={handleLogout}
+      />
+
       <JevCleanupModal
         isOpen={isCleanupModalOpen}
         onClose={() => setIsCleanupModalOpen(false)}
@@ -638,6 +732,8 @@ export default function App() {
         onSaveSettings={handleSaveSettings}
         isCloudConfigured={cloudStatus.isConfigured}
         onTriggerCloudSync={handleManualCloudSync}
+        currentUser={currentUser}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
       />
 
       <PMSimulationModal
@@ -645,7 +741,7 @@ export default function App() {
         onClose={() => setIsPMSimulationOpen(false)}
         onLoadAllPMTasks={(pmTasks) => {
           setTasks(pmTasks);
-          if (cloudStatus.isConfigured) {
+          if (cloudStatus.isConfigured && currentUser) {
             batchSyncTasksToCloud(pmTasks);
           }
         }}

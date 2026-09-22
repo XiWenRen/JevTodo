@@ -1,7 +1,9 @@
 import { neon } from '@neondatabase/serverless';
+import { hashPassword, verifyPassword } from './auth.js';
 
 export interface DBTask {
   id: string;
+  userId?: string;
   title: string;
   rawInput?: string;
   category: string;
@@ -18,18 +20,39 @@ export interface DBTask {
   jevConfidence?: number;
 }
 
+export interface AppUserRecord {
+  id: string;
+  username: string;
+  password_hash: string;
+  salt: string;
+  created_at: number;
+}
+
 function getDatabaseUrl(): string | null {
   return process.env.POSTGRES_URL || process.env.DATABASE_URL || null;
 }
 
 let tableInitialized = false;
 
-async function ensureTable(sql: any) {
+export async function ensureTables(sql: any) {
   if (tableInitialized) return;
   try {
+    // 1. Users table
+    await sql`
+      CREATE TABLE IF NOT EXISTS app_users (
+        id VARCHAR(128) PRIMARY KEY,
+        username VARCHAR(64) UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        salt TEXT NOT NULL,
+        created_at BIGINT NOT NULL
+      );
+    `;
+
+    // 2. Tasks table with user_id
     await sql`
       CREATE TABLE IF NOT EXISTS jev_tasks (
         id VARCHAR(128) PRIMARY KEY,
+        user_id VARCHAR(128),
         title TEXT NOT NULL,
         raw_input TEXT,
         category VARCHAR(64) NOT NULL,
@@ -46,9 +69,20 @@ async function ensureTable(sql: any) {
         jev_confidence REAL
       );
     `;
+
+    // Ensure user_id column exists (for backward compatibility if table existed)
+    await sql`
+      ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS user_id VARCHAR(128);
+    `;
+
+    // Index for fast tenant query and strict isolation
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_jev_tasks_user_id ON jev_tasks(user_id);
+    `;
+
     tableInitialized = true;
   } catch (err) {
-    console.warn('Failed to ensure jev_tasks table:', err);
+    console.warn('Failed to ensure database tables:', err);
   }
 }
 
@@ -56,19 +90,100 @@ export function isCloudDBConfigured(): boolean {
   return Boolean(getDatabaseUrl());
 }
 
-export async function fetchAllTasksFromDB(): Promise<DBTask[] | null> {
+export function getSqlClient() {
   const dbUrl = getDatabaseUrl();
   if (!dbUrl) return null;
+  return neon(dbUrl);
+}
 
-  const sql = neon(dbUrl);
-  await ensureTable(sql);
+// ==================== User Authentication Database Methods ====================
+
+export async function registerUser(username: string, password: string): Promise<{ id: string; username: string } | null> {
+  const sql = getSqlClient();
+  if (!sql) return null;
+
+  await ensureTables(sql);
+
+  const cleanUsername = username.trim().toLowerCase();
+  const existing = await sql`
+    SELECT id FROM app_users WHERE username = ${cleanUsername} LIMIT 1;
+  `;
+
+  if (existing.length > 0) {
+    throw new Error('用户名已被注册，请尝试其他用户名');
+  }
+
+  const userId = `usr_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+  const { hash, salt } = hashPassword(password);
+  const now = Date.now();
+
+  await sql`
+    INSERT INTO app_users (id, username, password_hash, salt, created_at)
+    VALUES (${userId}, ${cleanUsername}, ${hash}, ${salt}, ${now});
+  `;
+
+  return { id: userId, username: cleanUsername };
+}
+
+export async function authenticateUser(username: string, password: string): Promise<{ id: string; username: string } | null> {
+  const sql = getSqlClient();
+  if (!sql) return null;
+
+  await ensureTables(sql);
+
+  const cleanUsername = username.trim().toLowerCase();
+  const rows = await sql`
+    SELECT id, username, password_hash, salt FROM app_users WHERE username = ${cleanUsername} LIMIT 1;
+  `;
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const user = rows[0];
+  const isValid = verifyPassword(password, user.password_hash, user.salt);
+  if (!isValid) {
+    return null;
+  }
+
+  return { id: user.id, username: user.username };
+}
+
+export async function getUserById(id: string): Promise<{ id: string; username: string } | null> {
+  const sql = getSqlClient();
+  if (!sql) return null;
+
+  await ensureTables(sql);
 
   const rows = await sql`
-    SELECT * FROM jev_tasks ORDER BY created_at DESC;
+    SELECT id, username FROM app_users WHERE id = ${id} LIMIT 1;
+  `;
+
+  if (rows.length === 0) return null;
+  return { id: rows[0].id, username: rows[0].username };
+}
+
+// ==================== Strict Multi-Tenant Tasks Methods ====================
+
+/**
+ * Fetch all tasks strictly scoped to a specific user.
+ * Cannot access tasks of other users (IDOR prevention).
+ */
+export async function fetchAllTasksFromDB(userId: string): Promise<DBTask[] | null> {
+  const sql = getSqlClient();
+  if (!sql) return null;
+
+  await ensureTables(sql);
+
+  const rows = await sql`
+    SELECT * FROM jev_tasks 
+    WHERE user_id = ${userId}
+    ORDER BY created_at DESC;
   `;
 
   return rows.map((r: any) => ({
     id: r.id,
+    userId: r.user_id,
     title: r.title,
     rawInput: r.raw_input || undefined,
     category: r.category,
@@ -86,22 +201,26 @@ export async function fetchAllTasksFromDB(): Promise<DBTask[] | null> {
   }));
 }
 
-export async function upsertTaskToDB(task: DBTask): Promise<boolean> {
-  const dbUrl = getDatabaseUrl();
-  if (!dbUrl) return false;
+/**
+ * Upsert task strictly scoped to a specific user.
+ * Enforces ownership: a user CANNOT overwrite another user's task ID!
+ */
+export async function upsertTaskToDB(task: DBTask, userId: string): Promise<boolean> {
+  const sql = getSqlClient();
+  if (!sql) return false;
 
-  const sql = neon(dbUrl);
-  await ensureTable(sql);
+  await ensureTables(sql);
 
   const tagsJson = JSON.stringify(task.tags || []);
 
+  // Strict ownership check on conflict: only allow update if user_id matches
   await sql`
     INSERT INTO jev_tasks (
-      id, title, raw_input, category, priority, urgency_score, 
+      id, user_id, title, raw_input, category, priority, urgency_score, 
       tags, due_date, due_date_iso, completed, completed_at, 
       created_at, updated_at, is_stale, jev_confidence
     ) VALUES (
-      ${task.id}, ${task.title}, ${task.rawInput || null}, ${task.category}, ${task.priority}, ${task.urgencyScore ?? 0.5},
+      ${task.id}, ${userId}, ${task.title}, ${task.rawInput || null}, ${task.category}, ${task.priority}, ${task.urgencyScore ?? 0.5},
       ${tagsJson}::jsonb, ${task.dueDate || null}, ${task.dueDateIso || null}, ${task.completed}, ${task.completedAt || null},
       ${task.createdAt}, ${task.updatedAt}, ${task.isStale || false}, ${task.jevConfidence || null}
     )
@@ -118,34 +237,41 @@ export async function upsertTaskToDB(task: DBTask): Promise<boolean> {
       completed_at = EXCLUDED.completed_at,
       updated_at = EXCLUDED.updated_at,
       is_stale = EXCLUDED.is_stale,
-      jev_confidence = EXCLUDED.jev_confidence;
+      jev_confidence = EXCLUDED.jev_confidence
+    WHERE jev_tasks.user_id = ${userId};
   `;
 
   return true;
 }
 
-export async function deleteTaskFromDB(id: string): Promise<boolean> {
-  const dbUrl = getDatabaseUrl();
-  if (!dbUrl) return false;
+/**
+ * Delete task strictly scoped to user_id.
+ * If the task belongs to another user, 0 rows are affected (no cross-tenant deletion).
+ */
+export async function deleteTaskFromDB(id: string, userId: string): Promise<boolean> {
+  const sql = getSqlClient();
+  if (!sql) return false;
 
-  const sql = neon(dbUrl);
-  await ensureTable(sql);
+  await ensureTables(sql);
 
   await sql`
-    DELETE FROM jev_tasks WHERE id = ${id};
+    DELETE FROM jev_tasks 
+    WHERE id = ${id} AND user_id = ${userId};
   `;
   return true;
 }
 
-export async function syncBatchTasksToDB(tasks: DBTask[]): Promise<boolean> {
-  const dbUrl = getDatabaseUrl();
-  if (!dbUrl) return false;
+/**
+ * Batch sync tasks strictly scoped to user_id.
+ */
+export async function syncBatchTasksToDB(tasks: DBTask[], userId: string): Promise<boolean> {
+  const sql = getSqlClient();
+  if (!sql) return false;
 
-  const sql = neon(dbUrl);
-  await ensureTable(sql);
+  await ensureTables(sql);
 
   for (const t of tasks) {
-    await upsertTaskToDB(t);
+    await upsertTaskToDB(t, userId);
   }
   return true;
 }
