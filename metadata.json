@@ -1,0 +1,6 @@
+{
+  "name": "Jev 极简待办",
+  "description": "基于 TypeSafe Jev 决策模型的沉浸式深色桌面小组件与极简任务管理工具",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

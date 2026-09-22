@@ -1,0 +1,198 @@
+@import "tailwindcss";
+
+:root,
+[data-theme="obsidian"] {
+  --bg-page: #0c0e12;
+  --bg-panel: rgba(18, 21, 28, 0.88);
+  --bg-card: rgba(22, 26, 35, 0.72);
+  --bg-card-hover: rgba(28, 33, 45, 0.85);
+  --bg-input: rgba(15, 18, 24, 0.92);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-medium: rgba(255, 255, 255, 0.12);
+  --border-hover: rgba(255, 255, 255, 0.18);
+  --text-main: #f3f4f6;
+  --text-sub: #9ca3af;
+  --text-faint: #6b7280;
+  --accent-bg: #ffffff;
+  --accent-fg: #0c0e12;
+  --chip-bg: rgba(255, 255, 255, 0.05);
+  --chip-border: rgba(255, 255, 255, 0.08);
+  --chip-hover: rgba(255, 255, 255, 0.09);
+  --tag-bg: rgba(255, 255, 255, 0.04);
+  --tag-border: rgba(255, 255, 255, 0.08);
+  --tag-text: #9ca3af;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.14);
+  --panel-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --p0-badge-bg: rgba(239, 68, 68, 0.12);
+  --p0-badge-text: #f87171;
+  --p0-badge-border: rgba(239, 68, 68, 0.25);
+  --p1-badge-bg: rgba(245, 158, 11, 0.12);
+  --p1-badge-text: #fbbf24;
+  --p1-badge-border: rgba(245, 158, 11, 0.25);
+  --p2-badge-bg: rgba(255, 255, 255, 0.06);
+  --p2-badge-text: #d1d5db;
+  --p2-badge-border: rgba(255, 255, 255, 0.1);
+  --p3-badge-bg: rgba(255, 255, 255, 0.04);
+  --p3-badge-text: #9ca3af;
+  --p3-badge-border: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme="paper"] {
+  --bg-page: #f5f6f9;
+  --bg-panel: rgba(255, 255, 255, 0.94);
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9fafb;
+  --bg-input: #ffffff;
+  --border-subtle: rgba(0, 0, 0, 0.07);
+  --border-medium: rgba(0, 0, 0, 0.12);
+  --border-hover: rgba(0, 0, 0, 0.18);
+  --text-main: #111827;
+  --text-sub: #4b5563;
+  --text-faint: #9ca3af;
+  --accent-bg: #111827;
+  --accent-fg: #ffffff;
+  --chip-bg: rgba(0, 0, 0, 0.04);
+  --chip-border: rgba(0, 0, 0, 0.07);
+  --chip-hover: rgba(0, 0, 0, 0.08);
+  --tag-bg: rgba(0, 0, 0, 0.03);
+  --tag-border: rgba(0, 0, 0, 0.06);
+  --tag-text: #6b7280;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --panel-shadow: 0 16px 36px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.03);
+  --p0-badge-bg: rgba(239, 68, 68, 0.08);
+  --p0-badge-text: #dc2626;
+  --p0-badge-border: rgba(239, 68, 68, 0.2);
+  --p1-badge-bg: rgba(245, 158, 11, 0.08);
+  --p1-badge-text: #b45309;
+  --p1-badge-border: rgba(245, 158, 11, 0.2);
+  --p2-badge-bg: rgba(0, 0, 0, 0.04);
+  --p2-badge-text: #374151;
+  --p2-badge-border: rgba(0, 0, 0, 0.08);
+  --p3-badge-bg: rgba(0, 0, 0, 0.03);
+  --p3-badge-text: #6b7280;
+  --p3-badge-border: rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="sand"] {
+  --bg-page: #f6f4ee;
+  --bg-panel: rgba(251, 249, 245, 0.95);
+  --bg-card: #fdfcf9;
+  --bg-card-hover: #f7f4ed;
+  --bg-input: #fdfcf9;
+  --border-subtle: rgba(87, 83, 78, 0.09);
+  --border-medium: rgba(87, 83, 78, 0.15);
+  --border-hover: rgba(87, 83, 78, 0.22);
+  --text-main: #292524;
+  --text-sub: #57534e;
+  --text-faint: #8d857e;
+  --accent-bg: #383430;
+  --accent-fg: #faf8f5;
+  --chip-bg: rgba(87, 83, 78, 0.05);
+  --chip-border: rgba(87, 83, 78, 0.09);
+  --chip-hover: rgba(87, 83, 78, 0.09);
+  --tag-bg: rgba(87, 83, 78, 0.04);
+  --tag-border: rgba(87, 83, 78, 0.08);
+  --tag-text: #6b635b;
+  --scrollbar-thumb: rgba(87, 83, 78, 0.16);
+  --panel-shadow: 0 16px 36px rgba(41, 37, 36, 0.06), 0 2px 6px rgba(41, 37, 36, 0.03);
+  --p0-badge-bg: rgba(220, 38, 38, 0.08);
+  --p0-badge-text: #b91c1c;
+  --p0-badge-border: rgba(220, 38, 38, 0.2);
+  --p1-badge-bg: rgba(217, 119, 6, 0.08);
+  --p1-badge-text: #92400e;
+  --p1-badge-border: rgba(217, 119, 6, 0.2);
+  --p2-badge-bg: rgba(87, 83, 78, 0.05);
+  --p2-badge-text: #44403c;
+  --p2-badge-border: rgba(87, 83, 78, 0.1);
+  --p3-badge-bg: rgba(87, 83, 78, 0.03);
+  --p3-badge-text: #78716c;
+  --p3-badge-border: rgba(87, 83, 78, 0.07);
+}
+
+[data-theme="mist"] {
+  --bg-page: #edf1f5;
+  --bg-panel: rgba(248, 250, 252, 0.95);
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f5f9;
+  --bg-input: #ffffff;
+  --border-subtle: rgba(51, 65, 85, 0.08);
+  --border-medium: rgba(51, 65, 85, 0.14);
+  --border-hover: rgba(51, 65, 85, 0.2);
+  --text-main: #0f172a;
+  --text-sub: #475569;
+  --text-faint: #94a3b8;
+  --accent-bg: #1e293b;
+  --accent-fg: #f8fafc;
+  --chip-bg: rgba(51, 65, 85, 0.05);
+  --chip-border: rgba(51, 65, 85, 0.08);
+  --chip-hover: rgba(51, 65, 85, 0.09);
+  --tag-bg: rgba(51, 65, 85, 0.04);
+  --tag-border: rgba(51, 65, 85, 0.08);
+  --tag-text: #64748b;
+  --scrollbar-thumb: rgba(51, 65, 85, 0.16);
+  --panel-shadow: 0 16px 36px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.03);
+  --p0-badge-bg: rgba(225, 29, 72, 0.08);
+  --p0-badge-text: #be123c;
+  --p0-badge-border: rgba(225, 29, 72, 0.2);
+  --p1-badge-bg: rgba(217, 119, 6, 0.08);
+  --p1-badge-text: #a16207;
+  --p1-badge-border: rgba(217, 119, 6, 0.2);
+  --p2-badge-bg: rgba(51, 65, 85, 0.05);
+  --p2-badge-text: #334155;
+  --p2-badge-border: rgba(51, 65, 85, 0.09);
+  --p3-badge-bg: rgba(51, 65, 85, 0.03);
+  --p3-badge-text: #64748b;
+  --p3-badge-border: rgba(51, 65, 85, 0.07);
+}
+
+@layer base {
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-main);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    transition: background-color 0.25s ease, color 0.25s ease;
+  }
+  code, pre, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-sub);
+}
+
+/* Acrylic Glass Panels & Cards using CSS tokens */
+.acrylic-panel {
+  background: var(--bg-panel);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--panel-shadow);
+  color: var(--text-main);
+  transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.acrylic-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.2s ease;
+}
+
+.acrylic-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-hover);
+}
