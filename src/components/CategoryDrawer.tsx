@@ -19,7 +19,8 @@ import {
   Smartphone,
   Palette,
   ListPlus,
-  ScrollText
+  ScrollText,
+  Calendar
 } from 'lucide-react';
 import { ActiveView, TaskItem, AppTheme } from '../types';
 import { AuthUser } from '../utils/auth';
@@ -87,6 +88,7 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
     '规划待办': tasks.filter(t => t.category === '规划待办' && !t.completed).length,
     '全部事项': tasks.filter(t => !t.completed).length,
     '已完成': tasks.filter(t => t.completed).length,
+    '轨迹': tasks.length,
   };
 
   const navItems: { view: ActiveView; label: string; sub: string; icon: React.ReactNode; color: string }[] = [
@@ -117,6 +119,13 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
       sub: '全局清单 · 完整视图',
       icon: <Layers className="w-4 h-4" />,
       color: 'text-emerald-500'
+    },
+    {
+      view: '轨迹',
+      label: '轨迹',
+      sub: '日历视图 · 热点图 · 日报周报',
+      icon: <Calendar className="w-4 h-4" />,
+      color: 'text-indigo-400'
     }
   ];
 

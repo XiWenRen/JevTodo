@@ -1,4 +1,4 @@
-import { TaskCategory, TaskPriority } from './index';
+import { TaskCategory, TaskPriority } from '../types';
 
 export type OperationType =
   | 'jev_auto_organize'   // Jev 智能自动整理（多任务聚合）
