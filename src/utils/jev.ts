@@ -548,10 +548,17 @@ export function extractFlomoTags(input: string): { tags: string[]; remainingText
     // 4. Code & Architecture
     { match: t => /(代码cr|cr卡点|cr|review|代码评审|代码审查)/.test(t), tag: '代码审查' },
     { match: t => /(灰度|发版|发版计划|上线计划|发布版本)/.test(t), tag: '灰度发版' },
+    { match: t => /(中台|数据中台|业务中台)/.test(t) && /(同步|对接|联调|打通|对齐)/.test(t), tag: '中台同步' },
+    { match: t => /(中台|数据中台|业务中台)/.test(t) && /(改造|重构|演进|架构)/.test(t), tag: '中台改造' },
+    { match: t => /(中台|数据中台|业务中台)/.test(t), tag: '中台对接' },
+    { match: t => /(前端|后端|h5|web|app|客户端|服务端)/.test(t) && /(联调|对接|接口|对齐)/.test(t), tag: '接口联调' },
     { match: t => /(结算|支付|账单)/.test(t) && /(微服务|重构|服务化)/.test(t), tag: '微服务重构' },
     { match: t => /(架构演进|中台演进|技术预研|立项预研)/.test(t), tag: '架构演进' },
     { match: t => /(数据库迁移|分库分表|sql优化|索引重构)/.test(t), tag: '数据库迁移' },
+    { match: t => /(数据库|mysql|redis|es|pgsql)/.test(t) && /(备份|容灾|快照|回档)/.test(t), tag: '数据库备份' },
+    { match: t => /(数据|链路|状态)/.test(t) && /(双向同步|增量同步|数据同步|传输|推送)/.test(t), tag: '数据同步' },
     { match: t => /(接口联调|api对接|联调卡点)/.test(t), tag: '接口联调' },
+    { match: t => /(领导|主管|总监|老总|组长)/.test(t) && /(汇报|对齐|进展|复盘)/.test(t), tag: '工作汇报' },
 
     // 5. Infrastructure & Operations
     { match: t => /(同城双活|跨机房|灾备迁移|灾备演练)/.test(t), tag: '双活灾备' },
@@ -599,15 +606,52 @@ export function extractFlomoTags(input: string): { tags: string[]; remainingText
 
   for (const rule of matterRules) {
     if (inferredTags.length >= 2) break;
-    if (rule.match(text) && !inferredTags.includes(rule.tag)) {
-      inferredTags.push(rule.tag);
+    if (rule.match(text)) {
+      // Avoid pushing redundant tags for the same domain entity (e.g. 中台同步 vs 中台对接)
+      const hasOverlap = inferredTags.some(t => 
+        t === rule.tag || (t.length >= 3 && rule.tag.length >= 3 && t.slice(0, 2) === rule.tag.slice(0, 2))
+      );
+      if (!hasOverlap) {
+        inferredTags.push(rule.tag);
+      }
     }
   }
 
-  // Dynamic semantic verb/matter extractor if still empty
+  // Dynamic semantic entity + action extractor (e.g. 中台 + 同步 -> 中台同步, 数据库 + 备份 -> 数据库备份)
+  if (inferredTags.length === 0) {
+    const knownEntities = [
+      '中台', '数据中台', '业务中台', '前端', '后端', '网关', '支付', '订单', '结算', '风控', '会员',
+      '营销', '供应链', '仓储', '物流', '库存', '数据库', 'mysql', 'redis', 'k8s', '集群', '服务器',
+      '云资源', '机房', '域名', '证书', '用例', '代码', '架构', '需求', 'prd', '原型', '报表',
+      '发票', '合同', '供应商', '硬件', '算力', '面试', '招聘', '体检', '胃镜', '挂号', '门诊',
+      '机票', '酒店', '快递', '账单'
+    ];
+    const knownActions = [
+      '同步', '联调', '对接', '打通', '对齐', '重构', '改造', '演进', '迁移', '备份', '排查',
+      '修复', '压测', '验收', '评审', '审查', '发版', '灰度', '上线', '部署', '申报', '比价',
+      '采购', '报销', '审批', '对账', '核对', '复盘', '挂号', '预订', '采买'
+    ];
+
+    for (const ent of knownEntities) {
+      if (text.includes(ent)) {
+        for (const act of knownActions) {
+          if (text.includes(act)) {
+            const combined = `${ent}${act}`;
+            if (!inferredTags.includes(combined)) {
+              inferredTags.push(combined);
+              break;
+            }
+          }
+        }
+      }
+      if (inferredTags.length >= 2) break;
+    }
+  }
+
+  // Dynamic regex pattern matching for [Entity] + [Action]
   if (inferredTags.length === 0) {
     const dynamicMatches = [
-      /(支付|订单|网关|供应链|结算|机房|服务器|云资源|预算|用例|架构|合同|发票|论文|体检|机票)(改造|评审|排查|重构|申报|采购|迁移|比价|审批|测试|核算|检查|预订)/,
+      /(支付|订单|网关|中台|供应链|结算|机房|服务器|云资源|预算|用例|架构|合同|发票|论文|体检|机票)(改造|评审|排查|重构|申报|采购|迁移|比价|审批|测试|核算|检查|预订|同步|对接)/,
       /(开会|讨论|跟进|调研|汇报|复盘)([a-zA-Z\u4e00-\u9fa5]{2,6})/
     ];
     for (const dm of dynamicMatches) {
@@ -619,12 +663,29 @@ export function extractFlomoTags(input: string): { tags: string[]; remainingText
     }
   }
 
-  // If still completely empty, extract the first concrete 2-4 character Chinese keyword instead of dumping "待办"
+  // Strict fallback: Aggressively strip time words, prepositions, conjunctions, auxiliary verbs
+  // Prevents invalid garbled phrases like "要和中台", "跟前端", "帮测试"
   if (inferredTags.length === 0) {
-    const cleanWord = text.replace(/(今天|明天|后天|下午|上午|点前|完成|组织|安排|提交|启动|进行|需要)/g, '').match(/[\u4e00-\u9fa5]{2,4}/);
-    if (cleanWord && cleanWord[0] && !['待办', '事项', '任务', '工作', '测试', '生活'].includes(cleanWord[0])) {
-      inferredTags.push(cleanWord[0]);
-    } else {
+    const cleaned = text
+      .replace(/(今天|明天|后天|大后天|昨晚|昨天|前天|上午|下午|晚上|早晨|早上|中午|夜里|这周|本周|下周|周[一二三四五六日天1-7]|\d+点|\d+分|点前|半前|分前|之后|之前|月底|月初|年中|年底)/g, '')
+      .replace(/(要和|要跟|要去|要给|要与|要同|要对|要把|要向|要|和|跟|与|同|给|对|把|向|从|在|让|去|帮|需|需要|想要|打算|准备|负责|协助|组织|安排|进行|推进|落实|完成|做好|搞定|处理|搞好|弄好|请|一起|共同|一下|一次|一番|这件|这个|那个|相关|等等|以及|部分|还有|一个|一份|一项)/g, '')
+      .trim();
+
+    const matches = cleaned.match(/[\u4e00-\u9fa5]{2,5}/g);
+    if (matches && matches.length > 0) {
+      const forbiddenStarts = /^[要和跟同与给对把在从向让去到帮需想的得地了过着及]/;
+      const forbiddenEnds = /[了呢吧啊吗呀哈哦一下一次的得地]$/;
+      const blacklistedWords = ['待办', '事项', '任务', '工作', '测试', '生活', '学习', '我们', '大家', '然后', '而且', '但是', '或者', '这个', '那个', '一些', '重点'];
+
+      for (const word of matches) {
+        if (!forbiddenStarts.test(word) && !forbiddenEnds.test(word) && !blacklistedWords.includes(word) && word.length >= 2) {
+          inferredTags.push(word);
+          break;
+        }
+      }
+    }
+
+    if (inferredTags.length === 0) {
       inferredTags.push('重点事项');
     }
   }

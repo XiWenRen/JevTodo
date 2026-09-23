@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Plus, ArrowUp, Sparkles, X, Clock, ListPlus } from 'lucide-react';
+import { Mic, MicOff, ArrowUp, Sparkles, X, Clock, ListPlus } from 'lucide-react';
 import { extractDateTime, extractFlomoTags, splitTasksWithJev } from '../utils/jev';
 import { TaskCategory } from '../types';
 
@@ -259,18 +259,6 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
 
         {/* Input Bar Form */}
         <form onSubmit={handleSubmit} className="flex items-center gap-1.5 sm:gap-2">
-          {/* Quick toggle/expand icon button */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsOpen(true);
-              inputRef.current?.focus();
-            }}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--chip-bg)] text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)] transition-all"
-            title="添加新待办"
-          >
-            <Plus className="w-4 h-4 stroke-[2.2]" />
-          </button>
 
           {/* Batch split modal trigger button */}
           {onOpenBatchModal && (

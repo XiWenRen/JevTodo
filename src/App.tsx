@@ -1098,16 +1098,6 @@ export default function App() {
                 </div>
               )}
             </div>
-
-            {/* Cloud Sync Status Indicator */}
-            <span 
-              className={`w-1.5 h-1.5 rounded-full shrink-0 ml-0.5 transition-colors ${
-                cloudStatus.isConfigured && currentUser 
-                  ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' 
-                  : 'bg-[var(--text-faint)]'
-              }`} 
-              title={cloudStatus.isConfigured && currentUser ? '已连接云端数据库并实时同步' : '本地私有存储'}
-            />
           </div>
 
           {/* Right: User Quick Info and Theme Switcher Buttons */}
