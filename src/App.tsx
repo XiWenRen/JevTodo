@@ -3,7 +3,7 @@
  * Powered by TypeSafe Jev Decision Logic with Multi-Tenant Data Isolation
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sparkles, 
@@ -19,7 +19,9 @@ import {
   HardDrive,
   User,
   ShieldCheck,
-  LogIn
+  LogIn,
+  MoreHorizontal,
+  Check
 } from 'lucide-react';
 import { TaskItem, TaskCategory, AppSettings, AppTheme } from './types';
 import { evaluateWithJev, analyzeTasksWithJev } from './utils/jev';
@@ -120,15 +122,31 @@ export default function App() {
     isAuthenticated: false
   });
 
-  // UI Modals
+  // UI Modals & Menus
   const [isCleanupModalOpen, setIsCleanupModalOpen] = useState(false);
   const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isPMSimulationOpen, setIsPMSimulationOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isPinned, setIsPinned] = useState(true);
+
+  // Close more menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Sync theme with document element
   useEffect(() => {
@@ -201,7 +219,6 @@ export default function App() {
   const handleAuthSuccess = async (user: AuthUser) => {
     setCurrentUser(user);
     const userStorageKey = `jev_tasks_user_${user.id}_v1`;
-    // If user has previously cached tasks locally, load them first
     const cached = localStorage.getItem(userStorageKey);
     if (cached) {
       try {
@@ -209,10 +226,8 @@ export default function App() {
         if (Array.isArray(parsed)) setTasks(parsed);
       } catch {}
     } else {
-      // If brand new user with no local tasks, start with empty list or clean demo
       setTasks([]);
     }
-    // Refresh from cloud Postgres strictly scoped to this user
     await refreshTasksFromCloud();
   };
 
@@ -438,133 +453,188 @@ export default function App() {
         }`}
       >
         {/* Windows Acrylic Desktop Widget Header */}
-        <header className="acrylic-panel rounded-t-2xl px-3.5 py-2.5 border-b-0 flex items-center justify-between select-none">
-          <div className="flex items-center gap-2">
-            {/* Widget status dot */}
-            <span className="w-2 h-2 rounded-full bg-[var(--text-main)] opacity-85 shrink-0" />
+        <header className="acrylic-panel rounded-t-2xl px-3 sm:px-4 py-2.5 border-b border-[var(--border-subtle)] flex items-center justify-between select-none relative z-30">
+          {/* Brand & Sync Status */}
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Widget Status Indicator */}
+            <span 
+              className={`w-2 h-2 rounded-full shrink-0 transition-colors ${
+                cloudStatus.isConfigured && currentUser 
+                  ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' 
+                  : 'bg-[var(--text-faint)]'
+              }`} 
+              title={cloudStatus.isConfigured && currentUser ? '已连接云端数据库并实时同步' : '本地存储模式'}
+            />
 
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-xs font-semibold tracking-wider uppercase font-mono text-[var(--text-main)]">
-                  JEV TODO
-                </h1>
-                <span className="text-[10px] bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-sub)] font-mono px-1 py-0.2 rounded">
-                  DECISION
-                </span>
-                {cloudStatus.isConfigured && currentUser ? (
-                  <span 
-                    className="text-[9px] bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-mono px-1 py-0.2 rounded flex items-center gap-0.5"
-                    title={`已连接 Vercel Postgres 云数据库，当前用户: ${currentUser.username}`}
-                  >
-                    <CloudCheck className="w-2.5 h-2.5" />
-                    云同步
-                  </span>
-                ) : (
-                  <span 
-                    className="text-[9px] bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-faint)] font-mono px-1 py-0.2 rounded flex items-center gap-0.5"
-                    title="本地离线隔离存储模式"
-                  >
-                    <HardDrive className="w-2.5 h-2.5" />
-                    本地
-                  </span>
-                )}
-              </div>
-              <p className="text-[10px] text-[var(--text-faint)] font-normal">
-                {settings.jevApiKey ? 'Vercel AI Gateway' : 'Jev System One · 本地校准'}
-              </p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h1 className="text-xs font-semibold tracking-wider font-mono text-[var(--text-main)] shrink-0">
+                JEV TODO
+              </h1>
+
+              {/* Compact Status Pill */}
+              {cloudStatus.isConfigured && currentUser ? (
+                <button
+                  type="button"
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="text-[9px] bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-mono px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 transition-colors"
+                  title="点击管理账号与云端同步状态"
+                >
+                  <CloudCheck className="w-2.5 h-2.5" />
+                  <span>云同步</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="text-[9px] bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)] text-[var(--text-faint)] font-mono px-1.5 py-0.5 rounded-full flex items-center gap-1 shrink-0 transition-colors"
+                  title="点击登录以开启个人数据云同步与防越权隔离"
+                >
+                  <HardDrive className="w-2.5 h-2.5" />
+                  <span>本地</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Top Control Icons */}
-          <div className="flex items-center gap-1">
-            {/* User Login/Register or Account Button */}
+          {/* Right Action Area - Strictly 4 Fixed Width/Height Controls (Never wraps) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* 1. User Capsule */}
             {currentUser ? (
               <button
                 type="button"
                 onClick={() => setIsAuthModalOpen(true)}
-                className="px-2 py-1 bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--chip-border)] rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors"
-                title={`当前登录：${currentUser.username}，已启动数据隔离保护`}
+                className="h-7 px-2 bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--chip-border)] rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors shrink-0"
+                title={`当前登录：${currentUser.username} (行级数据隔离生效)`}
               >
-                <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                <span className="max-w-[65px] truncate">{currentUser.username}</span>
+                <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" />
+                <span className="max-w-[56px] sm:max-w-[76px] truncate">{currentUser.username}</span>
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => setIsAuthModalOpen(true)}
-                className="px-2 py-1 bg-[var(--accent-bg)] hover:opacity-90 text-[var(--accent-fg)] rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all shadow-sm"
-                title="注册/登录个人账号，享受云端数据隔离与防越权保护"
+                className="h-7 px-2.5 bg-[var(--accent-bg)] hover:opacity-90 text-[var(--accent-fg)] rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all shadow-sm shrink-0"
+                title="注册/登录个人账号，享受多端数据隔离与防越权保护"
               >
-                <LogIn className="w-3 h-3" />
-                <span>登录/注册</span>
+                <LogIn className="w-3 h-3 shrink-0" />
+                <span>登录</span>
               </button>
             )}
 
-            {/* Quick Theme Switcher Pill */}
+            {/* 2. Theme Quick Switch */}
             <button
               type="button"
               onClick={handleNextTheme}
-              className="px-2 py-1 bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors"
-              title={`当前主题：${currentThemeObj.label}，点击切换下一个主题`}
+              className="w-7 h-7 bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] rounded-lg text-xs flex items-center justify-center transition-colors shrink-0"
+              title={`当前主题：${currentThemeObj.label}，点击快速切换下一个主题`}
             >
-              <span className="text-[11px] leading-none">{currentThemeObj.icon}</span>
-              <span className="hidden sm:inline">{currentThemeObj.label}</span>
+              <span className="leading-none text-xs">{currentThemeObj.icon}</span>
             </button>
 
-            {/* PM Simulation Button */}
-            <button
-              type="button"
-              onClick={() => setIsPMSimulationOpen(true)}
-              className="px-2 py-1 bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] rounded-lg text-[11px] font-medium flex items-center gap-1 transition-colors"
-              title="软件项目经理（PM）实战场景演练与系统测试"
-            >
-              <Briefcase className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">PM演练</span>
-            </button>
+            {/* 3. More Menu Dropdown (PM演练, 桌面插件, 窗口大小, 置顶) */}
+            <div className="relative" ref={moreMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                className={`w-7 h-7 rounded-lg border text-xs flex items-center justify-center transition-colors shrink-0 ${
+                  isMoreMenuOpen
+                    ? 'bg-[var(--chip-hover)] text-[var(--text-main)] border-[var(--border-medium)]'
+                    : 'bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-sub)] hover:text-[var(--text-main)] border-[var(--chip-border)]'
+                }`}
+                title="更多实用工具与桌面小组件设置"
+              >
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </button>
 
-            {/* Toggle Widget Compact / Fluid width */}
-            <button
-              type="button"
-              onClick={() =>
-                handleSaveSettings({
-                  ...settings,
-                  widgetWidth: isCompactMode ? 'standard' : 'compact'
-                })
-              }
-              className="p-1.5 text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] rounded-lg transition-colors"
-              title={isCompactMode ? '切换为自适应宽屏模式' : '切换为 380px 极简桌面小组件'}
-            >
-              {isCompactMode ? <Maximize2 className="w-3.5 h-3.5" /> : <Smartphone className="w-3.5 h-3.5" />}
-            </button>
+              {/* Dropdown Popup */}
+              <AnimatePresence>
+                {isMoreMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute right-0 top-full mt-1.5 w-44 rounded-xl p-1.5 bg-[var(--bg-panel)] border border-[var(--border-medium)] shadow-2xl z-50 flex flex-col gap-0.5 text-xs select-none backdrop-blur-xl"
+                  >
+                    {/* PM Simulation */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMoreMenuOpen(false);
+                        setIsPMSimulationOpen(true);
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[var(--chip-hover)] text-[var(--text-main)] flex items-center gap-2 text-left transition-colors"
+                    >
+                      <Briefcase className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <span>PM 实战演练</span>
+                    </button>
 
-            {/* Pin to top status */}
-            <button
-              type="button"
-              onClick={() => setIsPinned(!isPinned)}
-              className={`p-1.5 rounded-lg transition-colors ${
-                isPinned ? 'text-[var(--text-main)] bg-[var(--chip-hover)]' : 'text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)]'
-              }`}
-              title={isPinned ? '已置顶桌面组件' : '取消置顶'}
-            >
-              <Pin className="w-3.5 h-3.5" />
-            </button>
+                    {/* Shortcuts Plugin */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMoreMenuOpen(false);
+                        setIsShortcutModalOpen(true);
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[var(--chip-hover)] text-[var(--text-main)] flex items-center gap-2 text-left transition-colors"
+                    >
+                      <Command className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                      <span>桌面快捷指令</span>
+                    </button>
 
-            {/* Shortcuts Plugin */}
-            <button
-              type="button"
-              onClick={() => setIsShortcutModalOpen(true)}
-              className="p-1.5 text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] rounded-lg transition-colors"
-              title="桌面快捷指令与插件"
-            >
-              <Command className="w-3.5 h-3.5" />
-            </button>
+                    <div className="my-1 border-t border-[var(--border-subtle)]" />
 
-            {/* Settings */}
+                    {/* Window Width Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSaveSettings({
+                          ...settings,
+                          widgetWidth: isCompactMode ? 'standard' : 'compact'
+                        });
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[var(--chip-hover)] text-[var(--text-main)] flex items-center justify-between text-left transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        {isCompactMode ? (
+                          <Maximize2 className="w-3.5 h-3.5 text-[var(--text-sub)] shrink-0" />
+                        ) : (
+                          <Smartphone className="w-3.5 h-3.5 text-[var(--text-sub)] shrink-0" />
+                        )}
+                        <span>{isCompactMode ? '自适应宽屏' : '紧凑小组件'}</span>
+                      </span>
+                      <span className="text-[10px] text-[var(--text-faint)] font-mono">
+                        {isCompactMode ? '宽' : '380px'}
+                      </span>
+                    </button>
+
+                    {/* Pin Window */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPinned(!isPinned);
+                        setIsMoreMenuOpen(false);
+                      }}
+                      className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[var(--chip-hover)] text-[var(--text-main)] flex items-center justify-between text-left transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Pin className="w-3.5 h-3.5 text-[var(--text-sub)] shrink-0" />
+                        <span>置顶小组件</span>
+                      </span>
+                      {isPinned && <Check className="w-3 h-3 text-emerald-500 shrink-0" />}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* 4. Settings */}
             <button
               type="button"
               onClick={() => setIsSettingsModalOpen(true)}
-              className="p-1.5 text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] rounded-lg transition-colors"
-              title="界面主题、Jev 模型及 Vercel 云数据库配置"
+              className="w-7 h-7 bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] rounded-lg text-xs flex items-center justify-center transition-colors shrink-0"
+              title="偏好设置与云端数据库配置"
             >
               <Settings className="w-3.5 h-3.5" />
             </button>
