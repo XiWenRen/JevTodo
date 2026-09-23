@@ -217,7 +217,7 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                 <div className="flex items-center justify-between w-full">
                   <div className="flex items-center gap-1.5 text-amber-500 font-medium">
                     <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
-                    <span>Jev 识别到包含 {splitCandidates.length} 项待办</span>
+                    <span>Cherry 识别到包含 {splitCandidates.length} 项待办</span>
                   </div>
                   <button
                     type="button"
@@ -235,7 +235,7 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="flex items-center gap-1 text-[var(--text-main)] font-medium">
                     <Sparkles className="w-3 h-3 text-[var(--text-faint)]" />
-                    Jev 预判:
+                    Cherry 预判:
                   </span>
                   <span className="bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] px-1.5 py-0.5 rounded text-[10px]">
                     {preview.category}
@@ -281,7 +281,7 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                 setInputText('');
               }}
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--chip-bg)] text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)] transition-all"
-              title="批量录入一大堆内容，Jev 自动拆分"
+              title="批量录入一大堆内容，Cherry 自动拆分"
             >
               <ListPlus className="w-4 h-4 stroke-[2.2]" />
             </button>
@@ -342,7 +342,7 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                 ? 'bg-[var(--accent-bg)] text-[var(--accent-fg)] hover:opacity-90 active:scale-95 shadow-sm'
                 : 'bg-[var(--chip-bg)] text-[var(--text-faint)] opacity-40 cursor-not-allowed border border-[var(--chip-border)]'
             }`}
-            title="通过 Jev 智能分类并添加 (Enter)"
+            title="通过 Cherry 智能分类并添加 (Enter)"
           >
             {isProcessing ? (
               <Sparkles className="w-4 h-4 animate-spin text-[var(--accent-fg)]" />

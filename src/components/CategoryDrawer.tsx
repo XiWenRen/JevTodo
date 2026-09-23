@@ -18,7 +18,8 @@ import {
   Maximize2,
   Smartphone,
   Palette,
-  ListPlus
+  ListPlus,
+  ScrollText
 } from 'lucide-react';
 import { ActiveView, TaskItem, AppTheme } from '../types';
 import { AuthUser } from '../utils/auth';
@@ -40,7 +41,7 @@ interface CategoryDrawerProps {
   isCompactMode: boolean;
   onToggleCompactMode: () => void;
   onOpenAuth: () => void;
-  onOpenCleanup: () => void;
+  onOpenOperationLogs: () => void;
   onOpenBatchSplit?: () => void;
   onOpenPMSimulation: () => void;
   onOpenShortcuts: () => void;
@@ -72,7 +73,7 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
   isCompactMode,
   onToggleCompactMode,
   onOpenAuth,
-  onOpenCleanup,
+  onOpenOperationLogs,
   onOpenBatchSplit,
   onOpenPMSimulation,
   onOpenShortcuts,
@@ -147,15 +148,22 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
               {/* Header with App Logo & Close Button */}
               <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[var(--border-subtle)]">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[var(--accent-bg)] text-[var(--accent-fg)] flex items-center justify-center font-bold text-xs font-mono shadow-sm">
-                    J
+                  <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/25 flex items-center justify-center font-bold text-sm shadow-xs select-none">
+                    🍒
                   </div>
                   <div>
-                    <h2 className="text-sm font-semibold tracking-wide text-[var(--text-main)] font-mono">
-                      JEV TODO
-                    </h2>
-                    <p className="text-[10px] text-[var(--text-faint)]">
-                      Jev 极简智能待办
+                    <div className="flex items-center gap-1.5">
+                      <h2 className="text-sm font-semibold tracking-wide text-[var(--text-main)] font-mono">
+                        CHERRY TODO
+                      </h2>
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 font-medium tracking-tight">
+                        Jev 决策核心
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[var(--text-faint)] flex items-center gap-1 mt-0.5">
+                      <span>极简快速录入</span>
+                      <span>·</span>
+                      <span>秒级自动分类</span>
                     </p>
                   </div>
                 </div>
@@ -347,19 +355,17 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
                   type="button"
                   onClick={() => {
                     onClose();
-                    onOpenCleanup();
+                    onOpenOperationLogs();
                   }}
                   className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[var(--chip-hover)] text-[var(--text-main)] flex items-center justify-between text-xs transition-colors"
                 >
                   <span className="flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Jev 智能整理建议</span>
+                    <ScrollText className="w-3.5 h-3.5 text-blue-400" />
+                    <span>操作记录与日志</span>
                   </span>
-                  {staleCount > 0 && (
-                    <span className="text-[10px] bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded font-mono">
-                      {staleCount} 停滞
-                    </span>
-                  )}
+                  <span className="text-[10px] text-[var(--text-faint)]">
+                    查看全部
+                  </span>
                 </button>
 
                 {onOpenBatchSplit && (
@@ -373,7 +379,7 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
                   >
                     <span className="flex items-center gap-2">
                       <ListPlus className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Jev 批量智能拆分录入</span>
+                      <span>Cherry 批量智能拆分录入</span>
                     </span>
                     <span className="text-[10px] text-[var(--text-faint)]">长文本/清单</span>
                   </button>

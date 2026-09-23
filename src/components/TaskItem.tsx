@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { 
   Clock, 
   AlertCircle,
@@ -157,6 +158,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
     longPressTimerRef.current = setTimeout(() => {
       isGestureActiveRef.current = true;
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(15); } catch {}
+      }
       if (pointerStartPosRef.current && cardRectRef.current && onStartGesture) {
         onStartGesture(task, pointerStartPosRef.current, cardRectRef.current);
       }
@@ -183,16 +187,39 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
+  // Prevent mobile native scroll hijacking when long-press gesture is activated
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isGestureActiveRef.current) {
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    }
+  };
+
   // Dynamic time status and color
   const dueStatus = getDueDateStatus(task);
   const isOverdue = !task.completed && dueStatus.isOverdue;
 
   return (
-    <div
+    <motion.div
+      layout
+      transition={{ type: 'spring', stiffness: 420, damping: 30 }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onTouchMove={handleTouchMove}
+      onContextMenu={(e) => {
+        if (isGestureActiveRef.current) {
+          e.preventDefault();
+        }
+      }}
+      style={{
+        touchAction: 'pan-y',
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none'
+      }}
       className={`group relative rounded-xl px-3.5 py-2.5 transition-all duration-150 border acrylic-card select-none cursor-pointer ${
         task.completed
           ? 'opacity-50 border-transparent'
@@ -435,6 +462,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           </div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };

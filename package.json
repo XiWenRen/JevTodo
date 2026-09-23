@@ -1,7 +1,7 @@
 {
-  "name": "react-example",
-  "private": true,
-  "version": "0.0.0",
+  "name": "cherry-todo",
+  "version": "1.0.0",
+  "description": "CherryTodo - 沉浸式极简智能待办与高效任务管理桌面应用",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",

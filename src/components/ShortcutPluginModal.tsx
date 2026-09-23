@@ -26,13 +26,13 @@ export const ShortcutPluginModal: React.FC<ShortcutPluginModalProps> = ({
   // 1. Windows PowerShell Quick Add Script
   const psScript = `# Windows 快捷录入脚本 (按 Win+Alt+T 快速弹出输入框)
 Add-Type -AssemblyName Microsoft.VisualBasic
-$task = [Microsoft.VisualBasic.Interaction]::InputBox("输入待办事项 (支持自然语言、时间与#标签):", "Jev 快速待办录入", "")
+$task = [Microsoft.VisualBasic.Interaction]::InputBox("输入待办事项 (支持自然语言、时间与#标签):", "Cherry 快速待办录入", "")
 if ($task) {
   Start-Process "${currentUrl}?quickadd=" + [System.Uri]::EscapeDataString($task)
 }`;
 
   // 2. Browser Bookmarklet
-  const bookmarklet = `javascript:(function(){var t=prompt("Jev 待办录入 (支持#标签及时间):");if(t)window.open("${currentUrl}?quickadd="+encodeURIComponent(t),"_blank","width=400,height=680");})();`;
+  const bookmarklet = `javascript:(function(){var t=prompt("Cherry 待办录入 (支持#标签及时间):");if(t)window.open("${currentUrl}?quickadd="+encodeURIComponent(t),"_blank","width=400,height=680");})();`;
 
   // 3. Windows Desktop Widget Launch Command (Chrome / Edge App Mode)
   const appModeCommand = `msedge.exe --app="${currentUrl}" --window-size=380,680 --window-position=1500,200`;
@@ -136,7 +136,7 @@ if ($task) {
               </button>
             </div>
             <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
-              将复制的代码添加到浏览器书签网址，在任何网页按一下书签即可随时呼出 Jev 待办录入。
+              将复制的代码添加到浏览器书签网址，在任何网页按一下书签即可随时呼出 Cherry 待办录入。
             </p>
           </div>
         </div>

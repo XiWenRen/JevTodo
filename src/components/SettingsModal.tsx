@@ -116,7 +116,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       if (data.source === 'vercel-ai-gateway-jev') {
         setTestStatus('success');
-        setTestMessage(`通信正常！Jev 智能决策响应正常: [${data.category}] 优先级: ${data.priority}`);
+        setTestMessage(`通信正常！Cherry 智能决策响应正常: [${data.category}] 优先级: ${data.priority}`);
       } else {
         setTestStatus('success');
         setTestMessage(`智能决策引擎运行正常: [${data.category}] 优先级: ${data.priority}`);
@@ -312,21 +312,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="flex items-center justify-between">
                 <span className="font-medium text-[var(--text-main)] flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-[var(--text-sub)]" />
-                  关于 Jev 智能引擎
+                  关于 Cherry 智能引擎
                 </span>
                 <span className="text-[10px] text-[var(--text-sub)]">
                   开箱即用
                 </span>
               </div>
               <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
-                Jev 智能决策引擎能够瞬间理解自然语言中的时间要素、重要程度与任务意图，全自动规整归类待办，精准且无幻觉。
+                Cherry 智能决策引擎能够瞬间理解自然语言中的时间要素、重要程度与任务意图，全自动规整归类待办，精准且无幻觉。
               </p>
             </div>
 
             {/* Custom API Key Input (Optional) */}
             <div className="space-y-1.5">
               <label className="block text-[var(--text-main)] font-medium">
-                自定义 Jev 服务密钥 (可选)
+                自定义 Cherry 服务密钥 (可选)
               </label>
               <div className="relative">
                 <input

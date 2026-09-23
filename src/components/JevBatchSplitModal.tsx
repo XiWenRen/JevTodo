@@ -259,14 +259,14 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-semibold text-[var(--text-main)]">
-                    Jev 批量待办录入与智能拆分
+                    Cherry 批量待办录入与智能拆分
                   </h3>
                   <span className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-sub)]">
                     AI 语义解析
                   </span>
                 </div>
                 <p className="text-xs text-[var(--text-sub)] mt-0.5">
-                  粘贴会议纪要、聊天记录或清单，Jev 自动按换行与序号智能拆分为独立任务并检测重复
+                  粘贴会议纪要、聊天记录或清单，Cherry 自动按换行与序号智能拆分为独立任务并检测重复
                 </p>
               </div>
             </div>
@@ -360,7 +360,7 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--accent-bg)] text-[var(--accent-fg)] font-medium text-xs hover:opacity-95 active:scale-95 disabled:opacity-40 transition-all shadow-sm"
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Jev 智能拆分 ({splitTasksWithJev(inputText).length} 项)</span>
+                    <span>Cherry 智能拆分 ({splitTasksWithJev(inputText).length} 项)</span>
                   </button>
                 </div>
               </div>
@@ -475,7 +475,7 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
                               <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 font-medium">
                                 <span className="flex items-center gap-1.5">
                                   <AlertTriangle className="w-3.5 h-3.5" />
-                                  Jev 识别到与已有待办「{item.duplicateInfo.matchedTask.title}」重复 (相似度 {Math.round(item.duplicateInfo.similarity * 100)}%)
+                                  Cherry 识别到与已有待办「{item.duplicateInfo.matchedTask.title}」重复 (相似度 {Math.round(item.duplicateInfo.similarity * 100)}%)
                                 </span>
                               </div>
 

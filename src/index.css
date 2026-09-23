@@ -25,6 +25,14 @@
   --tag-text: #9ca3af;
   --scrollbar-thumb: rgba(255, 255, 255, 0.14);
   --panel-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --btn-primary-bg: rgba(255, 255, 255, 0.12);
+  --btn-primary-fg: #f3f4f6;
+  --btn-primary-border: rgba(255, 255, 255, 0.18);
+  --btn-primary-hover: rgba(255, 255, 255, 0.18);
+  --btn-primary-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --btn-primary-tint: rgba(255, 255, 255, 0.06);
+  --btn-primary-tint-border: rgba(255, 255, 255, 0.12);
+  --btn-primary-tint-text: #e5e7eb;
 }
 
 [data-theme="paper"] {
@@ -51,6 +59,14 @@
   --tag-text: #64748b;
   --scrollbar-thumb: rgba(0, 0, 0, 0.16);
   --panel-shadow: 0 18px 40px rgba(15, 23, 42, 0.07), 0 2px 8px rgba(15, 23, 42, 0.03);
+  --btn-primary-bg: rgba(15, 23, 42, 0.06);
+  --btn-primary-fg: #0f172a;
+  --btn-primary-border: rgba(15, 23, 42, 0.13);
+  --btn-primary-hover: rgba(15, 23, 42, 0.1);
+  --btn-primary-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --btn-primary-tint: rgba(15, 23, 42, 0.04);
+  --btn-primary-tint-border: rgba(15, 23, 42, 0.09);
+  --btn-primary-tint-text: #334155;
 }
 
 [data-theme="sand"] {
@@ -77,6 +93,14 @@
   --tag-text: #78716c;
   --scrollbar-thumb: rgba(120, 113, 108, 0.18);
   --panel-shadow: 0 18px 40px rgba(68, 64, 60, 0.08), 0 2px 8px rgba(68, 64, 60, 0.04);
+  --btn-primary-bg: rgba(68, 64, 60, 0.07);
+  --btn-primary-fg: #292524;
+  --btn-primary-border: rgba(68, 64, 60, 0.15);
+  --btn-primary-hover: rgba(68, 64, 60, 0.12);
+  --btn-primary-shadow: 0 1px 3px rgba(68, 64, 60, 0.04);
+  --btn-primary-tint: rgba(68, 64, 60, 0.04);
+  --btn-primary-tint-border: rgba(68, 64, 60, 0.1);
+  --btn-primary-tint-text: #44403c;
 }
 
 [data-theme="mist"] {
@@ -103,13 +127,21 @@
   --tag-text: #64748b;
   --scrollbar-thumb: rgba(71, 85, 105, 0.18);
   --panel-shadow: 0 18px 40px rgba(30, 41, 59, 0.08), 0 2px 8px rgba(30, 41, 59, 0.04);
+  --btn-primary-bg: rgba(30, 41, 59, 0.07);
+  --btn-primary-fg: #0f172a;
+  --btn-primary-border: rgba(30, 41, 59, 0.14);
+  --btn-primary-hover: rgba(30, 41, 59, 0.12);
+  --btn-primary-shadow: 0 1px 3px rgba(30, 41, 59, 0.04);
+  --btn-primary-tint: rgba(30, 41, 59, 0.04);
+  --btn-primary-tint-border: rgba(30, 41, 59, 0.1);
+  --btn-primary-tint-text: #334155;
 }
 
 @layer base {
   body {
     background-color: var(--bg-app);
     color: var(--text-main);
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', 'Source Han Sans SC', 'Noto Sans SC', sans-serif;
     transition: background-color 0.25s ease, color 0.25s ease;
   }
   code, pre, .font-mono {

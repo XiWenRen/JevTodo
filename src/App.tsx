@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Menu,
   Zap,
@@ -16,9 +17,13 @@ import {
   Palette,
   Check,
   LogOut,
-  LogIn
+  LogIn,
+  ScrollText,
+  ChevronRight
 } from 'lucide-react';
 import { TaskItem, TaskCategory, TaskPriority, ActiveView, AppSettings, AppTheme } from './types';
+import { TaskSnapshot } from './types/operationLog';
+import { recordOperation, taskToSnapshot } from './utils/operationLog';
 import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev, extractDateTime } from './utils/jev';
 import { 
   checkAndFetchCloudTasks, 
@@ -34,8 +39,10 @@ import {
 } from './utils/auth';
 import { TaskSection } from './components/TaskSection';
 import { FloatingInputBar } from './components/FloatingInputBar';
-import { JevInsightsBanner } from './components/JevInsightsBanner';
-import { JevCleanupModal } from './components/JevCleanupModal';
+import { FloatingProgressWidget } from './components/FloatingProgressWidget';
+import { JevOrganizeConfirmModal, OrganizeOptions } from './components/JevOrganizeConfirmModal';
+import { OperationLogModal } from './components/OperationLogModal';
+import { TaskSnapshotModal } from './components/TaskSnapshotModal';
 import { ShortcutPluginModal } from './components/ShortcutPluginModal';
 import { SettingsModal } from './components/SettingsModal';
 import { PMSimulationModal } from './components/PMSimulationModal';
@@ -45,12 +52,13 @@ import { TaskGestureOverlay, GestureData, GestureActionType } from './components
 import { JevDuplicateModal } from './components/JevDuplicateModal';
 import { JevBatchSplitModal, BatchParsedTask } from './components/JevBatchSplitModal';
 import { CardRect } from './components/TaskItem';
-import { generatePMSimulatedTasks } from './data/pmScenarios';
+import { generatePMSimulatedTasks, getOnboardingTasks } from './data/pmScenarios';
 
-const STORAGE_KEY_GUEST_TASKS = 'jev_minimal_todo_guest_tasks_v1';
+const STORAGE_KEY_GUEST_TASKS_OLD = 'jev_minimal_todo_guest_tasks_v1';
+const STORAGE_KEY_GUEST_TASKS = 'jev_minimal_todo_guest_tasks_v2';
 const STORAGE_KEY_SETTINGS = 'jev_minimal_todo_settings_v1';
 
-const INITIAL_TASKS: TaskItem[] = generatePMSimulatedTasks();
+const INITIAL_TASKS: TaskItem[] = getOnboardingTasks();
 
 const THEMES: { id: AppTheme; label: string; icon: string }[] = [
   { id: 'obsidian', label: '墨黑', icon: '🌙' },
@@ -70,11 +78,9 @@ export default function App() {
 
   // Top header dropdown menus state & refs
   const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
-  const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
 
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
-  const themeDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
   // Active Long-Press 3-Sector Radial Gesture state
@@ -94,6 +100,21 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      // Migration from old guest tasks if exists
+      if (!user) {
+        const oldSaved = localStorage.getItem(STORAGE_KEY_GUEST_TASKS_OLD);
+        if (oldSaved) {
+          const oldParsed = JSON.parse(oldSaved);
+          if (Array.isArray(oldParsed) && oldParsed.length > 0) {
+            // Check if oldParsed is just the old PM demo dataset
+            const isOldPmDemo = oldParsed.some((t: any) => t.id === 'pm-ops-urgent' || t.id === 'pm-task-1');
+            if (!isOldPmDemo) {
+              localStorage.setItem(STORAGE_KEY_GUEST_TASKS, JSON.stringify(oldParsed));
+              return oldParsed;
+            }
+          }
+        }
       }
     } catch (e) {
       console.warn('Error reading tasks from storage:', e);
@@ -139,7 +160,16 @@ export default function App() {
   });
 
   // UI Modals & Menus
-  const [isCleanupModalOpen, setIsCleanupModalOpen] = useState(false);
+  const [isOrganizeConfirmOpen, setIsOrganizeConfirmOpen] = useState(false);
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [snapshotModalData, setSnapshotModalData] = useState<{
+    isOpen: boolean;
+    title: string;
+    description?: string;
+    timestamp?: number;
+    tasks: TaskSnapshot[];
+  } | null>(null);
+
   const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isPMSimulationOpen, setIsPMSimulationOpen] = useState(false);
@@ -164,13 +194,23 @@ export default function App() {
   const [isBatchSplitModalOpen, setIsBatchSplitModalOpen] = useState(false);
   const [batchSplitInitialText, setBatchSplitInitialText] = useState('');
 
-  // Toast feedback
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const showToast = useCallback((msg: string) => {
-    setToastMessage(msg);
+  // Toast feedback with optional inline action button
+  interface ToastInfo {
+    message: string;
+    actionText?: string;
+    onAction?: () => void;
+  }
+  const [toastInfo, setToastInfo] = useState<ToastInfo | null>(null);
+  const showToast = useCallback((msg: string, actionText?: string, onAction?: () => void, duration = 2400) => {
+    setToastInfo({ message: msg, actionText, onAction });
     setTimeout(() => {
-      setToastMessage(current => (current === msg ? null : current));
-    }, 3800);
+      setToastInfo(current => (current?.message === msg ? null : current));
+    }, duration);
+  }, []);
+
+  // Ensure document.title is synchronized with GEO keywords (Jev 智能决策, 极简待办, 自动分类)
+  useEffect(() => {
+    document.title = 'CherryTodo - 基于 Jev 智能决策的极简待办与自动分类';
   }, []);
 
   // Sync theme with document & body for consistent full-screen background
@@ -186,9 +226,6 @@ export default function App() {
       const target = e.target as Node;
       if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(target)) {
         setIsCategoryDropdownOpen(false);
-      }
-      if (themeDropdownRef.current && !themeDropdownRef.current.contains(target)) {
-        setIsThemeDropdownOpen(false);
       }
       if (userDropdownRef.current && !userDropdownRef.current.contains(target)) {
         setIsUserDropdownOpen(false);
@@ -385,6 +422,11 @@ export default function App() {
       if (cloudStatus.isConfigured && currentUser) {
         syncTaskToCloud(newTask);
       }
+
+      // Log creation
+      recordOperation('task_create', '创建待办', `添加了待办：「${newTask.title}」`, [
+        taskToSnapshot(newTask, '新建待办')
+      ]);
     } catch (err) {
       console.error('Failed to add task with Jev:', err);
     } finally {
@@ -494,6 +536,10 @@ export default function App() {
         syncTaskToCloud(newTask);
       }
 
+      recordOperation('task_create', '创建待办', `独立创建待办：「${newTask.title}」`, [
+        taskToSnapshot(newTask, '独立创建')
+      ]);
+
       showToast(`已独立创建待办「${newTask.title}」`);
     } catch (err) {
       console.error('Failed to force create task:', err);
@@ -559,12 +605,21 @@ export default function App() {
       batchSyncTasksToCloud(updatedAll);
     }
 
+    if (newTasks.length > 0) {
+      recordOperation(
+        'batch_split',
+        '智能拆分待办',
+        `智能拆分录入了 ${newTasks.length} 项待办${tasksToAppend.length > 0 ? `并补充合并 ${tasksToAppend.length} 项` : ''}`,
+        newTasks.map(t => taskToSnapshot(t, '智能拆分创建'))
+      );
+    }
+
     const addedCount = newTasks.length;
     const appendCount = tasksToAppend.length;
     if (addedCount > 0 && appendCount > 0) {
-      showToast(`Jev 智能拆分新增 ${addedCount} 项待办，并补充合并 ${appendCount} 项信息`);
+      showToast(`Cherry 智能拆分新增 ${addedCount} 项待办，并补充合并 ${appendCount} 项信息`);
     } else if (addedCount > 0) {
-      showToast(`Jev 已成功智能拆分并录入 ${addedCount} 项待办`);
+      showToast(`Cherry 已成功智能拆分并录入 ${addedCount} 项待办`);
     } else if (appendCount > 0) {
       showToast(`已成功将 ${appendCount} 项信息补充合并至已有待办`);
     }
@@ -572,6 +627,17 @@ export default function App() {
 
   // Toggle complete
   const handleToggleComplete = (id: string) => {
+    const target = tasks.find(t => t.id === id);
+    if (target) {
+      const nextCompleted = !target.completed;
+      recordOperation(
+        nextCompleted ? 'task_complete' : 'task_uncomplete',
+        nextCompleted ? '完成待办' : '恢复待办',
+        `${nextCompleted ? '完成了' : '取消完成'}待办：「${target.title}」`,
+        [taskToSnapshot({ ...target, completed: nextCompleted }, nextCompleted ? '标记完成' : '恢复待办')]
+      );
+    }
+
     setTasks(prev =>
       prev.map(t => {
         if (t.id === id) {
@@ -601,6 +667,13 @@ export default function App() {
 
   // Delete task (Discard)
   const handleDeleteTask = (id: string) => {
+    const target = tasks.find(t => t.id === id);
+    if (target) {
+      recordOperation('task_delete', '删除待办', `删除了待办：「${target.title}」`, [
+        taskToSnapshot(target, '已删除')
+      ]);
+    }
+
     setTasks(prev => prev.filter(t => t.id !== id));
     if (cloudStatus.isConfigured && currentUser) {
       deleteTaskFromCloud(id);
@@ -667,51 +740,19 @@ export default function App() {
       handleDeleteTask(task.id);
     } else if (action === 'defer') {
       handleDeferTask(task.id);
+      recordOperation('task_defer', '手势延后', `将待办顺延至明日：「${task.title}」`, [
+        taskToSnapshot(task, '手势延后')
+      ]);
     } else if (action === 'planning') {
       handleMoveToPlanning(task.id);
+      recordOperation('gesture_organize', '移至规划', `将待办移至长期规划：「${task.title}」`, [
+        taskToSnapshot(task, '移至规划')
+      ]);
     }
   };
 
-  // Apply Jev intelligent ranking
-  const handleApplyRanking = () => {
-    setTasks(analysis.rankedTasks);
-    if (cloudStatus.isConfigured && currentUser) {
-      batchSyncTasksToCloud(analysis.rankedTasks);
-    }
-  };
-
-  // Apply cleanup actions
-  const handleApplyCleanup = (actions: Record<string, 'archive' | 'defer' | 'keep'>) => {
-    setTasks(prev => {
-      const remaining: TaskItem[] = [];
-      prev.forEach(task => {
-        const action = actions[task.id];
-        if (action === 'archive') {
-          if (cloudStatus.isConfigured && currentUser) {
-            deleteTaskFromCloud(task.id);
-          }
-          return;
-        } else if (action === 'defer') {
-          const deferred = {
-            ...task,
-            category: '近期完成' as TaskCategory,
-            isStale: false,
-            updatedAt: Date.now()
-          };
-          remaining.push(deferred);
-          if (cloudStatus.isConfigured && currentUser) {
-            syncTaskToCloud(deferred);
-          }
-        } else {
-          remaining.push(task);
-        }
-      });
-      return remaining;
-    });
-  };
-
-  // Defer overdue tasks
-  const handleDeferOverdueTasks = () => {
+  // Execute Jev Auto-Organize after secondary confirmation
+  const handleExecuteAutoOrganize = (options: OrganizeOptions) => {
     const now = Date.now();
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -720,14 +761,18 @@ export default function App() {
     const pad = (n: number) => n.toString().padStart(2, '0');
     const tomorrowIso = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T18:00:00`;
 
-    setTasks(prev =>
-      prev.map(t => {
+    const affectedSnapshots: TaskSnapshot[] = [];
+    let current = [...tasks];
+
+    // 1. Defer overdue tasks if selected
+    if (options.deferOverdue) {
+      current = current.map(t => {
         const isTaskOverdue = t.dueTimestamp 
           ? (!t.completed && t.dueTimestamp < now) 
           : (t.dueDateIso ? (!t.completed && new Date(t.dueDateIso).getTime() < now) : false);
 
         if (isTaskOverdue) {
-          const updated = {
+          const updated: TaskItem = {
             ...t,
             category: '近期完成' as TaskCategory,
             dueDate: '明天 18:00',
@@ -735,24 +780,108 @@ export default function App() {
             dueTimestamp: tomorrowMs,
             updatedAt: Date.now()
           };
+          affectedSnapshots.push(taskToSnapshot(updated, '逾期顺延至明天'));
           if (cloudStatus.isConfigured && currentUser) {
             syncTaskToCloud(updated);
           }
           return updated;
         }
         return t;
-      })
+      });
+    }
+
+    // 2. Archive stale tasks (not updated for > 7 days) if selected
+    if (options.archiveStale) {
+      const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000;
+      current = current.map(t => {
+        const isStale = !t.completed && t.category !== '规划待办' && (now - (t.updatedAt || t.createdAt) > SEVEN_DAYS_MS);
+        if (isStale) {
+          const updated: TaskItem = {
+            ...t,
+            category: '规划待办' as TaskCategory,
+            isStale: true,
+            updatedAt: Date.now()
+          };
+          affectedSnapshots.push(taskToSnapshot(updated, '久未推进已沉淀'));
+          if (cloudStatus.isConfigured && currentUser) {
+            syncTaskToCloud(updated);
+          }
+          return updated;
+        }
+        return t;
+      });
+    }
+
+    // 3. Reorder Priority
+    let finalTasks = current;
+    if (options.reorderPriority) {
+      const newAnalysis = analyzeTasksWithJev(current);
+      finalTasks = newAnalysis.rankedTasks;
+
+      // Add top prioritized tasks into snapshots if not already captured
+      finalTasks.slice(0, 5).forEach((t, idx) => {
+        if (!affectedSnapshots.some(s => s.id === t.id)) {
+          affectedSnapshots.push(taskToSnapshot(t, `智能排序 第${idx + 1}位`));
+        }
+      });
+    }
+
+    // Fallback if no specific task was captured
+    if (affectedSnapshots.length === 0) {
+      finalTasks.filter(t => !t.completed).slice(0, 5).forEach((t, idx) => {
+        affectedSnapshots.push(taskToSnapshot(t, `智能调优 第${idx + 1}位`));
+      });
+    }
+
+    // Update state and cloud
+    setTasks(finalTasks);
+    if (cloudStatus.isConfigured && currentUser) {
+      batchSyncTasksToCloud(finalTasks);
+    }
+
+    // Record aggregated operation log (Requirement 4)
+    const logItem = recordOperation(
+      'jev_auto_organize',
+      'Cherry 智能决策整理',
+      `综合优化了 ${affectedSnapshots.length} 项待办（优先级重排、逾期顺延与沉淀）`,
+      affectedSnapshots
+    );
+
+    // Show lightweight Toast with inline button to view task list (Requirement 3)
+    showToast(
+      `✨ Cherry 智能整理完成：已优化 ${affectedSnapshots.length} 项待办`,
+      '查看任务清单',
+      () => {
+        setSnapshotModalData({
+          isOpen: true,
+          title: 'Cherry 智能整理任务清单',
+          description: logItem.description,
+          timestamp: logItem.timestamp,
+          tasks: logItem.taskSnapshots
+        });
+      },
+      5000
     );
   };
 
-  // Reset to initial sample tasks
+  // Reset to initial onboarding guide tasks
   const handleResetSampleData = () => {
-    if (window.confirm('是否重置为 PM 工作流演示数据？')) {
-      setTasks(INITIAL_TASKS);
+    if (window.confirm('是否重置为新手引导待办？')) {
+      const guideTasks = getOnboardingTasks();
+      setTasks(guideTasks);
       if (cloudStatus.isConfigured && currentUser) {
-        batchSyncTasksToCloud(INITIAL_TASKS);
+        batchSyncTasksToCloud(guideTasks);
       }
+      showToast('已重置为新手引导待办');
     }
+  };
+
+  // Quick cycle theme
+  const handleCycleTheme = () => {
+    const currentIndex = THEMES.findIndex(t => t.id === settings.theme);
+    const nextTheme = THEMES[(currentIndex + 1) % THEMES.length];
+    handleSaveSettings({ ...settings, theme: nextTheme.id });
+    showToast(`${nextTheme.icon} ${nextTheme.label}`, 1400);
   };
 
   // Manual trigger cloud sync
@@ -884,7 +1013,6 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   setIsCategoryDropdownOpen(prev => !prev);
-                  setIsThemeDropdownOpen(false);
                   setIsUserDropdownOpen(false);
                 }}
                 className={`h-7 px-2.5 rounded-lg border flex items-center gap-1.5 transition-colors group min-w-0 ${
@@ -906,11 +1034,24 @@ export default function App() {
                 }`} />
               </button>
 
-              {/* Direct Category Dropdown Menu */}
+              {/* Soft background scrim to eliminate background text interference */}
+              {isCategoryDropdownOpen && (
+                <div
+                  className="fixed inset-0 z-40 bg-black/10 dark:bg-black/25 backdrop-blur-[1.5px] transition-opacity"
+                  onClick={() => setIsCategoryDropdownOpen(false)}
+                />
+              )}
+
+              {/* Direct Category Dropdown Menu with High-Density Frosted Glass Acrylic */}
               {isCategoryDropdownOpen && (
                 <div 
-                  className="absolute left-0 top-full mt-1.5 w-60 rounded-xl border border-[var(--border-medium)] p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl"
-                  style={{ backgroundColor: 'var(--bg-panel)' }}
+                  className="absolute left-0 top-full mt-1.5 w-60 rounded-xl border border-[var(--border-medium)] p-1.5 z-50 animate-in fade-in zoom-in-95"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--bg-drawer) 97%, transparent)',
+                    backdropFilter: 'blur(40px) saturate(200%) contrast(105%)',
+                    WebkitBackdropFilter: 'blur(40px) saturate(200%) contrast(105%)',
+                    boxShadow: '0 24px 60px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12)'
+                  }}
                 >
                   <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-faint)] border-b border-[var(--border-subtle)] mb-1 flex items-center justify-between">
                     <span>切换大类视图</span>
@@ -971,64 +1112,15 @@ export default function App() {
 
           {/* Right: User Quick Info and Theme Switcher Buttons */}
           <div className="flex items-center gap-1.5 shrink-0 relative">
-            {/* Theme Switcher Quick Button (Compact icon only) */}
-            <div ref={themeDropdownRef} className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsThemeDropdownOpen(prev => !prev);
-                  setIsUserDropdownOpen(false);
-                  setIsCategoryDropdownOpen(false);
-                }}
-                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-colors shrink-0 ${
-                  isThemeDropdownOpen
-                    ? 'bg-[var(--chip-hover)] border-[var(--border-medium)] text-[var(--text-main)]'
-                    : 'bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] border-[var(--chip-border)] text-[var(--text-sub)] hover:text-[var(--text-main)]'
-                }`}
-                title={`切换主题（当前: ${currentThemeObj.label}）`}
-              >
-                <span className="text-sm leading-none select-none">{currentThemeObj.icon}</span>
-              </button>
-
-              {/* Theme Dropdown Menu */}
-              {isThemeDropdownOpen && (
-                <div
-                  className="absolute right-0 top-full mt-1.5 w-44 rounded-xl border border-[var(--border-medium)] p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl"
-                  style={{ backgroundColor: 'var(--bg-panel)' }}
-                >
-                  <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-faint)] border-b border-[var(--border-subtle)] mb-1">
-                    选择界面主题
-                  </div>
-                  <div className="space-y-0.5">
-                    {THEMES.map((theme) => {
-                      const isActive = settings.theme === theme.id;
-                      return (
-                        <button
-                          key={theme.id}
-                          type="button"
-                          onClick={() => {
-                            handleSaveSettings({ ...settings, theme: theme.id });
-                            setIsThemeDropdownOpen(false);
-                            showToast(`已切换至「${theme.label}」主题`);
-                          }}
-                          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-xs transition-colors ${
-                            isActive
-                              ? 'bg-[var(--chip-hover)] font-medium text-[var(--text-main)]'
-                              : 'text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-bg)]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">{theme.icon}</span>
-                            <span>{theme.label}</span>
-                          </div>
-                          {isActive && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Theme Switcher Quick Button (Shrunk, compact icon only) */}
+            <button
+              type="button"
+              onClick={handleCycleTheme}
+              className="w-6 h-6 rounded-md bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)] flex items-center justify-center transition-colors shrink-0 text-xs shadow-xs"
+              title={`切换主题（当前: ${currentThemeObj.label}，点击切换下一个）`}
+            >
+              <span className="text-xs leading-none select-none">{currentThemeObj.icon}</span>
+            </button>
 
             {/* User Info Quick Button */}
             <div ref={userDropdownRef} className="relative">
@@ -1038,7 +1130,6 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       setIsUserDropdownOpen(prev => !prev);
-                      setIsThemeDropdownOpen(false);
                       setIsCategoryDropdownOpen(false);
                     }}
                     className={`h-7 px-2 rounded-lg border flex items-center gap-1.5 transition-colors text-xs shrink-0 ${
@@ -1059,11 +1150,24 @@ export default function App() {
                     }`} />
                   </button>
 
+                  {/* Soft background scrim for user dropdown */}
+                  {isUserDropdownOpen && (
+                    <div
+                      className="fixed inset-0 z-40 bg-black/10 dark:bg-black/25 backdrop-blur-[1.5px] transition-opacity"
+                      onClick={() => setIsUserDropdownOpen(false)}
+                    />
+                  )}
+
                   {/* User Popover Menu */}
                   {isUserDropdownOpen && (
                     <div
-                      className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[var(--border-medium)] p-2 shadow-2xl z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl"
-                      style={{ backgroundColor: 'var(--bg-panel)' }}
+                      className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[var(--border-medium)] p-2 z-50 animate-in fade-in zoom-in-95"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--bg-drawer) 97%, transparent)',
+                        backdropFilter: 'blur(40px) saturate(200%) contrast(105%)',
+                        WebkitBackdropFilter: 'blur(40px) saturate(200%) contrast(105%)',
+                        boxShadow: '0 24px 60px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12)'
+                      }}
                     >
                       <div className="flex items-center gap-2.5 px-2 py-1.5 border-b border-[var(--border-subtle)] pb-2 mb-1.5">
                         <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold text-sm flex items-center justify-center shrink-0">
@@ -1142,17 +1246,8 @@ export default function App() {
             </div>
           )}
 
-          {/* Jev Decision Insights & Progress Banner */}
-          <JevInsightsBanner
-            tasks={tasks}
-            adviceSummary={analysis.adviceSummary}
-            overdueCount={analysis.overdueCount}
-            onOpenCleanupModal={() => setIsCleanupModalOpen(true)}
-            onDeferOverdueTasks={handleDeferOverdueTasks}
-          />
-
           {/* Single Active Category View (Minimalist, no waterfall cascade!) */}
-          <div className="mt-2">
+          <div className="mt-1">
             <TaskSection
               category={activeView}
               tasks={currentViewTasks}
@@ -1202,7 +1297,7 @@ export default function App() {
         isCompactMode={isCompactMode}
         onToggleCompactMode={() => handleSaveSettings({ ...settings, widgetWidth: isCompactMode ? 'standard' : 'compact' })}
         onOpenAuth={() => setIsAuthModalOpen(true)}
-        onOpenCleanup={() => setIsCleanupModalOpen(true)}
+        onOpenOperationLogs={() => setIsLogModalOpen(true)}
         onOpenBatchSplit={() => {
           setBatchSplitInitialText('');
           setIsBatchSplitModalOpen(true);
@@ -1211,6 +1306,16 @@ export default function App() {
         onOpenShortcuts={() => setIsShortcutModalOpen(true)}
         onResetSampleData={handleResetSampleData}
         staleCount={analysis.cleanupList.length}
+      />
+
+      {/* Mascot Cyber Progress Widget - Pinned adjacent to Main Card */}
+      <FloatingProgressWidget
+        tasks={tasks}
+        adviceSummary={analysis.adviceSummary}
+        overdueCount={analysis.overdueCount}
+        staleCount={analysis.cleanupList.length}
+        isCompactMode={isCompactMode}
+        onOpenConfirmModal={() => setIsOrganizeConfirmOpen(true)}
       />
 
       {/* Jev Duplicate Detection Resolution Modal */}
@@ -1238,15 +1343,44 @@ export default function App() {
         }}
       />
 
-      {/* Global Toast Notification */}
-      {toastMessage && (
-        <div className="fixed top-4 inset-x-0 mx-auto max-w-sm px-4 z-50 pointer-events-none">
-          <div className="bg-[var(--chip-bg)] text-[var(--text-main)] border border-[var(--chip-border)] shadow-2xl rounded-xl px-4 py-2.5 text-xs flex items-center gap-2 backdrop-blur-md">
-            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span className="flex-1 font-medium leading-snug">{toastMessage}</span>
+      {/* Global Toast Notification - Compact Frosted Glass Capsule with optional Action Button */}
+      <AnimatePresence>
+        {toastInfo && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[140] pointer-events-auto flex justify-center">
+            <motion.div
+              initial={{ opacity: 0, y: -8, scale: 0.92 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.94 }}
+              transition={{ duration: 0.16, ease: 'easeOut' }}
+              className="px-3.5 py-1.5 rounded-full border flex items-center gap-2 select-none"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--bg-drawer) 96%, transparent)',
+                backdropFilter: 'blur(36px) saturate(190%) contrast(105%)',
+                WebkitBackdropFilter: 'blur(36px) saturate(190%) contrast(105%)',
+                borderColor: 'var(--border-medium)',
+                color: 'var(--text-main)',
+                boxShadow: '0 16px 36px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.15)'
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+              <span className="text-xs font-medium leading-none whitespace-nowrap">{toastInfo.message}</span>
+              {toastInfo.actionText && toastInfo.onAction && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    toastInfo.onAction?.();
+                    setToastInfo(null);
+                  }}
+                  className="ml-1 px-2 py-0.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-[11px] font-semibold flex items-center gap-0.5 transition-colors cursor-pointer"
+                >
+                  <span>{toastInfo.actionText}</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              )}
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Other Modals */}
       <AuthModal
@@ -1257,14 +1391,34 @@ export default function App() {
         onLogout={handleLogout}
       />
 
-      <JevCleanupModal
-        isOpen={isCleanupModalOpen}
-        onClose={() => setIsCleanupModalOpen(false)}
+      {/* Jev Auto-Organize Secondary Confirmation Modal */}
+      <JevOrganizeConfirmModal
+        isOpen={isOrganizeConfirmOpen}
+        onClose={() => setIsOrganizeConfirmOpen(false)}
+        onConfirm={handleExecuteAutoOrganize}
         tasks={tasks}
-        cleanupList={analysis.cleanupList}
-        onApplyRanking={handleApplyRanking}
-        onApplyCleanup={handleApplyCleanup}
+        adviceSummary={analysis.adviceSummary}
+        overdueCount={analysis.overdueCount}
+        staleCount={analysis.cleanupList.length}
       />
+
+      {/* Global Operation Log History Modal */}
+      <OperationLogModal
+        isOpen={isLogModalOpen}
+        onClose={() => setIsLogModalOpen(false)}
+      />
+
+      {/* Task Snapshot Drilldown Modal */}
+      {snapshotModalData && (
+        <TaskSnapshotModal
+          isOpen={snapshotModalData.isOpen}
+          onClose={() => setSnapshotModalData(prev => prev ? { ...prev, isOpen: false } : null)}
+          title={snapshotModalData.title}
+          description={snapshotModalData.description}
+          timestamp={snapshotModalData.timestamp}
+          tasks={snapshotModalData.tasks}
+        />
+      )}
 
       <ShortcutPluginModal
         isOpen={isShortcutModalOpen}
