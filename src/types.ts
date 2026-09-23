@@ -4,7 +4,19 @@
 
 export type TaskCategory = '即刻完成' | '近期完成' | '规划待办';
 
-export type ActiveView = '即刻完成' | '近期完成' | '规划待办' | '全部事项';
+export type ActiveView = '即刻完成' | '近期完成' | '规划待办' | '全部事项' | '轨迹';
+
+export type CalendarViewMode = 'month' | 'week' | 'agenda';
+export type ReportType = 'daily' | 'weekly';
+
+export interface ActivityDayData {
+  date: string; // YYYY-MM-DD
+  count: number;
+  completedCount: number;
+  createdCount: number;
+  tasks: TaskItem[];
+  level: 0 | 1 | 2 | 3 | 4;
+}
 
 export type TaskPriority = 'P0' | 'P1' | 'P2' | 'P3';
 

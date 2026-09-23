@@ -19,7 +19,8 @@ import {
   LogOut,
   LogIn,
   ScrollText,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from 'lucide-react';
 import { TaskItem, TaskCategory, TaskPriority, ActiveView, AppSettings, AppTheme } from './types';
 import { TaskSnapshot } from './types/operationLog';
@@ -54,6 +55,7 @@ import { JevDuplicateModal } from './components/JevDuplicateModal';
 import { JevBatchSplitModal, BatchParsedTask } from './components/JevBatchSplitModal';
 import { CardRect } from './components/TaskItem';
 import { generatePMSimulatedTasks, getOnboardingTasks } from './data/pmScenarios';
+import { CalendarReportsView } from './components/CalendarReportsView';
 
 const STORAGE_KEY_GUEST_TASKS_OLD = 'jev_minimal_todo_guest_tasks_v1';
 const STORAGE_KEY_GUEST_TASKS = 'jev_minimal_todo_guest_tasks_v2';
@@ -883,7 +885,7 @@ export default function App() {
     const currentIndex = THEMES.findIndex(t => t.id === settings.theme);
     const nextTheme = THEMES[(currentIndex + 1) % THEMES.length];
     handleSaveSettings({ ...settings, theme: nextTheme.id });
-    showToast(`${nextTheme.icon} ${nextTheme.label}`);
+    showToast(`${nextTheme.icon} ${nextTheme.label}`, undefined, undefined, 1400);
   };
 
   // Manual trigger cloud sync
@@ -905,7 +907,7 @@ export default function App() {
 
   // Tasks in current active view
   const currentViewTasks = useMemo(() => {
-    if (activeView === '全部事项') return filteredTasks;
+    if (activeView === '全部事项' || activeView === '轨迹') return filteredTasks;
     return filteredTasks.filter(t => t.category === activeView);
   }, [filteredTasks, activeView]);
 
@@ -940,11 +942,18 @@ export default function App() {
       label: '全部事项',
       icon: <Layers className="w-3.5 h-3.5 text-emerald-500" />,
       color: 'text-emerald-500'
+    },
+    '轨迹': {
+      label: '轨迹',
+      icon: <Calendar className="w-3.5 h-3.5 text-indigo-400" />,
+      color: 'text-indigo-400'
     }
   };
 
   const activeMeta = categoryMeta[activeView];
-  const pendingCountInView = currentViewTasks.filter(t => !t.completed).length;
+  const pendingCountInView = activeView === '轨迹'
+    ? tasks.length
+    : currentViewTasks.filter(t => !t.completed).length;
 
   // Category options for dropdown switcher
   const categoryOptions = useMemo<
@@ -981,6 +990,14 @@ export default function App() {
       icon: <Layers className="w-3.5 h-3.5 text-emerald-500" />,
       color: 'text-emerald-500',
       count: tasks.filter(t => !t.completed).length
+    },
+    {
+      view: '轨迹',
+      label: '轨迹',
+      desc: '日历 · 热点图 · 日报周报',
+      icon: <Calendar className="w-3.5 h-3.5 text-indigo-400" />,
+      color: 'text-indigo-400',
+      count: tasks.length
     }
   ], [tasks]);
 
@@ -1238,18 +1255,26 @@ export default function App() {
             </div>
           )}
 
-          {/* Single Active Category View (Minimalist, no waterfall cascade!) */}
+          {/* Calendar & Reports View OR Single Active Category View */}
           <div className="mt-1">
-            <TaskSection
-              category={activeView}
-              tasks={currentViewTasks}
-              onToggleComplete={handleToggleComplete}
-              onUpdateTask={handleUpdateTask}
-              onDeleteTask={handleDeleteTask}
-              onMoveToPlanning={handleMoveToPlanning}
-              onDeferTask={handleDeferTask}
-              onStartGesture={handleStartGesture}
-            />
+            {activeView === '轨迹' ? (
+              <CalendarReportsView
+                tasks={tasks}
+                theme={settings.theme}
+                onSelectCategory={(cat) => setActiveView(cat)}
+              />
+            ) : (
+              <TaskSection
+                category={activeView}
+                tasks={currentViewTasks}
+                onToggleComplete={handleToggleComplete}
+                onUpdateTask={handleUpdateTask}
+                onDeleteTask={handleDeleteTask}
+                onMoveToPlanning={handleMoveToPlanning}
+                onDeferTask={handleDeferTask}
+                onStartGesture={handleStartGesture}
+              />
+            )}
           </div>
 
           {/* 底部 3 动物投喂领地 (仅在长按触发时出现在任务主体界面底部，透明背景 + 弱化阴影过渡) */}
@@ -1261,17 +1286,19 @@ export default function App() {
         </main>
       </div>
 
-      {/* Floating Bottom Input Bar with Voice-to-Text (长按拖拽樱桃时优雅淡出，不阻挡视线) */}
-      <div className={`transition-opacity duration-200 ${gestureData ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-        <FloatingInputBar
-          onAddTask={handleAddTask}
-          onOpenBatchModal={(text) => {
-            setBatchSplitInitialText(text || '');
-            setIsBatchSplitModalOpen(true);
-          }}
-          isProcessing={isProcessing}
-        />
-      </div>
+      {/* Floating Bottom Input Bar with Voice-to-Text (长按拖拽樱桃时淡出，在轨迹只读视图下隐藏) */}
+      {activeView !== '轨迹' && (
+        <div className={`transition-opacity duration-200 ${gestureData ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <FloatingInputBar
+            onAddTask={handleAddTask}
+            onOpenBatchModal={(text) => {
+              setBatchSplitInitialText(text || '');
+              setIsBatchSplitModalOpen(true);
+            }}
+            isProcessing={isProcessing}
+          />
+        </div>
+      )}
 
       {/* 樱桃投喂手势调度层 (无新增蒙层遮罩，直接在原层呈现樱桃与抛物线弹道) */}
       <TaskGestureOverlay
