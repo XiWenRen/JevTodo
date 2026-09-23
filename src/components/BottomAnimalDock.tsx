@@ -68,7 +68,7 @@ export const BottomAnimalDock: React.FC<BottomAnimalDockProps> = ({
                 }}
               >
                 <img
-                  src="/assets/animals/dino.png"
+                  src="/assets/animals/dino.webp"
                   alt="小恐龙"
                   className="w-20 h-20 sm:w-22 sm:h-22 object-contain pointer-events-none filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
                   style={{
@@ -128,7 +128,7 @@ export const BottomAnimalDock: React.FC<BottomAnimalDockProps> = ({
                 }}
               >
                 <img
-                  src="/assets/animals/sloth.png"
+                  src="/assets/animals/sloth.webp"
                   alt="小树懒"
                   className="w-20 h-20 sm:w-22 sm:h-22 object-contain pointer-events-none filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
                   style={{
@@ -190,7 +190,7 @@ export const BottomAnimalDock: React.FC<BottomAnimalDockProps> = ({
                 }}
               >
                 <img
-                  src="/assets/animals/hamster.png"
+                  src="/assets/animals/hamster.webp"
                   alt="小松鼠"
                   className="w-20 h-20 sm:w-22 sm:h-22 object-contain pointer-events-none filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.5)]"
                   style={{

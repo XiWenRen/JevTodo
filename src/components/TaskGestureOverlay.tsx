@@ -33,7 +33,7 @@ export const UnifiedCherry: React.FC<UnifiedCherryProps> = ({ size = 56 }) => {
       style={{ width: size, height: size }}
     >
       <img
-        src="/assets/cherry.png"
+        src="/assets/cherry.webp"
         alt="Cherry"
         className="w-full h-full object-contain pointer-events-none overflow-visible"
         draggable={false}
