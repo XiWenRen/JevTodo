@@ -94,9 +94,14 @@ export const matchHoursMins = (str: string): { hour: number; minute: number } | 
 /**
  * Natural language date/time parser for Chinese and standard inputs
  */
-export function extractDateTime(input: string): { dueDate?: string; dueDateIso?: string; cleanTitle: string } {
-  const now = new Date();
-  let targetDate = new Date();
+export function extractDateTime(input: string, referenceDate: Date = new Date()): {
+  dueDate?: string;
+  dueDateIso?: string;
+  dueTimestamp?: number;
+  cleanTitle: string;
+} {
+  const now = referenceDate || new Date();
+  let targetDate = new Date(now.getTime());
   let hasDate = false;
   let cleanTitle = input;
 
@@ -106,7 +111,25 @@ export function extractDateTime(input: string): { dueDate?: string; dueDateIso?:
   const defaultHour = timeInfo ? timeInfo.hour : 18;
   const defaultMin = timeInfo ? timeInfo.minute : 0;
 
-  if (/(今天|今晚|今日)/.test(input)) {
+  // 1. Explicit calendar date: e.g. 2026-09-23, 2026年9月23日, 2026/09/23
+  const fullDateMatch = /(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?/.exec(input);
+  const shortDateMatch = !fullDateMatch ? /(\d{1,2})[-/.月](\d{1,2})日?/.exec(input) : null;
+
+  if (fullDateMatch) {
+    hasDate = true;
+    const year = parseInt(fullDateMatch[1], 10);
+    const month = parseInt(fullDateMatch[2], 10) - 1;
+    const day = parseInt(fullDateMatch[3], 10);
+    targetDate = new Date(year, month, day, defaultHour, defaultMin, 0, 0);
+    cleanTitle = cleanTitle.replace(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?/g, '');
+  } else if (shortDateMatch && !/(?:周|星期)[1-7]/.test(input)) {
+    hasDate = true;
+    const year = now.getFullYear();
+    const month = parseInt(shortDateMatch[1], 10) - 1;
+    const day = parseInt(shortDateMatch[2], 10);
+    targetDate = new Date(year, month, day, defaultHour, defaultMin, 0, 0);
+    cleanTitle = cleanTitle.replace(/(\d{1,2})[-/.月](\d{1,2})日?/g, '');
+  } else if (/(今天|今晚|今日)/.test(input)) {
     hasDate = true;
     targetDate.setHours(defaultHour, defaultMin, 0, 0);
     cleanTitle = cleanTitle.replace(/(今天|今晚|今日)/g, '');
@@ -115,6 +138,11 @@ export function extractDateTime(input: string): { dueDate?: string; dueDateIso?:
     targetDate.setDate(targetDate.getDate() + 1);
     targetDate.setHours(timeInfo ? timeInfo.hour : 10, defaultMin, 0, 0);
     cleanTitle = cleanTitle.replace(/(明天|明早|明晚)/g, '');
+  } else if (/大后天/.test(input)) {
+    hasDate = true;
+    targetDate.setDate(targetDate.getDate() + 3);
+    targetDate.setHours(defaultHour, defaultMin, 0, 0);
+    cleanTitle = cleanTitle.replace(/大后天/g, '');
   } else if (/后天/.test(input)) {
     hasDate = true;
     targetDate.setDate(targetDate.getDate() + 2);
@@ -228,36 +256,239 @@ export function extractDateTime(input: string): { dueDate?: string; dueDateIso?:
   const hh = pad(targetDate.getHours());
   const mm = pad(targetDate.getMinutes());
 
-  const isToday = targetDate.toDateString() === now.toDateString();
-  const tomorrow = new Date();
-  tomorrow.setDate(now.getDate() + 1);
-  const isTomorrow = targetDate.toDateString() === tomorrow.toDateString();
-
-  const yesterday = new Date();
-  yesterday.setDate(now.getDate() - 1);
-  const isYesterday = targetDate.toDateString() === yesterday.toDateString();
-
-  const beforeYesterday = new Date();
-  beforeYesterday.setDate(now.getDate() - 2);
-  const isBeforeYesterday = targetDate.toDateString() === beforeYesterday.toDateString();
+  const targetDayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
+  const nowDayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const dayDiff = Math.round((targetDayStart - nowDayStart) / (24 * 3600 * 1000));
 
   let humanDueDate = '';
-  if (isToday) {
+  if (dayDiff === 0) {
     humanDueDate = `今天 ${hh}:${mm}`;
-  } else if (isTomorrow) {
+  } else if (dayDiff === 1) {
     humanDueDate = `明天 ${hh}:${mm}`;
-  } else if (isYesterday) {
+  } else if (dayDiff === 2) {
+    humanDueDate = `后天 ${hh}:${mm}`;
+  } else if (dayDiff === -1) {
     humanDueDate = `昨天 ${hh}:${mm}`;
-  } else if (isBeforeYesterday) {
+  } else if (dayDiff === -2) {
     humanDueDate = `前天 ${hh}:${mm}`;
-  } else {
+  } else if (y === now.getFullYear()) {
     humanDueDate = `${m}-${d} ${hh}:${mm}`;
+  } else {
+    humanDueDate = `${y}-${m}-${d} ${hh}:${mm}`;
   }
+
+  const dueTimestamp = targetDate.getTime();
+  const dueDateIso = `${y}-${m}-${d}T${hh}:${mm}:00`;
 
   return {
     dueDate: humanDueDate,
-    dueDateIso: `${y}-${m}-${d}T${hh}:${mm}:00`,
+    dueDateIso,
+    dueTimestamp,
     cleanTitle: cleanTitle.length > 0 ? cleanTitle : input.trim()
+  };
+}
+
+export interface FormattedDueDate {
+  hasDueDate: boolean;
+  displayDate: string; // Dynamic relative or calendar string e.g. "昨天 14:00", "今天 14:00", "明天 10:00"
+  fullExactDate: string; // Full concrete timestamp e.g. "2026-09-22 14:00"
+  isOverdue: boolean;
+  diffHours: number;
+  colorClass: string;
+  dotClass: string;
+  relativeDesc: string; // e.g. "已逾期 20h", "已逾期 1天", "30分钟内", "今日稍晚"
+  concreteTimestamp?: number;
+}
+
+/**
+ * Dynamically formats a task's due date relative to the current live time.
+ * If a task was due yesterday at 14:00, it dynamically displays as "昨天 14:00" with "已逾期 20h",
+ * never statically stuck on "今天 14:00".
+ */
+export function formatDynamicDueDate(
+  task: {
+    dueDate?: string;
+    dueDateIso?: string;
+    dueTimestamp?: number;
+    createdAt?: number;
+  },
+  referenceNow: Date = new Date()
+): FormattedDueDate {
+  if (!task.dueDate && !task.dueDateIso && !task.dueTimestamp) {
+    return {
+      hasDueDate: false,
+      displayDate: '',
+      fullExactDate: '',
+      isOverdue: false,
+      diffHours: 0,
+      colorClass: 'text-[var(--text-sub)]',
+      dotClass: 'bg-[var(--text-faint)]',
+      relativeDesc: ''
+    };
+  }
+
+  // 1. Resolve concrete target timestamp
+  let dueMs: number | null = null;
+  if (typeof task.dueTimestamp === 'number' && !isNaN(task.dueTimestamp) && task.dueTimestamp > 0) {
+    dueMs = task.dueTimestamp;
+  } else if (task.dueDateIso) {
+    const t = new Date(task.dueDateIso).getTime();
+    if (!isNaN(t)) dueMs = t;
+  }
+
+  // 2. If dueMs still not found, check task.dueDate
+  if (!dueMs && task.dueDate) {
+    // If it's pure fuzzy planning text like "下个月" / "下半年" / "稍后规划" / "长期"
+    if (/(下个月|下半年|明年|稍后规划|规划中|待定|长期)/.test(task.dueDate)) {
+      return {
+        hasDueDate: true,
+        displayDate: task.dueDate,
+        fullExactDate: '规划中无具体时间',
+        isOverdue: false,
+        diffHours: 9999,
+        colorClass: 'text-[var(--text-sub)]',
+        dotClass: 'bg-[var(--text-faint)]',
+        relativeDesc: ''
+      };
+    }
+
+    // Try parsing task.dueDate using task.createdAt as reference if available
+    const refDate = task.createdAt ? new Date(task.createdAt) : referenceNow;
+    const parsed = extractDateTime(task.dueDate, refDate);
+    if (parsed.dueTimestamp) {
+      dueMs = parsed.dueTimestamp;
+    }
+  }
+
+  if (!dueMs) {
+    return {
+      hasDueDate: true,
+      displayDate: task.dueDate || '',
+      fullExactDate: task.dueDate || '',
+      isOverdue: false,
+      diffHours: 0,
+      colorClass: 'text-[var(--text-sub)]',
+      dotClass: 'bg-[var(--text-faint)]',
+      relativeDesc: ''
+    };
+  }
+
+  // 3. We have a concrete dueMs! Calculate dynamic relative text against referenceNow
+  const targetDate = new Date(dueMs);
+  const nowMs = referenceNow.getTime();
+  const diffHours = (dueMs - nowMs) / (1000 * 60 * 60);
+
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const y = targetDate.getFullYear();
+  const m = targetDate.getMonth() + 1;
+  const d = targetDate.getDate();
+  const hh = pad(targetDate.getHours());
+  const mm = pad(targetDate.getMinutes());
+  const timeStr = `${hh}:${mm}`;
+
+  const targetDayStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate()).getTime();
+  const nowDayStart = new Date(referenceNow.getFullYear(), referenceNow.getMonth(), referenceNow.getDate()).getTime();
+  const dayDiff = Math.round((targetDayStart - nowDayStart) / (24 * 3600 * 1000));
+
+  let dynamicDay = '';
+  if (dayDiff === 0) {
+    dynamicDay = `今天 ${timeStr}`;
+  } else if (dayDiff === 1) {
+    dynamicDay = `明天 ${timeStr}`;
+  } else if (dayDiff === 2) {
+    dynamicDay = `后天 ${timeStr}`;
+  } else if (dayDiff === -1) {
+    dynamicDay = `昨天 ${timeStr}`;
+  } else if (dayDiff === -2) {
+    dynamicDay = `前天 ${timeStr}`;
+  } else if (y === referenceNow.getFullYear()) {
+    dynamicDay = `${m}月${d}日 ${timeStr}`;
+  } else {
+    dynamicDay = `${y}年${m}月${d}日 ${timeStr}`;
+  }
+
+  const fullExactDate = `${y}-${pad(m)}-${pad(d)} ${timeStr}`;
+
+  // 4. Determine status & overdue
+  if (diffHours < 0) {
+    const hoursPast = Math.abs(diffHours);
+    let desc = '';
+    if (hoursPast >= 48) {
+      desc = `已逾期 ${Math.floor(hoursPast / 24)}天`;
+    } else if (hoursPast >= 24) {
+      desc = '已逾期 1天';
+    } else if (hoursPast >= 1) {
+      desc = `已逾期 ${Math.round(hoursPast)}h`;
+    } else {
+      const minsPast = Math.max(1, Math.round(hoursPast * 60));
+      desc = `已逾期 ${minsPast}m`;
+    }
+    return {
+      hasDueDate: true,
+      displayDate: dynamicDay,
+      fullExactDate,
+      isOverdue: true,
+      diffHours,
+      colorClass: 'text-rose-500 font-medium',
+      dotClass: 'bg-rose-500',
+      relativeDesc: desc,
+      concreteTimestamp: dueMs
+    };
+  }
+
+  if (diffHours <= 2) {
+    const mins = Math.max(1, Math.round(diffHours * 60));
+    return {
+      hasDueDate: true,
+      displayDate: dynamicDay,
+      fullExactDate,
+      isOverdue: false,
+      diffHours,
+      colorClass: 'text-amber-500 font-medium',
+      dotClass: 'bg-amber-500',
+      relativeDesc: `${mins}分钟内`,
+      concreteTimestamp: dueMs
+    };
+  }
+
+  if (diffHours <= 12) {
+    return {
+      hasDueDate: true,
+      displayDate: dynamicDay,
+      fullExactDate,
+      isOverdue: false,
+      diffHours,
+      colorClass: 'text-sky-400 font-normal',
+      dotClass: 'bg-sky-400',
+      relativeDesc: '今日稍晚',
+      concreteTimestamp: dueMs
+    };
+  }
+
+  if (diffHours <= 48) {
+    return {
+      hasDueDate: true,
+      displayDate: dynamicDay,
+      fullExactDate,
+      isOverdue: false,
+      diffHours,
+      colorClass: 'text-emerald-400/90 font-normal',
+      dotClass: 'bg-emerald-400',
+      relativeDesc: '近两天',
+      concreteTimestamp: dueMs
+    };
+  }
+
+  return {
+    hasDueDate: true,
+    displayDate: dynamicDay,
+    fullExactDate,
+    isOverdue: false,
+    diffHours,
+    colorClass: 'text-[var(--text-sub)]',
+    dotClass: 'bg-[var(--text-faint)]',
+    relativeDesc: '',
+    concreteTimestamp: dueMs
   };
 }
 
@@ -333,7 +564,7 @@ export async function evaluateWithJev(
   rawInput: string,
   options?: { apiKey?: string; endpoint?: string }
 ): Promise<JevDecision> {
-  const { dueDate, dueDateIso, cleanTitle } = extractDateTime(rawInput);
+  const { dueDate, dueDateIso, dueTimestamp, cleanTitle } = extractDateTime(rawInput);
   const { tags, remainingText } = extractFlomoTags(cleanTitle);
 
   // If user provided an API key, call the backend /api/jev/evaluate endpoint
@@ -359,6 +590,7 @@ export async function evaluateWithJev(
             tags: data.tags && data.tags.length > 0 ? data.tags : tags,
             dueDate: data.dueDate || dueDate,
             dueDateIso: data.dueDateIso || dueDateIso,
+            dueTimestamp: data.dueTimestamp || dueTimestamp,
             confidence: data.confidence ?? 0.94,
             rawJevAnswers: data.rawJevAnswers,
             source: 'jev-api'
@@ -407,13 +639,17 @@ export async function evaluateWithJev(
     confidence = 0.92;
   }
 
+  const defaultDueMs = category === '即刻完成' ? new Date().setHours(18, 0, 0, 0) : undefined;
+  const defaultIso = category === '即刻完成' ? `${new Date().toISOString().slice(0, 10)}T18:00:00` : undefined;
+
   return {
     category,
     priority,
     urgencyScore,
     tags,
     dueDate: dueDate || (category === '即刻完成' ? '今天 18:00' : undefined),
-    dueDateIso,
+    dueDateIso: dueDateIso || defaultIso,
+    dueTimestamp: dueTimestamp || defaultDueMs,
     confidence,
     source: 'jev-hybrid-engine'
   };
@@ -440,11 +676,9 @@ export function analyzeTasksWithJev(tasks: TaskItem[]): {
     let cleanupReason = '';
 
     // Check overdue
-    if (task.dueDateIso) {
-      const dueTime = new Date(task.dueDateIso).getTime();
-      if (!task.completed && dueTime < now) {
-        overdueCount++;
-      }
+    const dynamicDate = formatDynamicDueDate(task, new Date(now));
+    if (!task.completed && dynamicDate.isOverdue) {
+      overdueCount++;
     }
 
     // Staleness heuristic: uncompleted for > 5 days or created > 7 days ago with low priority

@@ -55,33 +55,47 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
     }
   }, [gestureData]);
 
-  // Pointer tracking & sector detection (Full 180° Semicircle Trisected into 3x 60°)
+  // Pointer & Touch tracking & sector detection (Full 180° Semicircle Trisected into 3x 60°)
   useEffect(() => {
     if (!gestureData) return;
     const { point: startPoint } = gestureData;
 
-    const rOuter = 140;
-    const rCenterButton = 28;
-    const cy = Math.max(rOuter + 28, Math.min(window.innerHeight - 80, startPoint.y));
-    const cx = Math.max(rOuter + 20, Math.min(window.innerWidth - rOuter - 20, startPoint.x));
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    const rOuter = isMobile ? 120 : 136;
+    const rCenterButton = 26;
+    const minDragThreshold = 32; // Finger must move at least 32px before activating any sector
 
-    const handlePointerMove = (e: PointerEvent) => {
-      const x = e.clientX;
-      const y = e.clientY;
+    // Position center hub as close as possible to the user's touch point
+    const W = typeof window !== 'undefined' ? window.innerWidth : 800;
+    const H = typeof window !== 'undefined' ? window.innerHeight : 600;
+    const cy = Math.max(rOuter + 16, Math.min(H - 60, startPoint.y));
+    const cx = Math.max(rOuter + 8, Math.min(W - rOuter - 8, startPoint.x));
+
+    let hasEverMoved = false;
+
+    const processMove = (x: number, y: number) => {
       setCurrentPos({ x, y });
+
+      const distFromStart = Math.hypot(x - startPoint.x, y - startPoint.y);
+      if (distFromStart > 10) {
+        hasEverMoved = true;
+      }
 
       const deltaX = x - cx;
       const deltaY = y - cy;
-      const dist = Math.hypot(deltaX, deltaY);
+      const distFromCenter = Math.hypot(deltaX, deltaY);
 
-      // Cancel zone detection: close to center button or dragged downwards into lower hemisphere
-      const inCancelZone = dist < rCenterButton + 14 || (deltaY > 12 && Math.abs(deltaX) < 42);
+      // Cancel zone detection: within central cancel button or dragged downwards into lower hemisphere
+      const inCancelZone = 
+        distFromCenter < rCenterButton + 12 || 
+        distFromStart < minDragThreshold || 
+        (deltaY > 14 && Math.abs(deltaX) < 48);
 
       if (inCancelZone) {
         if (!isNearCancel) {
           setIsNearCancel(true);
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            try { navigator.vibrate(10); } catch {}
+            try { navigator.vibrate(8); } catch {}
           }
         }
         if (activeAction !== 'none') {
@@ -103,18 +117,14 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       // Left (-180° to -120°): 删除 (Center = -150°)
       // Center (-120° to -60°): 延后 (Center = -90°)
       // Right (-60° to 0°): 完成 (Center = -30°)
-      if (angleDeg >= -180 && angleDeg < -120) {
-        detected = 'delete';
-      } else if (angleDeg >= -120 && angleDeg < -60) {
-        detected = 'defer';
-      } else if (angleDeg >= -60 && angleDeg <= 0) {
-        detected = 'complete';
-      } else if (deltaX < -32 && deltaY < 24) {
-        detected = 'delete';
-      } else if (deltaX > 32 && deltaY < 24) {
-        detected = 'complete';
-      } else if (deltaY < -32 && Math.abs(deltaX) <= Math.abs(deltaY) * 0.75) {
-        detected = 'defer';
+      if (hasEverMoved && distFromStart >= minDragThreshold) {
+        if (angleDeg >= -180 && angleDeg < -120) {
+          detected = 'delete';
+        } else if (angleDeg >= -120 && angleDeg < -60) {
+          detected = 'defer';
+        } else if (angleDeg >= -60 && angleDeg <= 0) {
+          detected = 'complete';
+        }
       }
 
       if (detected !== activeAction) {
@@ -127,7 +137,22 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       }
     };
 
-    const handlePointerUp = () => {
+    const handlePointerMove = (e: PointerEvent) => {
+      processMove(e.clientX, e.clientY);
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      // Prevent mobile default scroll/bounce that disconnects touch
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+      if (e.touches && e.touches.length > 0) {
+        processMove(e.touches[0].clientX, e.touches[0].clientY);
+      }
+    };
+
+    const handleFinish = () => {
+      // Only execute if user deliberately moved into an action sector
       if (activeAction !== 'none' && gestureData) {
         setIsFinishing(activeAction);
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -140,18 +165,33 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
           onClose();
         }, 160);
       } else {
+        // Safe release without triggering any accidental task completion
         onClose();
       }
     };
 
+    const handleCancelClean = () => {
+      // On touch cancel or system interrupt, strictly abort with no action
+      setActiveAction('none');
+      onClose();
+    };
+
     window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', onClose);
+    window.addEventListener('pointerup', handleFinish);
+    window.addEventListener('pointercancel', handleCancelClean);
+
+    // Native mobile touch events for 100% reliable tracking on iOS & Android
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleFinish);
+    window.addEventListener('touchcancel', handleCancelClean);
 
     return () => {
       window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', onClose);
+      window.removeEventListener('pointerup', handleFinish);
+      window.removeEventListener('pointercancel', handleCancelClean);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleFinish);
+      window.removeEventListener('touchcancel', handleCancelClean);
     };
   }, [gestureData, activeAction, isNearCancel, onAction, onClose]);
 
@@ -163,11 +203,12 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
   const H = typeof window !== 'undefined' ? window.innerHeight : 600;
 
   // Geometry: Full 180° upper semicircle, trisected into 3 x 60° options
-  const rOuter = 140;
-  const rInner = 36;
+  const isMobile = W < 640;
+  const rOuter = isMobile ? 120 : 136;
+  const rInner = isMobile ? 32 : 36;
 
-  const cy = Math.max(rOuter + 28, Math.min(H - 80, startPoint.y));
-  const cx = Math.max(rOuter + 20, Math.min(W - rOuter - 20, startPoint.x));
+  const cy = Math.max(rOuter + 16, Math.min(H - 60, startPoint.y));
+  const cx = Math.max(rOuter + 8, Math.min(W - rOuter - 8, startPoint.x));
 
   // Placement for icon and label along sector centerline
   const rIcon = rInner + (rOuter - rInner) * 0.65; // ~103px

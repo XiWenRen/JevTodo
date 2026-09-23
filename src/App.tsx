@@ -3,7 +3,7 @@
  * Powered by TypeSafe Jev Decision Logic with Multi-Tenant Data Isolation
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Menu,
   Zap,
@@ -11,10 +11,15 @@ import {
   Compass,
   Layers,
   ChevronDown,
-  CheckCircle2
+  CheckCircle2,
+  User,
+  Palette,
+  Check,
+  LogOut,
+  LogIn
 } from 'lucide-react';
 import { TaskItem, TaskCategory, TaskPriority, ActiveView, AppSettings, AppTheme } from './types';
-import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev } from './utils/jev';
+import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev, extractDateTime } from './utils/jev';
 import { 
   checkAndFetchCloudTasks, 
   syncTaskToCloud, 
@@ -62,6 +67,15 @@ export default function App() {
   // Active Category View state (replaced waterfall cascade with clean drawer-based view switching)
   const [activeView, setActiveView] = useState<ActiveView>('即刻完成');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Top header dropdown menus state & refs
+  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+  const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  const themeDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   // Active Long-Press 3-Sector Radial Gesture state
   const [gestureData, setGestureData] = useState<GestureData | null>(null);
@@ -165,6 +179,37 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', currentTheme);
     document.body.setAttribute('data-theme', currentTheme);
   }, [settings.theme]);
+
+  // Close dropdowns on outside click or Escape key
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(target)) {
+        setIsCategoryDropdownOpen(false);
+      }
+      if (themeDropdownRef.current && !themeDropdownRef.current.contains(target)) {
+        setIsThemeDropdownOpen(false);
+      }
+      if (userDropdownRef.current && !userDropdownRef.current.contains(target)) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsCategoryDropdownOpen(false);
+        setIsThemeDropdownOpen(false);
+        setIsUserDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // Load cloud tasks for current authenticated user
   const refreshTasksFromCloud = useCallback(async () => {
@@ -323,6 +368,7 @@ export default function App() {
         tags: decision.tags,
         dueDate: decision.dueDate,
         dueDateIso: decision.dueDateIso,
+        dueTimestamp: decision.dueTimestamp,
         completed: false,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -372,11 +418,24 @@ export default function App() {
 
     const mergedTags = Array.from(new Set([...matchedTask.tags, ...(newTags || [])]));
 
+    let updatedDueDate = matchedTask.dueDate;
+    let updatedDueDateIso = matchedTask.dueDateIso;
+    let updatedDueTimestamp = matchedTask.dueTimestamp;
+
+    if (!updatedDueDate && newDueDate) {
+      const parsed = extractDateTime(newDueDate);
+      updatedDueDate = parsed.dueDate || newDueDate;
+      updatedDueDateIso = parsed.dueDateIso;
+      updatedDueTimestamp = parsed.dueTimestamp;
+    }
+
     const updated: TaskItem = {
       ...matchedTask,
       notes: [...(matchedTask.notes || []), noteEntry],
       tags: mergedTags,
-      dueDate: matchedTask.dueDate || newDueDate,
+      dueDate: updatedDueDate,
+      dueDateIso: updatedDueDateIso,
+      dueTimestamp: updatedDueTimestamp,
       updatedAt: Date.now()
     };
 
@@ -418,6 +477,7 @@ export default function App() {
         tags: decision.tags,
         dueDate: decision.dueDate,
         dueDateIso: decision.dueDateIso,
+        dueTimestamp: decision.dueTimestamp,
         completed: false,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -457,6 +517,7 @@ export default function App() {
       tags: item.tags,
       dueDate: item.dueDate,
       dueDateIso: item.dueDateIso,
+      dueTimestamp: item.dueTimestamp,
       completed: false,
       createdAt: Date.now(),
       updatedAt: Date.now()
@@ -652,13 +713,26 @@ export default function App() {
   // Defer overdue tasks
   const handleDeferOverdueTasks = () => {
     const now = Date.now();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(18, 0, 0, 0);
+    const tomorrowMs = tomorrow.getTime();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const tomorrowIso = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T18:00:00`;
+
     setTasks(prev =>
       prev.map(t => {
-        if (!t.completed && t.dueDateIso && new Date(t.dueDateIso).getTime() < now) {
+        const isTaskOverdue = t.dueTimestamp 
+          ? (!t.completed && t.dueTimestamp < now) 
+          : (t.dueDateIso ? (!t.completed && new Date(t.dueDateIso).getTime() < now) : false);
+
+        if (isTaskOverdue) {
           const updated = {
             ...t,
             category: '近期完成' as TaskCategory,
-            dueDate: '顺延至近期',
+            dueDate: '明天 18:00',
+            dueDateIso: tomorrowIso,
+            dueTimestamp: tomorrowMs,
             updatedAt: Date.now()
           };
           if (cloudStatus.isConfigured && currentUser) {
@@ -741,6 +815,44 @@ export default function App() {
   const activeMeta = categoryMeta[activeView];
   const pendingCountInView = currentViewTasks.filter(t => !t.completed).length;
 
+  // Category options for dropdown switcher
+  const categoryOptions = useMemo<
+    { view: ActiveView; label: string; desc: string; icon: React.ReactNode; color: string; count: number }[]
+  >(() => [
+    {
+      view: '即刻完成',
+      label: '即刻完成',
+      desc: '今日核心 · 专注执行',
+      icon: <Zap className="w-3.5 h-3.5 text-amber-500" />,
+      color: 'text-amber-500',
+      count: tasks.filter(t => t.category === '即刻完成' && !t.completed).length
+    },
+    {
+      view: '近期完成',
+      label: '近期完成',
+      desc: '2~3天内 · 明确交付',
+      icon: <CalendarDays className="w-3.5 h-3.5 text-blue-500" />,
+      color: 'text-blue-500',
+      count: tasks.filter(t => t.category === '近期完成' && !t.completed).length
+    },
+    {
+      view: '规划待办',
+      label: '规划待办',
+      desc: '远期规划 · 稍后推进',
+      icon: <Compass className="w-3.5 h-3.5 text-purple-500" />,
+      color: 'text-purple-500',
+      count: tasks.filter(t => t.category === '规划待办' && !t.completed).length
+    },
+    {
+      view: '全部事项',
+      label: '全部事项',
+      desc: '聚合视图 · 全景概览',
+      icon: <Layers className="w-3.5 h-3.5 text-emerald-500" />,
+      color: 'text-emerald-500',
+      count: tasks.filter(t => !t.completed).length
+    }
+  ], [tasks]);
+
   return (
     <div 
       className="min-h-screen flex flex-col items-center justify-start py-2.5 sm:py-6 px-2 sm:px-4 relative overflow-x-hidden transition-colors duration-250"
@@ -753,39 +865,102 @@ export default function App() {
         }`}
       >
         {/* Minimal Desktop Widget Header */}
-        <header className="acrylic-panel rounded-t-2xl px-3 sm:px-4 py-2.5 border-b border-[var(--border-subtle)] flex items-center justify-between select-none relative z-30">
-          {/* Left: Drawer Toggle Button & Active Category Selector */}
+        <header className="acrylic-panel rounded-t-2xl px-3 sm:px-4 py-2 border-b border-[var(--border-subtle)] flex items-center justify-between select-none relative z-30">
+          {/* Left: Drawer Hamburger & Direct Category Dropdown Switcher */}
           <div className="flex items-center gap-1.5 min-w-0">
-            {/* Drawer Hamburger Menu Button */}
+            {/* Drawer Hamburger Menu Button (Access tags, PM simulation, settings) */}
             <button
               type="button"
               onClick={() => setIsDrawerOpen(true)}
               className="w-7 h-7 bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--chip-border)] rounded-lg flex items-center justify-center transition-colors shrink-0"
-              title="打开分类与侧边抽屉"
+              title="打开侧边抽屉（标签管理、PM演示、设置）"
             >
               <Menu className="w-4 h-4 stroke-[2.2]" />
             </button>
 
-            {/* Active Category Clickable Pill (One-click switch via drawer) */}
-            <button
-              type="button"
-              onClick={() => setIsDrawerOpen(true)}
-              className="h-7 px-2.5 rounded-lg bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)] flex items-center gap-1.5 transition-colors group min-w-0"
-              title="点击切换分类视图"
-            >
-              <span className="shrink-0">{activeMeta.icon}</span>
-              <span className="text-xs font-semibold text-[var(--text-main)] truncate">
-                {activeMeta.label}
-              </span>
-              <span className="text-[10px] font-mono px-1 py-0.2 rounded-full bg-[var(--chip-hover)] text-[var(--text-sub)]">
-                {pendingCountInView}
-              </span>
-              <ChevronDown className="w-3 h-3 text-[var(--text-faint)] group-hover:text-[var(--text-sub)] shrink-0 transition-transform" />
-            </button>
+            {/* Direct Category Dropdown Switcher (Does NOT call drawer) */}
+            <div ref={categoryDropdownRef} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCategoryDropdownOpen(prev => !prev);
+                  setIsThemeDropdownOpen(false);
+                  setIsUserDropdownOpen(false);
+                }}
+                className={`h-7 px-2.5 rounded-lg border flex items-center gap-1.5 transition-colors group min-w-0 ${
+                  isCategoryDropdownOpen
+                    ? 'bg-[var(--chip-hover)] border-[var(--border-medium)]'
+                    : 'bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] border-[var(--chip-border)]'
+                }`}
+                title="点击下拉直接切换任务大类"
+              >
+                <span className="shrink-0">{activeMeta.icon}</span>
+                <span className="text-xs font-semibold text-[var(--text-main)] truncate">
+                  {activeMeta.label}
+                </span>
+                <span className="text-[10px] font-mono px-1 py-0.2 rounded-full bg-[var(--chip-hover)] text-[var(--text-sub)]">
+                  {pendingCountInView}
+                </span>
+                <ChevronDown className={`w-3 h-3 text-[var(--text-faint)] group-hover:text-[var(--text-sub)] shrink-0 transition-transform duration-200 ${
+                  isCategoryDropdownOpen ? 'rotate-180 text-[var(--text-main)]' : ''
+                }`} />
+              </button>
+
+              {/* Direct Category Dropdown Menu */}
+              {isCategoryDropdownOpen && (
+                <div 
+                  className="absolute left-0 top-full mt-1.5 w-60 rounded-xl border border-[var(--border-medium)] p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl"
+                  style={{ backgroundColor: 'var(--bg-panel)' }}
+                >
+                  <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-faint)] border-b border-[var(--border-subtle)] mb-1 flex items-center justify-between">
+                    <span>切换大类视图</span>
+                    <span>待办数</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {categoryOptions.map((opt) => {
+                      const isActive = activeView === opt.view;
+                      return (
+                        <button
+                          key={opt.view}
+                          type="button"
+                          onClick={() => {
+                            setActiveView(opt.view);
+                            setIsCategoryDropdownOpen(false);
+                          }}
+                          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-left text-xs transition-colors ${
+                            isActive
+                              ? 'bg-[var(--chip-hover)] font-medium text-[var(--text-main)]'
+                              : 'text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-bg)]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="shrink-0">{opt.icon}</span>
+                            <div className="truncate">
+                              <div className="text-xs leading-snug">{opt.label}</div>
+                              <div className="text-[10px] text-[var(--text-faint)] leading-none mt-0.5">{opt.desc}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
+                              isActive 
+                                ? 'bg-[var(--accent-bg)] text-[var(--accent-fg)] font-semibold' 
+                                : 'bg-[var(--chip-bg)] text-[var(--text-faint)]'
+                            }`}>
+                              {opt.count}
+                            </span>
+                            {isActive && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Cloud Sync Status Indicator */}
             <span 
-              className={`w-1.5 h-1.5 rounded-full shrink-0 ml-1 transition-colors ${
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ml-0.5 transition-colors ${
                 cloudStatus.isConfigured && currentUser 
                   ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' 
                   : 'bg-[var(--text-faint)]'
@@ -794,9 +969,157 @@ export default function App() {
             />
           </div>
 
-          {/* Right: Zen Minimalist Brand Subtle Mark */}
-          <div className="text-[10px] font-mono text-[var(--text-faint)] tracking-widest uppercase opacity-40 select-none">
-            Jev Minimal
+          {/* Right: User Quick Info and Theme Switcher Buttons */}
+          <div className="flex items-center gap-1.5 shrink-0 relative">
+            {/* Theme Switcher Quick Button (Compact icon only) */}
+            <div ref={themeDropdownRef} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsThemeDropdownOpen(prev => !prev);
+                  setIsUserDropdownOpen(false);
+                  setIsCategoryDropdownOpen(false);
+                }}
+                className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-colors shrink-0 ${
+                  isThemeDropdownOpen
+                    ? 'bg-[var(--chip-hover)] border-[var(--border-medium)] text-[var(--text-main)]'
+                    : 'bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] border-[var(--chip-border)] text-[var(--text-sub)] hover:text-[var(--text-main)]'
+                }`}
+                title={`切换主题（当前: ${currentThemeObj.label}）`}
+              >
+                <span className="text-sm leading-none select-none">{currentThemeObj.icon}</span>
+              </button>
+
+              {/* Theme Dropdown Menu */}
+              {isThemeDropdownOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1.5 w-44 rounded-xl border border-[var(--border-medium)] p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl"
+                  style={{ backgroundColor: 'var(--bg-panel)' }}
+                >
+                  <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-faint)] border-b border-[var(--border-subtle)] mb-1">
+                    选择界面主题
+                  </div>
+                  <div className="space-y-0.5">
+                    {THEMES.map((theme) => {
+                      const isActive = settings.theme === theme.id;
+                      return (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          onClick={() => {
+                            handleSaveSettings({ ...settings, theme: theme.id });
+                            setIsThemeDropdownOpen(false);
+                            showToast(`已切换至「${theme.label}」主题`);
+                          }}
+                          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-xs transition-colors ${
+                            isActive
+                              ? 'bg-[var(--chip-hover)] font-medium text-[var(--text-main)]'
+                              : 'text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-bg)]'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">{theme.icon}</span>
+                            <span>{theme.label}</span>
+                          </div>
+                          {isActive && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* User Info Quick Button */}
+            <div ref={userDropdownRef} className="relative">
+              {currentUser ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUserDropdownOpen(prev => !prev);
+                      setIsThemeDropdownOpen(false);
+                      setIsCategoryDropdownOpen(false);
+                    }}
+                    className={`h-7 px-2 rounded-lg border flex items-center gap-1.5 transition-colors text-xs shrink-0 ${
+                      isUserDropdownOpen
+                        ? 'bg-[var(--chip-hover)] border-[var(--border-medium)]'
+                        : 'bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] border-[var(--chip-border)]'
+                    }`}
+                    title={`当前用户: ${currentUser.username} (点击查看详情与账号操作)`}
+                  >
+                    <span className="w-4 h-4 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] flex items-center justify-center shrink-0">
+                      {currentUser.username.charAt(0).toUpperCase()}
+                    </span>
+                    <span className="max-w-[60px] sm:max-w-[88px] truncate text-[11px] font-medium text-[var(--text-main)]">
+                      {currentUser.username}
+                    </span>
+                    <ChevronDown className={`w-2.5 h-2.5 opacity-60 transition-transform duration-200 ${
+                      isUserDropdownOpen ? 'rotate-180' : ''
+                    }`} />
+                  </button>
+
+                  {/* User Popover Menu */}
+                  {isUserDropdownOpen && (
+                    <div
+                      className="absolute right-0 top-full mt-1.5 w-52 rounded-xl border border-[var(--border-medium)] p-2 shadow-2xl z-50 animate-in fade-in zoom-in-95 backdrop-blur-xl"
+                      style={{ backgroundColor: 'var(--bg-panel)' }}
+                    >
+                      <div className="flex items-center gap-2.5 px-2 py-1.5 border-b border-[var(--border-subtle)] pb-2 mb-1.5">
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 font-bold text-sm flex items-center justify-center shrink-0">
+                          {currentUser.username.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold text-[var(--text-main)] truncate">
+                            {currentUser.username}
+                          </div>
+                          <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span>云端已实时同步</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-0.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserDropdownOpen(false);
+                            setIsAuthModalOpen(true);
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2 text-xs text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-bg)] transition-colors"
+                        >
+                          <LogIn className="w-3.5 h-3.5 opacity-70" />
+                          <span>切换账号 / 登录新账号</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserDropdownOpen(false);
+                            handleLogout();
+                            showToast('已安全退出登录');
+                          }}
+                          className="w-full px-2.5 py-1.5 rounded-lg flex items-center gap-2 text-xs text-rose-400 hover:bg-rose-500/10 transition-colors"
+                        >
+                          <LogOut className="w-3.5 h-3.5 opacity-80" />
+                          <span>退出登录</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="h-7 px-2.5 rounded-lg bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)] flex items-center gap-1.5 transition-colors text-xs text-[var(--text-main)] shrink-0"
+                  title="登录后可跨设备云同步待办事项"
+                >
+                  <User className="w-3.5 h-3.5 text-[var(--text-sub)]" />
+                  <span className="text-[11px] font-medium">登录</span>
+                </button>
+              )}
+            </div>
           </div>
         </header>
 

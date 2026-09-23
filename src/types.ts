@@ -16,8 +16,9 @@ export interface TaskItem {
   priority: TaskPriority;
   urgencyScore: number; // 0.0 to 1.0 from Jev score
   tags: string[]; // flomo-style tags e.g. ["工作", "方案"]
-  dueDate?: string; // e.g. "2026-09-22 17:00" or "今天 18:00"
-  dueDateIso?: string; // Standard ISO string if available
+  dueDate?: string; // Human-friendly display string
+  dueDateIso?: string; // Standard ISO string if available e.g. "2026-09-22T14:00:00"
+  dueTimestamp?: number; // Concrete epoch millisecond timestamp e.g. 1790146800000
   completed: boolean;
   completedAt?: number;
   createdAt: number;
@@ -43,6 +44,7 @@ export interface JevDecision {
   tags: string[];
   dueDate?: string;
   dueDateIso?: string;
+  dueTimestamp?: number;
   confidence: number;
   rawJevAnswers?: Record<string, any>;
   source: 'jev-api' | 'jev-hybrid-engine';

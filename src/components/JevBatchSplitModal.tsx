@@ -28,6 +28,7 @@ export interface BatchParsedTask {
   tags: string[];
   dueDate?: string;
   dueDateIso?: string;
+  dueTimestamp?: number;
   selected: boolean;
   duplicateInfo?: {
     matchedTask: ITaskItem;
@@ -80,7 +81,7 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
     try {
       const splitStrings = splitTasksWithJev(text);
       const items: BatchParsedTask[] = splitStrings.map((str, index) => {
-        const { dueDate, dueDateIso, cleanTitle } = extractDateTime(str);
+        const { dueDate, dueDateIso, dueTimestamp, cleanTitle } = extractDateTime(str);
         const { tags } = extractFlomoTags(cleanTitle);
 
         // Preliminary category & priority heuristic
@@ -116,6 +117,7 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
           tags,
           dueDate,
           dueDateIso,
+          dueTimestamp,
           selected: true,
           duplicateInfo: dupCheck.isDuplicate && dupCheck.matchedTask ? {
             matchedTask: dupCheck.matchedTask,
