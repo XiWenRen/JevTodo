@@ -18,14 +18,11 @@ export interface ActivityDayData {
   level: 0 | 1 | 2 | 3 | 4;
 }
 
-export type TaskPriority = 'P0' | 'P1' | 'P2' | 'P3';
-
 export interface TaskItem {
   id: string;
   title: string;
   rawInput: string;
   category: TaskCategory;
-  priority: TaskPriority;
   urgencyScore: number; // 0.0 to 1.0 from Jev score
   tags: string[]; // flomo-style tags e.g. ["工作", "方案"]
   dueDate?: string; // Human-friendly display string
@@ -51,7 +48,6 @@ export interface JevDuplicateCheckResult {
 
 export interface JevDecision {
   category: TaskCategory;
-  priority: TaskPriority;
   urgencyScore: number;
   tags: string[];
   dueDate?: string;

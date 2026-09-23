@@ -3,7 +3,7 @@
  * Powered by TypeSafe Jev Decision Logic & Vercel AI Gateway
  */
 
-import { TaskCategory, TaskPriority, JevDecision, TaskItem, JevCleanupItem, JevDuplicateCheckResult } from '../types';
+import { TaskCategory, JevDecision, TaskItem, JevCleanupItem, JevDuplicateCheckResult } from '../types';
 
 const CHINESE_NUM_MAP: Record<string, number> = {
   '零': 0, '〇': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4,
@@ -726,7 +726,6 @@ export async function evaluateWithJev(
         if (data && data.category) {
           return {
             category: data.category,
-            priority: data.priority || 'P1',
             urgencyScore: data.urgencyScore ?? 0.8,
             tags: data.tags && data.tags.length > 0 ? data.tags : tags,
             dueDate: data.dueDate || dueDate,
@@ -748,35 +747,31 @@ export async function evaluateWithJev(
   const text = rawInput.toLowerCase();
 
   let category: TaskCategory = '近期完成';
-  let priority: TaskPriority = 'P2';
   let urgencyScore = 0.5;
   let confidence = 0.92;
 
   const instantKeywords = ['立刻', '马上', '今天', '紧急', '赶紧', '现在', '急', '今晚', '下班前', '下午', '上午', '尽快', '开会', '抢票', '宕机', '告警', '报警', '502', '卡点', '阻塞', '故障', '冒烟'];
   const plannedKeywords = ['下个月', '明年', '长期', '规划', '学习', '考证', '计划', '买房', '旅行计划', '抽空', '以后', '未来', '有空', '下半年', '架构演进', '长远', '储备', '远期'];
-  const highPriorityKeywords = ['紧急', '重要', '严重', '致命', '客户', '合同', '上交', '截止', 'deadline', '扣款', '宕机', '502', '高危', '告警', '报警', 'p0', '生产环境', '故障', '网关告警'];
+  const highUrgencyKeywords = ['紧急', '重要', '严重', '致命', '客户', '合同', '上交', '截止', 'deadline', '扣款', '宕机', '502', '高危', '告警', '报警', '生产环境', '故障', '网关告警'];
 
   const hasFutureDay = /(明天|明早|明晚|后天|这周|本周|下周)/.test(text);
   const isPastDay = /(昨天|昨日|昨晚|昨早|前天|前日|前晚|大前天|上周|上星期)/.test(text);
-  const isUrgentIncident = /(宕机|502|故障|报警|告警|p0|严重)/.test(text);
+  const isUrgentIncident = /(宕机|502|故障|报警|告警|严重)/.test(text);
 
   const isInstant = !isPastDay && (!hasFutureDay || isUrgentIncident) && (instantKeywords.some(k => text.includes(k)) || (dueDate && dueDate.includes('今天')));
   const isPlanned = plannedKeywords.some(k => text.includes(k)) || (!dueDate && text.includes('想') && text.length > 10);
 
   if (isInstant) {
     category = '即刻完成';
-    urgencyScore = highPriorityKeywords.some(k => text.includes(k)) ? 0.98 : 0.92;
-    priority = highPriorityKeywords.some(k => text.includes(k)) ? 'P0' : 'P1';
+    urgencyScore = highUrgencyKeywords.some(k => text.includes(k)) ? 0.98 : 0.92;
     confidence = 0.96;
   } else if (isPlanned) {
     category = '规划待办';
     urgencyScore = 0.25;
-    priority = 'P3';
     confidence = 0.91;
   } else {
     category = '近期完成';
     urgencyScore = /(采购|预算|评审|用例|例会|周五|周四|本周)/.test(text) ? 0.72 : 0.65;
-    priority = /(紧急|重要|p1)/.test(text) ? 'P1' : 'P2';
     confidence = 0.92;
   }
 
@@ -785,7 +780,6 @@ export async function evaluateWithJev(
 
   return {
     category,
-    priority,
     urgencyScore,
     tags,
     dueDate: dueDate || (category === '即刻完成' ? '今天 18:00' : undefined),
@@ -822,7 +816,7 @@ export function analyzeTasksWithJev(tasks: TaskItem[]): {
       overdueCount++;
     }
 
-    // Staleness heuristic: uncompleted for > 5 days or created > 7 days ago with low priority
+    // Staleness heuristic: uncompleted for > 5 days or created > 7 days ago
     const ageDays = (now - task.createdAt) / (1000 * 60 * 60 * 24);
     if (!task.completed && ageDays > 5 && task.category === '即刻完成') {
       stale = true;
@@ -834,7 +828,7 @@ export function analyzeTasksWithJev(tasks: TaskItem[]): {
         reason: cleanupReason,
         confidence: 0.88
       });
-    } else if (!task.completed && ageDays > 14 && task.priority === 'P3') {
+    } else if (!task.completed && ageDays > 14 && task.category === '规划待办') {
       stale = true;
       cleanupSuggested = true;
       cleanupReason = `处于规划中已超 2 周未推进，建议清理或重新激活`;
@@ -854,12 +848,10 @@ export function analyzeTasksWithJev(tasks: TaskItem[]): {
     };
   });
 
-  // Priority order mapping
-  const priorityWeight: Record<TaskPriority, number> = {
-    P0: 4,
-    P1: 3,
-    P2: 2,
-    P3: 1
+  const categoryWeight: Record<TaskCategory, number> = {
+    '即刻完成': 3,
+    '近期完成': 2,
+    '规划待办': 1
   };
 
   const rankedTasks = [...evaluated].sort((a, b) => {
@@ -867,11 +859,17 @@ export function analyzeTasksWithJev(tasks: TaskItem[]): {
     if (a.completed !== b.completed) {
       return a.completed ? 1 : -1;
     }
-    // High priority first
-    const pDiff = priorityWeight[b.priority] - priorityWeight[a.priority];
-    if (pDiff !== 0) return pDiff;
+    // Category urgency first
+    const catDiff = categoryWeight[b.category] - categoryWeight[a.category];
+    if (catDiff !== 0) return catDiff;
     // Urgency score
-    return (b.urgencyScore || 0) - (a.urgencyScore || 0);
+    const uDiff = (b.urgencyScore || 0) - (a.urgencyScore || 0);
+    if (uDiff !== 0) return uDiff;
+    // Due date (earlier first)
+    if (a.dueTimestamp && b.dueTimestamp) return a.dueTimestamp - b.dueTimestamp;
+    if (a.dueTimestamp) return -1;
+    if (b.dueTimestamp) return 1;
+    return b.createdAt - a.createdAt;
   });
 
   const coreTodayCount = tasks.filter(t => t.category === '即刻完成' && !t.completed).length;
@@ -884,7 +882,7 @@ export function analyzeTasksWithJev(tasks: TaskItem[]): {
   } else if (coreTodayCount > 4) {
     adviceSummary = `今日即刻完成项达 ${coreTodayCount} 件，负荷稍高，Jev 建议聚焦前 3 项核心。`;
   } else {
-    adviceSummary = `当前任务节律合理，优先专注 P0/P1 即刻完成事项。`;
+    adviceSummary = `当前任务节律合理，优先专注「即刻完成」核心事项。`;
   }
 
   return {

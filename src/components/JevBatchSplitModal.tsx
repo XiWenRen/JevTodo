@@ -10,7 +10,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
-import { TaskItem as ITaskItem, TaskCategory, TaskPriority } from '../types';
+import { TaskItem as ITaskItem, TaskCategory } from '../types';
 import { splitTasksWithJev, extractDateTime, extractFlomoTags, detectDuplicateWithJev } from '../utils/jev';
 
 export interface BatchParsedTask {
@@ -18,7 +18,6 @@ export interface BatchParsedTask {
   rawText: string;
   title: string;
   category: TaskCategory;
-  priority: TaskPriority;
   urgencyScore: number;
   tags: string[];
   dueDate?: string;
@@ -79,21 +78,15 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
 
         const lower = str.toLowerCase();
         let category: TaskCategory = '近期完成';
-        let priority: TaskPriority = 'P2';
         let urgencyScore = 0.65;
 
         const isPast = /(昨天|昨日|昨晚|昨早|前天|前日|前晚|大前天|上周|上星期)/.test(lower);
         if (!isPast && (/(今天|今晚|下午|马上|紧急|现在|尽快|宕机|告警|502)/.test(lower) || (dueDate && dueDate.includes('今天')))) {
           category = '即刻完成';
-          priority = /(宕机|告警|紧急|重要|p0)/.test(lower) ? 'P0' : 'P1';
           urgencyScore = 0.92;
         } else if (/(下个月|明年|长远|规划|计划|想学|学习|调研)/.test(lower)) {
           category = '规划待办';
-          priority = 'P3';
           urgencyScore = 0.3;
-        } else {
-          category = '近期完成';
-          priority = /(重要|紧要|p1)/.test(lower) ? 'P1' : 'P2';
         }
 
         const dupCheck = detectDuplicateWithJev(str, existingTasks);
@@ -103,7 +96,6 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
           rawText: str,
           title: cleanTitle.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim() || str,
           category,
-          priority,
           urgencyScore,
           tags,
           dueDate,
@@ -140,10 +132,6 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
 
   const handleUpdateItemCategory = (id: string, newCategory: TaskCategory) => {
     setParsedItems(prev => prev.map(item => item.id === id ? { ...item, category: newCategory } : item));
-  };
-
-  const handleUpdateItemPriority = (id: string, newPriority: TaskPriority) => {
-    setParsedItems(prev => prev.map(item => item.id === id ? { ...item, priority: newPriority } : item));
   };
 
   const handleDeleteItem = (id: string) => {
@@ -192,7 +180,7 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
 
   const loadSampleText = (type: 'meeting' | 'daily') => {
     if (type === 'meeting') {
-      const sample = `1. 今天下午排查服务告警 #运维 P0\n2. 明天上午方案评审 #研发\n3. 周四提交预算 #财务\n4. 调研分布式数据库 #规划`;
+      const sample = `1. 今天下午排查服务告警 #运维\n2. 明天上午方案评审 #研发\n3. 周四提交预算 #财务\n4. 调研分布式数据库 #规划`;
       setInputText(sample);
       processSplit(sample);
     } else {
@@ -356,18 +344,6 @@ export const JevBatchSplitModal: React.FC<JevBatchSplitModalProps> = ({
                           <option value="即刻完成">即刻</option>
                           <option value="近期完成">近期</option>
                           <option value="规划待办">规划</option>
-                        </select>
-
-                        {/* Priority */}
-                        <select
-                          value={item.priority}
-                          onChange={(e) => handleUpdateItemPriority(item.id, e.target.value as TaskPriority)}
-                          className="bg-[var(--chip-bg)] border border-[var(--chip-border)] rounded px-1 py-0.5 text-[10px] font-mono text-[var(--text-sub)] outline-none shrink-0"
-                        >
-                          <option value="P0">P0</option>
-                          <option value="P1">P1</option>
-                          <option value="P2">P2</option>
-                          <option value="P3">P3</option>
                         </select>
 
                         <button

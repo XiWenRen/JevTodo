@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, X } from 'lucide-react';
-import { TaskItem as ITaskItem, TaskCategory, TaskPriority } from '../types';
+import { TaskItem as ITaskItem, TaskCategory } from '../types';
 
 interface JevDuplicateModalProps {
   isOpen: boolean;
@@ -11,7 +11,6 @@ interface JevDuplicateModalProps {
     similarity: number;
     reason: string;
     parsedCategory?: TaskCategory;
-    parsedPriority?: TaskPriority;
     parsedDueDate?: string;
     parsedTags?: string[];
   } | null;

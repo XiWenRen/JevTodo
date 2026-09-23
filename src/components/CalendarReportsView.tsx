@@ -15,7 +15,7 @@ import {
   Plus,
   Bookmark
 } from 'lucide-react';
-import { TaskItem, TaskPriority, TaskCategory, AppTheme, CalendarViewMode, ReportType } from '../types';
+import { TaskItem, TaskCategory, AppTheme, CalendarViewMode, ReportType } from '../types';
 
 interface CalendarReportsViewProps {
   tasks: TaskItem[];
@@ -211,8 +211,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
     Object.keys(map).forEach(key => {
       map[key].sort((a, b) => {
         if (a.completed !== b.completed) return a.completed ? 1 : -1;
-        const pOrder: Record<TaskPriority, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
-        return pOrder[a.priority] - pOrder[b.priority];
+        return (b.urgencyScore || 0) - (a.urgencyScore || 0);
       });
     });
     return map;
@@ -494,7 +493,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
       md += `- 无\n`;
     } else {
       reportData.completedList.forEach(t => {
-        md += `- [x] [${t.priority}] ${t.title}\n`;
+        md += `- [x] ${t.title}\n`;
       });
     }
 
@@ -503,7 +502,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
       md += `- 无\n`;
     } else {
       reportData.inProgressList.forEach(t => {
-        md += `- [ ] [${t.priority}] ${t.title}\n`;
+        md += `- [ ] ${t.title}\n`;
       });
     }
 
@@ -512,7 +511,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
       md += `- 无\n`;
     } else {
       reportData.upcomingList.forEach(t => {
-        md += `- [${t.priority}] ${t.title}\n`;
+        md += `- ${t.title}\n`;
       });
     }
     return md;
@@ -551,15 +550,6 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
       }
       setIsGeneratingAi(false);
     }, 400);
-  };
-
-  const getPriorityDot = (p: TaskPriority) => {
-    switch (p) {
-      case 'P0': return 'bg-rose-500';
-      case 'P1': return 'bg-amber-500';
-      case 'P2': return 'bg-blue-500';
-      default: return 'bg-zinc-400';
-    }
   };
 
   return (
@@ -910,7 +900,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                                 : 'bg-[var(--chip-bg)] border-[var(--chip-border)] text-[var(--text-main)] hover:bg-[var(--chip-hover)]'
                             }`}
                           >
-                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getPriorityDot(t.priority)}`} />
+                            <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-blue-400/80" />
                             <span className="truncate whitespace-nowrap">{t.title}</span>
                           </button>
                         ))}
@@ -959,7 +949,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                             className="p-1 rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[10px] truncate cursor-pointer hover:bg-[var(--chip-hover)]"
                           >
                             <div className="flex items-center gap-1">
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getPriorityDot(t.priority)}`} />
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-blue-400/80" />
                               <span className={`truncate ${t.completed ? 'line-through text-[var(--text-faint)]' : 'text-[var(--text-main)]'}`}>
                                 {t.title}
                               </span>
@@ -995,12 +985,11 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                             className="p-1.5 rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-xs flex items-center justify-between gap-2 cursor-pointer hover:bg-[var(--chip-hover)]"
                           >
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${getPriorityDot(t.priority)}`} />
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-blue-400/80" />
                               <span className={`truncate ${t.completed ? 'line-through text-[var(--text-faint)]' : 'text-[var(--text-main)]'}`}>
                                 {t.title}
                               </span>
                             </div>
-                            <span className="text-[10px] text-[var(--text-faint)] shrink-0">{t.priority}</span>
                           </div>
                         ))}
                       </div>
@@ -1098,7 +1087,6 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                     <span className={`truncate ${t.completed ? 'line-through text-[var(--text-faint)]' : 'text-[var(--text-main)]'}`}>
                       {t.title}
                     </span>
-                    <span className="text-[10px] text-[var(--text-faint)] shrink-0">{t.priority}</span>
                   </div>
                 ))}
               </div>
@@ -1280,7 +1268,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                 <div className="space-y-1 pl-2">
                   {reportData.completedList.map(t => (
                     <div key={t.id} className="flex items-center justify-between text-[11px]">
-                      <span className="truncate">• [{t.priority}] {t.title}</span>
+                      <span className="truncate">• {t.title}</span>
                       <span className="text-[var(--text-faint)] shrink-0 ml-1">{t.category}</span>
                     </div>
                   ))}
@@ -1297,7 +1285,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                 <div className="space-y-1 pl-2">
                   {reportData.inProgressList.map(t => (
                     <div key={t.id} className="flex items-center justify-between text-[11px]">
-                      <span className="truncate">• [{t.priority}] {t.title}</span>
+                      <span className="truncate">• {t.title}</span>
                       <span className="text-[var(--text-faint)] shrink-0 ml-1">{t.dueDate || t.category}</span>
                     </div>
                   ))}
@@ -1314,7 +1302,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                 <div className="space-y-1 pl-2">
                   {reportData.upcomingList.map(t => (
                     <div key={t.id} className="text-[11px] truncate">
-                      • [{t.priority}] {t.title}
+                      • {t.title}
                     </div>
                   ))}
                 </div>
@@ -1330,10 +1318,9 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
           <div className="w-full max-w-sm rounded-xl border border-[var(--border-medium)] p-4 space-y-3 bg-[var(--bg-panel)] shadow-xl">
             <div className="flex items-center justify-between pb-1 border-b border-[var(--border-subtle)]">
               <div className="flex items-center gap-1.5">
-                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-blue-500/20 text-blue-400">
-                  {selectedTask.priority}
+                <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                  {selectedTask.category}
                 </span>
-                <span className="text-xs text-[var(--text-faint)]">{selectedTask.category}</span>
               </div>
               <button
                 type="button"
@@ -1407,7 +1394,6 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                   <span className={`truncate ${t.completed ? 'line-through text-[var(--text-faint)]' : 'text-[var(--text-main)]'}`}>
                     {t.title}
                   </span>
-                  <span className="text-[10px] text-[var(--text-faint)] shrink-0">{t.priority}</span>
                 </div>
               ))}
             </div>

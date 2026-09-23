@@ -7,7 +7,6 @@ import {
   Compass, 
   Layers, 
   Sparkles, 
-  Briefcase, 
   Command, 
   RotateCcw,
   CloudCheck,
@@ -44,7 +43,6 @@ interface CategoryDrawerProps {
   onOpenAuth: () => void;
   onOpenOperationLogs: () => void;
   onOpenBatchSplit?: () => void;
-  onOpenPMSimulation: () => void;
   onOpenShortcuts: () => void;
   onResetSampleData: () => void;
   staleCount: number;
@@ -76,7 +74,6 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
   onOpenAuth,
   onOpenOperationLogs,
   onOpenBatchSplit,
-  onOpenPMSimulation,
   onOpenShortcuts,
   onResetSampleData,
   staleCount
@@ -393,21 +390,6 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
                     <span className="text-[10px] text-[var(--text-faint)]">长文本/清单</span>
                   </button>
                 )}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onOpenPMSimulation();
-                  }}
-                  className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[var(--chip-hover)] text-[var(--text-main)] flex items-center justify-between text-xs transition-colors"
-                >
-                  <span className="flex items-center gap-2">
-                    <Briefcase className="w-3.5 h-3.5 text-sky-400" />
-                    <span>精选工作流模版</span>
-                  </span>
-                  <span className="text-[10px] text-[var(--text-faint)]">快速上手</span>
-                </button>
 
                 <button
                   type="button"

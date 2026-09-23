@@ -116,10 +116,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       if (data.source === 'vercel-ai-gateway-jev') {
         setTestStatus('success');
-        setTestMessage(`通信正常！Cherry 智能决策响应正常: [${data.category}] 优先级: ${data.priority}`);
+        setTestMessage(`通信正常！Cherry 智能决策响应正常: [${data.category}]`);
       } else {
         setTestStatus('success');
-        setTestMessage(`智能决策引擎运行正常: [${data.category}] 优先级: ${data.priority}`);
+        setTestMessage(`智能决策引擎运行正常: [${data.category}]`);
       }
     } catch (e: any) {
       setTestStatus('failed');

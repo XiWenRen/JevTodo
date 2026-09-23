@@ -22,7 +22,7 @@ import {
   ChevronRight,
   Calendar
 } from 'lucide-react';
-import { TaskItem, TaskCategory, TaskPriority, ActiveView, AppSettings, AppTheme } from './types';
+import { TaskItem, TaskCategory, ActiveView, AppSettings, AppTheme } from './types';
 import { TaskSnapshot } from './types/operationLog';
 import { recordOperation, taskToSnapshot } from './utils/operationLog';
 import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev, extractDateTime } from './utils/jev';
@@ -46,7 +46,6 @@ import { OperationLogModal } from './components/OperationLogModal';
 import { TaskSnapshotModal } from './components/TaskSnapshotModal';
 import { ShortcutPluginModal } from './components/ShortcutPluginModal';
 import { SettingsModal } from './components/SettingsModal';
-import { PMSimulationModal } from './components/PMSimulationModal';
 import { AuthModal } from './components/AuthModal';
 import { CategoryDrawer } from './components/CategoryDrawer';
 import { TaskGestureOverlay, GestureData, GestureActionType } from './components/TaskGestureOverlay';
@@ -54,7 +53,7 @@ import { BottomAnimalDock } from './components/BottomAnimalDock';
 import { JevDuplicateModal } from './components/JevDuplicateModal';
 import { JevBatchSplitModal, BatchParsedTask } from './components/JevBatchSplitModal';
 import { CardRect } from './components/TaskItem';
-import { generatePMSimulatedTasks, getOnboardingTasks } from './data/pmScenarios';
+import { getOnboardingTasks } from './data/onboardingTasks';
 import { CalendarReportsView } from './components/CalendarReportsView';
 
 const STORAGE_KEY_GUEST_TASKS_OLD = 'jev_minimal_todo_guest_tasks_v1';
@@ -177,7 +176,6 @@ export default function App() {
 
   const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isPMSimulationOpen, setIsPMSimulationOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -190,7 +188,6 @@ export default function App() {
     similarity: number;
     reason: string;
     parsedCategory?: TaskCategory;
-    parsedPriority?: TaskPriority;
     parsedDueDate?: string;
     parsedTags?: string[];
   } | null>(null);
@@ -390,7 +387,6 @@ export default function App() {
           similarity: dupCheck.similarity,
           reason: dupCheck.reason,
           parsedCategory: decision.category,
-          parsedPriority: decision.priority,
           parsedDueDate: decision.dueDate,
           parsedTags: decision.tags
         });
@@ -404,7 +400,6 @@ export default function App() {
         title: rawInput.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim(),
         rawInput,
         category: decision.category,
-        priority: decision.priority || 'P1',
         urgencyScore: decision.urgencyScore,
         tags: decision.tags,
         dueDate: decision.dueDate,
@@ -518,7 +513,6 @@ export default function App() {
         title: rawInput.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim(),
         rawInput,
         category: decision.category,
-        priority: decision.priority || 'P1',
         urgencyScore: decision.urgencyScore,
         tags: decision.tags,
         dueDate: decision.dueDate,
@@ -562,7 +556,6 @@ export default function App() {
       title: item.title,
       rawInput: item.rawText,
       category: item.category,
-      priority: item.priority,
       urgencyScore: item.urgencyScore,
       tags: item.tags,
       dueDate: item.dueDate,
@@ -816,9 +809,9 @@ export default function App() {
       });
     }
 
-    // 3. Reorder Priority
+    // 3. Reorder Tasks
     let finalTasks = current;
-    if (options.reorderPriority) {
+    if (options.reorderTasks) {
       const newAnalysis = analyzeTasksWithJev(current);
       finalTasks = newAnalysis.rankedTasks;
 
@@ -847,7 +840,7 @@ export default function App() {
     const logItem = recordOperation(
       'jev_auto_organize',
       'Cherry 智能决策整理',
-      `综合优化了 ${affectedSnapshots.length} 项待办（优先级重排、逾期顺延与沉淀）`,
+      `综合优化了 ${affectedSnapshots.length} 项待办（智能重排、逾期顺延与沉淀）`,
       affectedSnapshots
     );
 
@@ -1335,7 +1328,6 @@ export default function App() {
           setBatchSplitInitialText('');
           setIsBatchSplitModalOpen(true);
         }}
-        onOpenPMSimulation={() => setIsPMSimulationOpen(true)}
         onOpenShortcuts={() => setIsShortcutModalOpen(true)}
         onResetSampleData={handleResetSampleData}
         staleCount={analysis.cleanupList.length}
@@ -1467,20 +1459,6 @@ export default function App() {
         onTriggerCloudSync={handleManualCloudSync}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
-      />
-
-      <PMSimulationModal
-        isOpen={isPMSimulationOpen}
-        onClose={() => setIsPMSimulationOpen(false)}
-        onLoadAllPMTasks={(pmTasks) => {
-          setTasks(pmTasks);
-          if (cloudStatus.isConfigured && currentUser) {
-            batchSyncTasksToCloud(pmTasks);
-          }
-        }}
-        onInsertSingleTask={handleAddTask}
-        apiKey={settings.jevApiKey}
-        endpoint={settings.jevEndpoint}
       />
     </div>
   );

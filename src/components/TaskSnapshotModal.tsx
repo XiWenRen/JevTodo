@@ -2,7 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, CheckCircle2, Circle, Clock, Tag, Zap, CalendarDays, Compass, FileText, Check } from 'lucide-react';
 import { TaskSnapshot } from '../types/operationLog';
-import { TaskCategory, TaskPriority } from '../types';
+import { TaskCategory } from '../types';
 
 interface TaskSnapshotModalProps {
   isOpen: boolean;
@@ -44,19 +44,6 @@ export const TaskSnapshotModal: React.FC<TaskSnapshotModalProps> = ({
         return { label: '规划待办', color: 'text-purple-500 bg-purple-500/10 border-purple-500/20' };
       default:
         return { label: cat, color: 'text-zinc-400 bg-zinc-500/10 border-zinc-500/20' };
-    }
-  };
-
-  const getPriorityBadge = (p: TaskPriority) => {
-    switch (p) {
-      case 'P0':
-        return <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-rose-500/15 text-rose-400 border border-rose-500/20">P0</span>;
-      case 'P1':
-        return <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-amber-500/15 text-amber-400 border border-amber-500/20">P1</span>;
-      case 'P2':
-        return <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-blue-500/15 text-blue-400 border border-blue-500/20">P2</span>;
-      default:
-        return null;
     }
   };
 
@@ -165,8 +152,6 @@ export const TaskSnapshotModal: React.FC<TaskSnapshotModalProps> = ({
                       <span className={`px-1.5 py-0.2 rounded border font-medium ${catMeta.color}`}>
                         {catMeta.label}
                       </span>
-
-                      {getPriorityBadge(task.priority)}
 
                       {task.dueDate && (
                         <span className="flex items-center gap-1 text-[var(--text-faint)]">

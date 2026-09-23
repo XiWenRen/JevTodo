@@ -4,7 +4,7 @@ import { Sparkles, X } from 'lucide-react';
 import { TaskItem } from '../types';
 
 export interface OrganizeOptions {
-  reorderPriority: boolean;
+  reorderTasks: boolean;
   deferOverdue: boolean;
   archiveStale: boolean;
 }
@@ -30,7 +30,7 @@ export const JevOrganizeConfirmModal: React.FC<JevOrganizeConfirmModalProps> = (
 
   const handleConfirm = () => {
     onConfirm({
-      reorderPriority: true,
+      reorderTasks: true,
       deferOverdue: overdueCount > 0,
       archiveStale: staleCount > 0
     });

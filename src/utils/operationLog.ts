@@ -65,7 +65,6 @@ export function taskToSnapshot(task: TaskItem, actionNote?: string): TaskSnapsho
     id: task.id,
     title: task.title,
     category: task.category,
-    priority: task.priority,
     completed: task.completed,
     dueDate: task.dueDate,
     tags: task.tags,

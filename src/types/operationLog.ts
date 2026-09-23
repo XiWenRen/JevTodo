@@ -1,4 +1,4 @@
-import { TaskCategory, TaskPriority } from '../types';
+import { TaskCategory } from '../types';
 
 export type OperationType =
   | 'jev_auto_organize'   // Jev 智能自动整理（多任务聚合）
@@ -15,11 +15,10 @@ export interface TaskSnapshot {
   id: string;
   title: string;
   category: TaskCategory;
-  priority: TaskPriority;
   completed: boolean;
   dueDate?: string;
   tags?: string[];
-  actionNote?: string;    // e.g. "优先级提升至前列", "已顺延至明天", "标记已完成", "沉淀归档"
+  actionNote?: string;    // e.g. "已顺延至明天", "标记已完成", "沉淀归档"
 }
 
 export interface OperationLogItem {
@@ -27,7 +26,7 @@ export interface OperationLogItem {
   timestamp: number;
   type: OperationType;
   title: string;          // 简明标题，如 "Jev 智能决策整理", "创建待办", "手势延后"
-  description: string;    // 详细说明，如 "重排 5 项待办优先级，顺延 2 项逾期事项"
+  description: string;    // 详细说明，如 "智能重排 5 项待办顺序，顺延 2 项逾期事项"
   affectedCount: number;  // 本次操作影响的任务数
   taskSnapshots: TaskSnapshot[]; // 本次操作关联的具体任务快照清单
 }
