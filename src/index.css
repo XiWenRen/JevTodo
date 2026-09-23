@@ -2,152 +2,112 @@
 
 :root,
 [data-theme="obsidian"] {
-  --bg-page: #0c0e12;
-  --bg-panel: rgba(18, 21, 28, 0.88);
-  --bg-card: rgba(22, 26, 35, 0.72);
-  --bg-card-hover: rgba(28, 33, 45, 0.85);
-  --bg-input: rgba(15, 18, 24, 0.92);
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --border-medium: rgba(255, 255, 255, 0.12);
-  --border-hover: rgba(255, 255, 255, 0.18);
+  --bg-app: #0a0c10;
+  --bg-page: #0a0c10;
+  --bg-panel: rgba(18, 22, 30, 0.92);
+  --bg-card: rgba(24, 29, 40, 0.75);
+  --bg-card-hover: rgba(30, 36, 50, 0.9);
+  --bg-input: rgba(14, 17, 24, 0.95);
+  --bg-drawer: #0e1117;
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-medium: rgba(255, 255, 255, 0.14);
+  --border-hover: rgba(255, 255, 255, 0.22);
   --text-main: #f3f4f6;
   --text-sub: #9ca3af;
   --text-faint: #6b7280;
   --accent-bg: #ffffff;
-  --accent-fg: #0c0e12;
-  --chip-bg: rgba(255, 255, 255, 0.05);
-  --chip-border: rgba(255, 255, 255, 0.08);
-  --chip-hover: rgba(255, 255, 255, 0.09);
-  --tag-bg: rgba(255, 255, 255, 0.04);
-  --tag-border: rgba(255, 255, 255, 0.08);
+  --accent-fg: #0a0c10;
+  --chip-bg: rgba(255, 255, 255, 0.06);
+  --chip-border: rgba(255, 255, 255, 0.09);
+  --chip-hover: rgba(255, 255, 255, 0.12);
+  --tag-bg: rgba(255, 255, 255, 0.05);
+  --tag-border: rgba(255, 255, 255, 0.09);
   --tag-text: #9ca3af;
   --scrollbar-thumb: rgba(255, 255, 255, 0.14);
-  --panel-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  --p0-badge-bg: rgba(239, 68, 68, 0.12);
-  --p0-badge-text: #f87171;
-  --p0-badge-border: rgba(239, 68, 68, 0.25);
-  --p1-badge-bg: rgba(245, 158, 11, 0.12);
-  --p1-badge-text: #fbbf24;
-  --p1-badge-border: rgba(245, 158, 11, 0.25);
-  --p2-badge-bg: rgba(255, 255, 255, 0.06);
-  --p2-badge-text: #d1d5db;
-  --p2-badge-border: rgba(255, 255, 255, 0.1);
-  --p3-badge-bg: rgba(255, 255, 255, 0.04);
-  --p3-badge-text: #9ca3af;
-  --p3-badge-border: rgba(255, 255, 255, 0.06);
+  --panel-shadow: 0 20px 50px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 [data-theme="paper"] {
-  --bg-page: #f5f6f9;
-  --bg-panel: rgba(255, 255, 255, 0.94);
+  --bg-app: #f1f3f7;
+  --bg-page: #f1f3f7;
+  --bg-panel: rgba(255, 255, 255, 0.96);
   --bg-card: #ffffff;
-  --bg-card-hover: #f9fafb;
+  --bg-card-hover: #f8fafc;
   --bg-input: #ffffff;
-  --border-subtle: rgba(0, 0, 0, 0.07);
-  --border-medium: rgba(0, 0, 0, 0.12);
-  --border-hover: rgba(0, 0, 0, 0.18);
-  --text-main: #111827;
-  --text-sub: #4b5563;
-  --text-faint: #9ca3af;
-  --accent-bg: #111827;
+  --bg-drawer: #ffffff;
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-medium: rgba(0, 0, 0, 0.13);
+  --border-hover: rgba(0, 0, 0, 0.2);
+  --text-main: #0f172a;
+  --text-sub: #475569;
+  --text-faint: #94a3b8;
+  --accent-bg: #0f172a;
   --accent-fg: #ffffff;
   --chip-bg: rgba(0, 0, 0, 0.04);
-  --chip-border: rgba(0, 0, 0, 0.07);
+  --chip-border: rgba(0, 0, 0, 0.08);
   --chip-hover: rgba(0, 0, 0, 0.08);
   --tag-bg: rgba(0, 0, 0, 0.03);
-  --tag-border: rgba(0, 0, 0, 0.06);
-  --tag-text: #6b7280;
-  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
-  --panel-shadow: 0 16px 36px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.03);
-  --p0-badge-bg: rgba(239, 68, 68, 0.08);
-  --p0-badge-text: #dc2626;
-  --p0-badge-border: rgba(239, 68, 68, 0.2);
-  --p1-badge-bg: rgba(245, 158, 11, 0.08);
-  --p1-badge-text: #b45309;
-  --p1-badge-border: rgba(245, 158, 11, 0.2);
-  --p2-badge-bg: rgba(0, 0, 0, 0.04);
-  --p2-badge-text: #374151;
-  --p2-badge-border: rgba(0, 0, 0, 0.08);
-  --p3-badge-bg: rgba(0, 0, 0, 0.03);
-  --p3-badge-text: #6b7280;
-  --p3-badge-border: rgba(0, 0, 0, 0.06);
+  --tag-border: rgba(0, 0, 0, 0.07);
+  --tag-text: #64748b;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.16);
+  --panel-shadow: 0 18px 40px rgba(15, 23, 42, 0.07), 0 2px 8px rgba(15, 23, 42, 0.03);
 }
 
 [data-theme="sand"] {
-  --bg-page: #f6f4ee;
-  --bg-panel: rgba(251, 249, 245, 0.95);
-  --bg-card: #fdfcf9;
-  --bg-card-hover: #f7f4ed;
-  --bg-input: #fdfcf9;
-  --border-subtle: rgba(87, 83, 78, 0.09);
-  --border-medium: rgba(87, 83, 78, 0.15);
-  --border-hover: rgba(87, 83, 78, 0.22);
+  --bg-app: #f4eee2;
+  --bg-page: #f4eee2;
+  --bg-panel: rgba(252, 249, 242, 0.96);
+  --bg-card: #fffefb;
+  --bg-card-hover: #f7f2e7;
+  --bg-input: #fffefb;
+  --bg-drawer: #faf6ee;
+  --border-subtle: rgba(120, 113, 108, 0.11);
+  --border-medium: rgba(120, 113, 108, 0.18);
+  --border-hover: rgba(120, 113, 108, 0.25);
   --text-main: #292524;
   --text-sub: #57534e;
   --text-faint: #8d857e;
-  --accent-bg: #383430;
+  --accent-bg: #44403c;
   --accent-fg: #faf8f5;
-  --chip-bg: rgba(87, 83, 78, 0.05);
-  --chip-border: rgba(87, 83, 78, 0.09);
-  --chip-hover: rgba(87, 83, 78, 0.09);
-  --tag-bg: rgba(87, 83, 78, 0.04);
-  --tag-border: rgba(87, 83, 78, 0.08);
-  --tag-text: #6b635b;
-  --scrollbar-thumb: rgba(87, 83, 78, 0.16);
-  --panel-shadow: 0 16px 36px rgba(41, 37, 36, 0.06), 0 2px 6px rgba(41, 37, 36, 0.03);
-  --p0-badge-bg: rgba(220, 38, 38, 0.08);
-  --p0-badge-text: #b91c1c;
-  --p0-badge-border: rgba(220, 38, 38, 0.2);
-  --p1-badge-bg: rgba(217, 119, 6, 0.08);
-  --p1-badge-text: #92400e;
-  --p1-badge-border: rgba(217, 119, 6, 0.2);
-  --p2-badge-bg: rgba(87, 83, 78, 0.05);
-  --p2-badge-text: #44403c;
-  --p2-badge-border: rgba(87, 83, 78, 0.1);
-  --p3-badge-bg: rgba(87, 83, 78, 0.03);
-  --p3-badge-text: #78716c;
-  --p3-badge-border: rgba(87, 83, 78, 0.07);
+  --chip-bg: rgba(120, 113, 108, 0.06);
+  --chip-border: rgba(120, 113, 108, 0.11);
+  --chip-hover: rgba(120, 113, 108, 0.11);
+  --tag-bg: rgba(120, 113, 108, 0.05);
+  --tag-border: rgba(120, 113, 108, 0.1);
+  --tag-text: #78716c;
+  --scrollbar-thumb: rgba(120, 113, 108, 0.18);
+  --panel-shadow: 0 18px 40px rgba(68, 64, 60, 0.08), 0 2px 8px rgba(68, 64, 60, 0.04);
 }
 
 [data-theme="mist"] {
-  --bg-page: #edf1f5;
-  --bg-panel: rgba(248, 250, 252, 0.95);
+  --bg-app: #e5ebf2;
+  --bg-page: #e5ebf2;
+  --bg-panel: rgba(246, 249, 252, 0.96);
   --bg-card: #ffffff;
-  --bg-card-hover: #f1f5f9;
+  --bg-card-hover: #eff4f9;
   --bg-input: #ffffff;
-  --border-subtle: rgba(51, 65, 85, 0.08);
-  --border-medium: rgba(51, 65, 85, 0.14);
-  --border-hover: rgba(51, 65, 85, 0.2);
+  --bg-drawer: #f1f6fa;
+  --border-subtle: rgba(71, 85, 105, 0.1);
+  --border-medium: rgba(71, 85, 105, 0.16);
+  --border-hover: rgba(71, 85, 105, 0.24);
   --text-main: #0f172a;
   --text-sub: #475569;
   --text-faint: #94a3b8;
   --accent-bg: #1e293b;
   --accent-fg: #f8fafc;
-  --chip-bg: rgba(51, 65, 85, 0.05);
-  --chip-border: rgba(51, 65, 85, 0.08);
-  --chip-hover: rgba(51, 65, 85, 0.09);
-  --tag-bg: rgba(51, 65, 85, 0.04);
-  --tag-border: rgba(51, 65, 85, 0.08);
+  --chip-bg: rgba(71, 85, 105, 0.06);
+  --chip-border: rgba(71, 85, 105, 0.1);
+  --chip-hover: rgba(71, 85, 105, 0.1);
+  --tag-bg: rgba(71, 85, 105, 0.05);
+  --tag-border: rgba(71, 85, 105, 0.1);
   --tag-text: #64748b;
-  --scrollbar-thumb: rgba(51, 65, 85, 0.16);
-  --panel-shadow: 0 16px 36px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.03);
-  --p0-badge-bg: rgba(225, 29, 72, 0.08);
-  --p0-badge-text: #be123c;
-  --p0-badge-border: rgba(225, 29, 72, 0.2);
-  --p1-badge-bg: rgba(217, 119, 6, 0.08);
-  --p1-badge-text: #a16207;
-  --p1-badge-border: rgba(217, 119, 6, 0.2);
-  --p2-badge-bg: rgba(51, 65, 85, 0.05);
-  --p2-badge-text: #334155;
-  --p2-badge-border: rgba(51, 65, 85, 0.09);
-  --p3-badge-bg: rgba(51, 65, 85, 0.03);
-  --p3-badge-text: #64748b;
-  --p3-badge-border: rgba(51, 65, 85, 0.07);
+  --scrollbar-thumb: rgba(71, 85, 105, 0.18);
+  --panel-shadow: 0 18px 40px rgba(30, 41, 59, 0.08), 0 2px 8px rgba(30, 41, 59, 0.04);
 }
 
 @layer base {
   body {
-    background-color: var(--bg-page);
+    background-color: var(--bg-app);
     color: var(--text-main);
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     transition: background-color 0.25s ease, color 0.25s ease;
@@ -195,4 +155,25 @@
 .acrylic-card:hover {
   background: var(--bg-card-hover);
   border-color: var(--border-hover);
+}
+
+.acrylic-drawer {
+  background: var(--bg-drawer);
+  box-shadow: 20px 0 50px rgba(0, 0, 0, 0.4);
+}
+
+/* Throw Gesture HUD active glow targets */
+.hud-target-left {
+  background: radial-gradient(circle at center, rgba(244, 63, 94, 0.22) 0%, rgba(244, 63, 94, 0.04) 65%, transparent 100%);
+  border-color: rgba(244, 63, 94, 0.45);
+}
+
+.hud-target-center {
+  background: radial-gradient(circle at center, rgba(56, 189, 248, 0.22) 0%, rgba(56, 189, 248, 0.04) 65%, transparent 100%);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.hud-target-right {
+  background: radial-gradient(circle at center, rgba(16, 185, 129, 0.25) 0%, rgba(16, 185, 129, 0.05) 65%, transparent 100%);
+  border-color: rgba(16, 185, 129, 0.5);
 }

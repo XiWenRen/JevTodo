@@ -1,16 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Plus, ArrowUp, Sparkles, X, Clock } from 'lucide-react';
-import { extractDateTime, extractFlomoTags } from '../utils/jev';
+import { Mic, MicOff, Plus, ArrowUp, Sparkles, X, Clock, ListPlus } from 'lucide-react';
+import { extractDateTime, extractFlomoTags, splitTasksWithJev } from '../utils/jev';
 import { TaskCategory } from '../types';
 
 interface FloatingInputBarProps {
   onAddTask: (text: string) => Promise<void>;
+  onOpenBatchModal?: (initialText?: string) => void;
   isProcessing?: boolean;
 }
 
 export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
   onAddTask,
+  onOpenBatchModal,
   isProcessing = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -21,6 +23,14 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
   const recognitionRef = useRef<any>(null);
   const baseTextRef = useRef<string>('');
 
+  // Check if multiple tasks are detected in the input
+  const splitCandidates = React.useMemo(() => {
+    if (!inputText.trim()) return [];
+    return splitTasksWithJev(inputText);
+  }, [inputText]);
+
+  const isMultiTask = splitCandidates.length > 1;
+
   // Quick live preview of Jev's parsing
   const preview = React.useMemo(() => {
     if (!inputText.trim()) return null;
@@ -30,7 +40,8 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
     // Preliminary category guess
     let category: TaskCategory = '近期完成';
     const lower = inputText.toLowerCase();
-    if (/(今天|今晚|下午|上午|马上|紧急|现在|尽快)/.test(lower) || (dueDate && dueDate.includes('今天'))) {
+    const isPast = /(昨天|昨日|昨晚|昨早|前天|前日|前晚|大前天|上周|上星期)/.test(lower);
+    if (!isPast && (/(今天|今晚|马上|紧急|现在|尽快)/.test(lower) || (dueDate && dueDate.includes('今天')))) {
       category = '即刻完成';
     } else if (/(下个月|明年|长远|规划|计划|想学)/.test(lower)) {
       category = '规划待办';
@@ -157,6 +168,13 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
     const textToSubmit = inputText.trim();
     setInputText('');
     baseTextRef.current = '';
+
+    // If text contains multiple tasks, open batch split modal if available
+    if (splitTasksWithJev(textToSubmit).length > 1 && onOpenBatchModal) {
+      onOpenBatchModal(textToSubmit);
+      return;
+    }
+
     await onAddTask(textToSubmit);
     if (inputRef.current) {
       inputRef.current.focus();
@@ -170,7 +188,7 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
   }, [isOpen]);
 
   return (
-    <div className="fixed bottom-4 inset-x-0 mx-auto max-w-[440px] px-3 sm:px-4 z-40">
+    <div className="fixed bottom-4 inset-x-0 mx-auto max-w-[460px] px-3 sm:px-4 z-40">
       {/* Speech error toast */}
       <AnimatePresence>
         {speechError && (
@@ -195,32 +213,52 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden mb-2 px-1 text-[11px] flex items-center justify-between text-[var(--text-sub)] border-b border-[var(--border-subtle)] pb-1.5"
             >
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="flex items-center gap-1 text-[var(--text-main)] font-medium">
-                  <Sparkles className="w-3 h-3 text-[var(--text-faint)]" />
-                  Jev 预判:
-                </span>
-                <span className="bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] px-1.5 py-0.5 rounded text-[10px]">
-                  {preview.category}
-                </span>
-                {preview.dueDate && (
-                  <span className="inline-flex items-center gap-0.5 text-[var(--text-sub)] bg-[var(--chip-bg)] border border-[var(--chip-border)] px-1.5 py-0.5 rounded text-[10px]">
-                    <Clock className="w-2.5 h-2.5" />
-                    {preview.dueDate}
+              {isMultiTask ? (
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-1.5 text-amber-500 font-medium">
+                    <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                    <span>Jev 识别到包含 {splitCandidates.length} 项待办</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onOpenBatchModal?.(inputText);
+                      setInputText('');
+                    }}
+                    className="text-[10px] text-amber-500 hover:text-amber-400 font-semibold underline underline-offset-2 flex items-center gap-0.5"
+                  >
+                    <span>智能拆分预览</span>
+                    <ListPlus className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="flex items-center gap-1 text-[var(--text-main)] font-medium">
+                    <Sparkles className="w-3 h-3 text-[var(--text-faint)]" />
+                    Jev 预判:
                   </span>
-                )}
-                {preview.tags.map(t => (
-                  <span key={t} className="text-[var(--tag-text)] text-[10px]">
-                    #{t}
+                  <span className="bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] px-1.5 py-0.5 rounded text-[10px]">
+                    {preview.category}
                   </span>
-                ))}
-              </div>
+                  {preview.dueDate && (
+                    <span className="inline-flex items-center gap-0.5 text-[var(--text-sub)] bg-[var(--chip-bg)] border border-[var(--chip-border)] px-1.5 py-0.5 rounded text-[10px]">
+                      <Clock className="w-2.5 h-2.5" />
+                      {preview.dueDate}
+                    </span>
+                  )}
+                  {preview.tags.map(t => (
+                    <span key={t} className="text-[var(--tag-text)] text-[10px]">
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* Input Bar Form */}
-        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+        <form onSubmit={handleSubmit} className="flex items-center gap-1.5 sm:gap-2">
           {/* Quick toggle/expand icon button */}
           <button
             type="button"
@@ -233,6 +271,21 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
           >
             <Plus className="w-4 h-4 stroke-[2.2]" />
           </button>
+
+          {/* Batch split modal trigger button */}
+          {onOpenBatchModal && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenBatchModal(inputText);
+                setInputText('');
+              }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--chip-bg)] text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)] transition-all"
+              title="批量录入一大堆内容，Jev 自动拆分"
+            >
+              <ListPlus className="w-4 h-4 stroke-[2.2]" />
+            </button>
+          )}
 
           {/* Natural Language Input Field */}
           <div className="relative flex-1">

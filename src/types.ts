@@ -4,6 +4,8 @@
 
 export type TaskCategory = '即刻完成' | '近期完成' | '规划待办';
 
+export type ActiveView = '即刻完成' | '近期完成' | '规划待办' | '全部事项';
+
 export type TaskPriority = 'P0' | 'P1' | 'P2' | 'P3';
 
 export interface TaskItem {
@@ -20,10 +22,18 @@ export interface TaskItem {
   completedAt?: number;
   createdAt: number;
   updatedAt: number;
+  notes?: string[]; // Supplemental notes/information added over time
   jevConfidence?: number;
   isStale?: boolean; // Jev flagged as stagnant / expired
   cleanupSuggested?: boolean;
   cleanupReason?: string;
+}
+
+export interface JevDuplicateCheckResult {
+  isDuplicate: boolean;
+  matchedTask?: TaskItem;
+  similarity: number; // 0.0 to 1.0
+  reason: string;
 }
 
 export interface JevDecision {

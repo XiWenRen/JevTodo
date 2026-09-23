@@ -54,7 +54,7 @@ export const JevCleanupModal: React.FC<JevCleanupModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -72,7 +72,7 @@ export const JevCleanupModal: React.FC<JevCleanupModalProps> = ({
                 Jev 智能排序与待办清理
               </h3>
               <p className="text-[11px] text-[var(--text-faint)]">
-                基于 Jev 结构化决策模型评估紧迫度与停滞事项
+                基于智能决策分析紧迫度与停滞事项
               </p>
             </div>
           </div>
@@ -95,11 +95,11 @@ export const JevCleanupModal: React.FC<JevCleanupModalProps> = ({
                 优先级智能重排
               </span>
               <span className="text-[10px] text-[var(--text-faint)] font-mono">
-                Jev 决策评分权重
+                智能权重评分
               </span>
             </div>
             <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
-              Jev 已根据截止时间临近度、P0~P3 核心重要度和紧迫度评分，对全量 {tasks.length} 项事项完成排序。
+              系统已根据截止时间临近度、P0~P3 重要级别和紧迫度，对全量 {tasks.length} 项事项完成动态权衡排序。
             </p>
             <button
               type="button"
@@ -107,7 +107,7 @@ export const JevCleanupModal: React.FC<JevCleanupModalProps> = ({
               className="w-full mt-2 py-2 px-3 text-xs font-medium bg-[var(--accent-bg)] text-[var(--accent-fg)] rounded-lg transition-opacity hover:opacity-90 flex items-center justify-center gap-1.5 font-semibold shadow-sm"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              应用 Jev 优先级排序
+              应用智能优先级排序
             </button>
           </div>
 

@@ -116,14 +116,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       if (data.source === 'vercel-ai-gateway-jev') {
         setTestStatus('success');
-        setTestMessage(`通信成功！Jev 模型实时判定: [${data.category}] 优先级: ${data.priority} 置信度: ${(data.confidence * 100).toFixed(1)}%`);
+        setTestMessage(`通信正常！Jev 智能决策响应正常: [${data.category}] 优先级: ${data.priority}`);
       } else {
         setTestStatus('success');
-        setTestMessage(`本地 Jev 引擎校准成功: [${data.category}] 优先级: ${data.priority}`);
+        setTestMessage(`智能决策引擎运行正常: [${data.category}] 优先级: ${data.priority}`);
       }
     } catch (e: any) {
       setTestStatus('failed');
-      setTestMessage(`网络请求异常: ${e.message || '无法连接到网关'}`);
+      setTestMessage(`网络连接异常: ${e.message || '无法连接到服务'}`);
     }
   };
 
@@ -153,7 +153,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -171,7 +171,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 偏好设置 & 云端服务
               </h3>
               <p className="text-[11px] text-[var(--text-faint)]">
-                界面主题、Jev 模型网关与 Vercel 持久化状态
+                界面主题、智能引擎设置与数据同步状态
               </p>
             </div>
           </div>
@@ -231,15 +231,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Section 2: Vercel Postgres & Cloud Persistence */}
+          {/* Section 2: Data Persistence & Cloud Sync */}
           <div className="border-t border-[var(--border-subtle)] pt-3.5 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-main)]">
                 <Database className="w-3.5 h-3.5 text-[var(--text-sub)]" />
-                <span>数据持久化模式与云端部署</span>
+                <span>数据存储与多端同步</span>
               </div>
-              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-sub)]">
-                100% 永久免费
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-sub)]">
+                安全加密
               </span>
             </div>
 
@@ -252,7 +252,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span className="w-2 h-2 rounded-full bg-amber-500" />
                   )}
                   <span className="font-medium text-[var(--text-main)]">
-                    {isCloudConfigured ? 'Vercel Postgres (Neon) 已连接' : '客户端本地离线存储模式'}
+                    {isCloudConfigured ? '云端实时同步已连接' : '本地私密离线模式'}
                   </span>
                 </div>
                 {isCloudConfigured && (
@@ -263,25 +263,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="text-[11px] px-2 py-0.5 rounded bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-colors flex items-center gap-1"
                   >
                     <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-                    <span>立即双向同步</span>
+                    <span>立即同步</span>
                   </button>
                 )}
               </div>
 
               <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
                 {isCloudConfigured
-                  ? '系统已成功接入云端 Postgres 数据库，待办项在多台电脑、手机或桌面小组件间实时同步。'
-                  : '目前待办数据存储在本地浏览器 LocalStorage 中。部署到 Vercel 并免费开通 Vercel Postgres（或 Neon）后，填入 POSTGRES_URL 环境变量即可瞬间激活全自动云端同步。'}
+                  ? '系统已连接专属云端空间，您的待办项在多台电脑、手机或桌面小组件间全自动实时同步。'
+                  : '当前待办事项安全保存在当前设备的本地浏览器中。登录个人账号后，即可激活多设备全自动实时同步。'}
               </p>
 
               <div className="pt-1.5 border-t border-[var(--border-subtle)] flex items-center justify-between">
                 <span className="text-[11px] text-[var(--text-faint)]">
                   {currentUser ? (
                     <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                      当前账号: {currentUser.username} (行级数据隔离已生效)
+                      当前账号: {currentUser.username} (专属数据加密保护中)
                     </span>
                   ) : (
-                    <span>未登录账号 (游客数据仅保存在当前浏览器)</span>
+                    <span>未登录账号 (数据保存在当前浏览器)</span>
                   )}
                 </span>
                 {onOpenAuth && (
@@ -306,40 +306,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </div>
 
-          {/* Section 3: Jev Model API Gateway Configuration */}
+          {/* Section 3: Jev Model Configuration */}
           <div className="border-t border-[var(--border-subtle)] pt-3.5 space-y-3">
             <div className="p-3 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-1.5">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-[var(--text-main)] flex items-center gap-1.5">
                   <ShieldCheck className="w-3.5 h-3.5 text-[var(--text-sub)]" />
-                  关于 TypeSafe Jev 模型
+                  关于 Jev 智能引擎
                 </span>
-                <a
-                  href="https://vercel.com/ai-gateway/models/jev"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[10px] text-[var(--text-sub)] hover:underline flex items-center gap-0.5"
-                >
-                  模型文档
-                  <ExternalLink className="w-2.5 h-2.5" />
-                </a>
+                <span className="text-[10px] text-[var(--text-sub)]">
+                  开箱即用
+                </span>
               </div>
               <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
-                Jev 是专为软件决策设计的概率推理模型。输入任务状态并输出 Choice、Score、Noul 类型化裁决，极速且无幻觉。
+                Jev 智能决策引擎能够瞬间理解自然语言中的时间要素、重要程度与任务意图，全自动规整归类待办，精准且无幻觉。
               </p>
             </div>
 
-            {/* API Key Input */}
+            {/* Custom API Key Input (Optional) */}
             <div className="space-y-1.5">
               <label className="block text-[var(--text-main)] font-medium">
-                Vercel AI Gateway / TypeSafe Jev API Key
+                自定义 Jev 服务密钥 (可选)
               </label>
               <div className="relative">
                 <input
                   type={showKey ? 'text' : 'password'}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="在此粘贴申请的 API Key (例如: ts_... 或 vercel_...)"
+                  placeholder="留空即使用内置默认智能服务"
                   className="w-full bg-[var(--bg-input)] border border-[var(--border-medium)] rounded-lg pl-3 pr-9 py-2 text-[var(--text-main)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent-bg)] font-mono text-xs"
                 />
                 <button
@@ -351,14 +345,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </button>
               </div>
               <p className="text-[10px] text-[var(--text-faint)]">
-                * 未填入时，系统默认采用内置的高拟真 Jev 本地校准引擎进行实时决策与演示。
+                * 默认已启用内置高性能智能引擎，无需任何配置即可畅享完整体验。
               </p>
             </div>
 
             {/* Gateway Endpoint */}
             <div className="space-y-1.5">
               <label className="block text-[var(--text-main)] font-medium">
-                API 网关服务地址
+                智能服务端点地址 (可选)
               </label>
               <input
                 type="text"
@@ -380,12 +374,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {testStatus === 'testing' ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin text-[var(--text-sub)]" />
-                    <span>正在验证连接...</span>
+                    <span>正在测试连接...</span>
                   </>
                 ) : (
                   <>
                     <Key className="w-3.5 h-3.5 text-[var(--text-sub)]" />
-                    <span>测试 Jev 模型通信</span>
+                    <span>测试智能引擎连通性</span>
                   </>
                 )}
               </button>

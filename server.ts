@@ -229,7 +229,7 @@ async function startServer() {
               },
               needs_cleanup: {
                 type: "noul",
-                instructions: "该任务是否属于无实质意义的过期或冗余任务，建议清理或归档？",
+                instructions: "该任务是否属于无实质意义的过期或冗余任务，建议清理或归档？重要辨析准则：不同时间段或不同日期的同类任务（例如下午3点开会与下午4点开会、今天开会与明天开会）属于不同时段的独立日程安排，绝非冗余或重复任务。",
                 statement: "该任务属于无实质意义的过期或冗余任务，建议清理或归档"
               }
             }
@@ -301,9 +301,10 @@ async function startServer() {
       let urgencyScore = 0.5;
 
       const hasFutureDay = /(明天|明早|明晚|后天|这周|本周|下周)/.test(lower);
+      const isPastDay = /(昨天|昨日|昨晚|昨早|前天|前日|前晚|大前天|上周|上星期)/.test(lower);
       const isUrgentIncident = /(宕机|502|故障|报警|告警|p0|严重)/.test(lower);
 
-      if ((!hasFutureDay || isUrgentIncident) && /(今天|今晚|下午|上午|马上|立即|紧急|现在|开会|交差|deadline|宕机|告警|报警|502|卡点|阻塞|故障|冒烟)/.test(lower)) {
+      if (!isPastDay && (!hasFutureDay || isUrgentIncident) && /(今天|今晚|下午|上午|马上|立即|紧急|现在|开会|交差|deadline|宕机|告警|报警|502|卡点|阻塞|故障|冒烟)/.test(lower)) {
         category = "即刻完成";
         priority = /(紧急|重要|p0|严重|今天内|宕机|502|高危|告警|报警|生产环境|故障)/.test(lower) ? "P0" : "P1";
         urgencyScore = priority === "P0" ? 0.98 : 0.92;

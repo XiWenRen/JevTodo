@@ -95,7 +95,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -113,7 +113,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {currentUser ? '用户账号管理' : (mode === 'login' ? '登录个人账号' : '注册专属账号')}
               </h3>
               <p className="text-[10px] text-[var(--text-faint)]">
-                独占式数据隔离 · 防止横向越权
+                专属个人空间 · 私密安全存储
               </p>
             </div>
           </div>
@@ -135,7 +135,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <span>当前登录: {currentUser.username}</span>
               </div>
               <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
-                您的待办事项已被绑定至此账号，仅持有凭证的您本人可读写，云端数据库已启动严格的用户行级数据隔离。
+                您的待办事项已绑定至此账号，受专属加密保护，仅您本人可查看与编辑。
               </p>
             </div>
 
