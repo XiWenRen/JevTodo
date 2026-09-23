@@ -493,11 +493,12 @@ export function formatDynamicDueDate(
 }
 
 /**
- * Extract flomo-style tags from input or automatically infer relevant tags
+ * Extract flomo-style tags from input or automatically infer granular matter-specific tags.
+ * Prohibits vague generic tags like "工作", "测试", "生活", "学习" in favor of concrete event tags.
  */
 export function extractFlomoTags(input: string): { tags: string[]; remainingText: string } {
   const explicitTags: string[] = [];
-  // Match #tag or #工作
+  // Match #tag
   const tagRegex = /#([\u4e00-\u9fa5\w-]+)/g;
   let match;
   let remainingText = input;
@@ -513,44 +514,123 @@ export function extractFlomoTags(input: string): { tags: string[]; remainingText
 
   // If user provided explicit tags, keep them
   const inferredTags = [...explicitTags];
+  if (inferredTags.length >= 2) {
+    return {
+      tags: inferredTags.slice(0, 3),
+      remainingText: remainingText.length > 0 ? remainingText : input
+    };
+  }
 
-  // Auto-infer semantic category tags (flomo style)
-  const lower = input.toLowerCase();
+  const text = input.toLowerCase();
 
-  const rules: Array<{ keywords: string[]; tag: string }> = [
-    { keywords: ['运维', '服务器', 'cpu', '宕机', '告警', '报警', '502', '机房', '迁移', '割接', '专线', '双活', '备份', '集群', 'nginx', 'ssl', '证书', '生产环境', '生产'], tag: '运维' },
-    { keywords: ['测试', '用例', '测试用例', 'qa', '缺陷', '冒烟', '压测', '回归', 'bug'], tag: '测试' },
-    { keywords: ['需求', 'prd', '需求评审', '原型', '功能清单', '业务方'], tag: '需求' },
-    { keywords: ['代码', '开发', '研发', '重构', '发版', '上线', '分支', 'cr', 'review', 'api', '前端', '后端', 'git', '架构'], tag: '研发' },
-    { keywords: ['预算', '申报', '预算申报', '成本', '财年', '资金', '审批预算', '采购预算'], tag: '预算' },
-    { keywords: ['采购', '采购申请', '服务器采购', '询价', '比价', '供应商', '合同', '硬件采购', '商务'], tag: '采购' },
-    { keywords: ['立项', '立项申请', '可行性', '答辩', '项目启动', '立项书', '方案汇报'], tag: '立项' },
-    { keywords: ['人员', '人员管理', '招聘', '面试', '1on1', '绩效', '转正', '团建', '交接', '排期', '资源协调', '人事'], tag: '团队' },
-    { keywords: ['项目', '项目进度', '进度', '里程碑', '周报', '站会', '风险', '卡点', '交付', '延期', '燃尽图', '管理'], tag: '项目' },
-    { keywords: ['机房迁移', '双活迁移', '跨机房', '灾备迁移'], tag: '机房迁移' },
-    { keywords: ['开会', '会议', '汇报', '方案', '评审', '客户', '合同', '周报', '产品', '发票', '财报'], tag: '工作' },
-    { keywords: ['学习', '阅读', '读书', '背单词', '英语', '课程', '练习', '论文', '笔记', '复习', '考试'], tag: '学习' },
-    { keywords: ['买', '超市', '购物', '缴纳', '水电', '打扫', '寄快递', '取快递', '充值', '做饭', '洗衣服'], tag: '生活' },
-    { keywords: ['体检', '医院', '吃药', '看病', '挂号', '药店', '牙医', '检查', '就医'], tag: '健康' },
-    { keywords: ['跑步', '健身', '瑜伽', '散步', '运动', '骑行', '游泳', '打球', '暴汗'], tag: '运动' },
-    { keywords: ['聚餐', '聚会', '约饭', '看电影', '生日', '送礼', '聊天', '约会'], tag: '社交' },
-    { keywords: ['账单', '报销', '还款', '转账', '理财', '投资', '记账'], tag: '财务' },
-    { keywords: ['机票', '酒店', '旅行', '车票', '高铁', '出差', '攻略'], tag: '出行' }
+  // Fine-grained matter/event rules (sorted by specificity, strictly avoiding broad categories like "工作", "测试")
+  const matterRules: Array<{ match: (t: string) => boolean; tag: string }> = [
+    // 1. Alert & Incident Response
+    { match: t => /(502|500|503|404|宕机|崩溃|报警|告警|网关告警)/.test(t) && /(网关|端口|nginx|8080|排查|修复)/.test(t), tag: '网关排查' },
+    { match: t => /(502|500|宕机|报警|告警|卡死|挂掉)/.test(t), tag: '502报警' },
+    { match: t => /(生产环境|线上环境|高危|故障修复|紧急排查)/.test(t), tag: '生产排查' },
+
+    // 2. Testing & Quality Assurance
+    { match: t => /(用例|测试用例)/.test(t) && /(评审|讨论|过例)/.test(t), tag: '用例评审' },
+    { match: t => /(冒烟|卡点|阻塞|冒烟测试)/.test(t), tag: '冒烟测试' },
+    { match: t => /(压测|压力测试|性能测试|吞吐量|tps)/.test(t), tag: '性能压测' },
+    { match: t => /(回归|验收|预发验收|qa验证)/.test(t), tag: '回归验收' },
+    { match: t => /(缺陷|bug|修复bug|提单)/.test(t), tag: 'Bug修复' },
+    { match: t => /(退款|支付|订单)/.test(t) && /(测试|用例|验证)/.test(t), tag: '支付测试' },
+
+    // 3. Product & Requirements
+    { match: t => /(prd|产品文档)/.test(t) && /(锁定|终审|定稿|签署)/.test(t), tag: 'PRD终审' },
+    { match: t => /(供应链|分销|仓储)/.test(t) && /(改造|系统|重构)/.test(t), tag: '供应链改造' },
+    { match: t => /(需求评审|方案评审|产品评审)/.test(t), tag: '需求评审' },
+    { match: t => /(原型|交互稿|ui稿|高保真|figma)/.test(t), tag: '原型设计' },
+    { match: t => /(需求拆解|功能清单|业务架构)/.test(t), tag: '需求拆解' },
+
+    // 4. Code & Architecture
+    { match: t => /(代码cr|cr卡点|cr|review|代码评审|代码审查)/.test(t), tag: '代码审查' },
+    { match: t => /(灰度|发版|发版计划|上线计划|发布版本)/.test(t), tag: '灰度发版' },
+    { match: t => /(结算|支付|账单)/.test(t) && /(微服务|重构|服务化)/.test(t), tag: '微服务重构' },
+    { match: t => /(架构演进|中台演进|技术预研|立项预研)/.test(t), tag: '架构演进' },
+    { match: t => /(数据库迁移|分库分表|sql优化|索引重构)/.test(t), tag: '数据库迁移' },
+    { match: t => /(接口联调|api对接|联调卡点)/.test(t), tag: '接口联调' },
+
+    // 5. Infrastructure & Operations
+    { match: t => /(同城双活|跨机房|灾备迁移|灾备演练)/.test(t), tag: '双活灾备' },
+    { match: t => /(机房迁移|机房割接|物理机搬迁)/.test(t), tag: '机房迁移' },
+    { match: t => /(弱电|机架回收|废旧机架|机柜|弱电供应)/.test(t), tag: '机架回收' },
+    { match: t => /(ssl证书|域名解析|https|证书更新)/.test(t), tag: '证书维护' },
+    { match: t => /(容器集群|k8s|docker|集群扩容)/.test(t), tag: '集群调度' },
+
+    // 6. Project Management & Routine
+    { match: t => /(双周例会|双周进度|项目双周|进度例会)/.test(t), tag: '双周例会' },
+    { match: t => /(燃尽图|燃尽图更新|甘特图)/.test(t), tag: '燃尽图' },
+    { match: t => /(延期风险|项目风险|卡点跟进)/.test(t), tag: '风险评估' },
+    { match: t => /(里程碑|阶段交付|交付节点)/.test(t), tag: '里程碑交付' },
+    { match: t => /(项目复盘|复盘会|经验总结)/.test(t), tag: '项目复盘' },
+    { match: t => /(立项申请|roi效益|立项申报)/.test(t), tag: '立项预研' },
+
+    // 7. Finance & Procurement
+    { match: t => /(比价单|供应商比价|3家比价|三方比价)/.test(t), tag: '供应商比价' },
+    { match: t => /(算力服务器|硬件采购|服务器采购|设备采购)/.test(t), tag: '硬件采购' },
+    { match: t => /(预算申报|申报表|预算审批|财年预算)/.test(t), tag: '预算申报' },
+    { match: t => /(云资源预算|it研发预算|公有云开销)/.test(t), tag: '云资源预算' },
+    { match: t => /(差旅报销|发票贴票|报销单|费用审批)/.test(t), tag: '费用报销' },
+    { match: t => /(合同审批|盖章流程|法务审查|法务合规)/.test(t), tag: '合同审批' },
+
+    // 8. HR & Team
+    { match: t => /(技术终面|终面面谈|候选人终面|技术复试)/.test(t), tag: '架构师终面' },
+    { match: t => /(试用期1on1|试用期面谈|试用期考核|转正答辩)/.test(t), tag: '试用期1on1' },
+    { match: t => /(招聘面试|简历筛选|初试筛选)/.test(t), tag: '招聘面试' },
+    { match: t => /(绩效评定|okr对齐|kpi考核)/.test(t), tag: '绩效考核' },
+
+    // 9. Personal, Health, Study, Living
+    { match: t => /(历史归档|老旧微服务|用例归档|归档目录)/.test(t), tag: '历史归档' },
+    { match: t => /(胃镜|肠镜|体检报告|核酸|年度体检)/.test(t), tag: '医疗体检' },
+    { match: t => /(挂号|门诊|三甲医院|看医生|就医)/.test(t), tag: '就医挂号' },
+    { match: t => /(力量训练|深蹲|卧推|健身房打卡)/.test(t), tag: '力量训练' },
+    { match: t => /(有氧慢跑|跑步打卡|5公里|晨跑)/.test(t), tag: '跑步锻炼' },
+    { match: t => /(雅思|托福|四六级|背单词|单词打卡)/.test(t), tag: '外语备考' },
+    { match: t => /(毕业论文|论文开题|论文答辩|开题报告)/.test(t), tag: '论文写作' },
+    { match: t => /(机票预订|高铁票|改签|订机票)/.test(t), tag: '票务预订' },
+    { match: t => /(酒店预订|民宿|出差行程)/.test(t), tag: '行程预订' },
+    { match: t => /(寄快递|取快递|顺丰|菜鸟驿站)/.test(t), tag: '快递处理' },
+    { match: t => /(水电费|物业费|燃气费|生活缴费)/.test(t), tag: '生活缴费' },
+    { match: t => /(山姆|盒马|超市买菜|生鲜采买)/.test(t), tag: '生鲜采买' }
   ];
 
-  for (const rule of rules) {
-    if (inferredTags.length >= 3) break;
-    if (rule.keywords.some(k => lower.includes(k)) && !inferredTags.includes(rule.tag)) {
+  for (const rule of matterRules) {
+    if (inferredTags.length >= 2) break;
+    if (rule.match(text) && !inferredTags.includes(rule.tag)) {
       inferredTags.push(rule.tag);
     }
   }
 
+  // Dynamic semantic verb/matter extractor if still empty
   if (inferredTags.length === 0) {
-    inferredTags.push('待办');
+    const dynamicMatches = [
+      /(支付|订单|网关|供应链|结算|机房|服务器|云资源|预算|用例|架构|合同|发票|论文|体检|机票)(改造|评审|排查|重构|申报|采购|迁移|比价|审批|测试|核算|检查|预订)/,
+      /(开会|讨论|跟进|调研|汇报|复盘)([a-zA-Z\u4e00-\u9fa5]{2,6})/
+    ];
+    for (const dm of dynamicMatches) {
+      const res = text.match(dm);
+      if (res && res[0]) {
+        inferredTags.push(res[0]);
+        break;
+      }
+    }
+  }
+
+  // If still completely empty, extract the first concrete 2-4 character Chinese keyword instead of dumping "待办"
+  if (inferredTags.length === 0) {
+    const cleanWord = text.replace(/(今天|明天|后天|下午|上午|点前|完成|组织|安排|提交|启动|进行|需要)/g, '').match(/[\u4e00-\u9fa5]{2,4}/);
+    if (cleanWord && cleanWord[0] && !['待办', '事项', '任务', '工作', '测试', '生活'].includes(cleanWord[0])) {
+      inferredTags.push(cleanWord[0]);
+    } else {
+      inferredTags.push('重点事项');
+    }
   }
 
   return {
-    tags: inferredTags,
+    tags: inferredTags.slice(0, 2),
     remainingText: remainingText.length > 0 ? remainingText : input
   };
 }

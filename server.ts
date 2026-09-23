@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
+import { GoogleGenAI } from "@google/genai";
 import { 
   fetchAllTasksFromDB, 
   upsertTaskToDB, 
@@ -182,6 +183,135 @@ async function startServer() {
     }
   });
 
+  /**
+   * High-precision granular event matter tag generator.
+   * Leverages Gemini AI prompt when configured, or high-precision matter rules as fallback.
+   * Strictly avoids vague broad categories like "工作", "测试", "生活", "学习" in favor of concrete event tags.
+   */
+  async function generateSpecificMatterTags(rawText: string, geminiKey?: string): Promise<string[]> {
+    const explicitTags: string[] = [];
+    const tagRegex = /#([\u4e00-\u9fa5\w-]+)/g;
+    let match;
+    while ((match = tagRegex.exec(rawText)) !== null) {
+      if (!explicitTags.includes(match[1])) explicitTags.push(match[1]);
+    }
+    if (explicitTags.length >= 2) return explicitTags.slice(0, 3);
+
+    // 1. If Gemini API Key is available, use Gemini 2.5 Flash with the specialized matter tag prompt
+    const activeGeminiKey = geminiKey || process.env.GEMINI_API_KEY;
+    if (activeGeminiKey) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: activeGeminiKey });
+        const prompt = `你是一个精准的待办事项细化标签提取助手。
+请根据用户输入的任务内容，提取 1 到 2 个【具体事件/业务细化标签】。
+
+【极其重要的准则 - 严禁宽泛标签】：
+1. 严禁生成宽泛笼统的一级类别词，绝对禁止输出：工作、测试、生活、学习、研发、运维、需求、管理、团队、人事、采购、财务、其他、日常、事项、待办、任务。
+2. 必须下钻到【具体业务对象/模块 + 具体动作】，或者是【明确的具体事件名称】。
+   示例：
+   - "生产环境 8080 端口网关告警 502，拉通运维排查修复" -> 标签：["网关排查", "502报警"]
+   - "组织核心订单与退款测试用例评审，确认冒烟卡点" -> 标签：["用例评审", "冒烟测试"]
+   - "完成供应链系统改造需求评审方案并锁定版本 PRD" -> 标签：["PRD终审", "供应链改造"]
+   - "跟进结算微服务重构代码 CR 卡点与灰度发版计划" -> 标签：["代码审查", "灰度发版"]
+   - "明天上午10点组织 SaaS 项目双周进度例会，更新燃尽图" -> 标签：["双周例会", "燃尽图"]
+   - "提交 AI 算力服务器硬件采购申请与 3 家供应商比价单" -> 标签：["硬件采购", "供应商比价"]
+   - "完成 2027 财年 IT 研发与云资源预算申报表" -> 标签：["预算申报", "云资源预算"]
+   - "安排资深架构师技术终面及试用期 1on1" -> 标签：["架构师终面", "试用期1on1"]
+   - "去山姆超市买牛排和水果" -> 标签：["超市采买"]
+   - "周六上午去医院做胃镜检查" -> 标签：["胃镜检查"]
+   - "每天背 50 个托福高频单词" -> 标签：["托福词汇"]
+
+待办内容："${rawText}"
+
+请严格以纯 JSON 格式输出，不要包含 markdown 代码块：
+{"tags": ["具体标签1", "具体标签2"]}`;
+
+        const resp = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: prompt
+        });
+
+        const textOutput = resp.text || "";
+        const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsed.tags) && parsed.tags.length > 0) {
+            const aiTags = parsed.tags.filter((t: any) => typeof t === "string" && !["工作", "测试", "生活", "学习", "其他", "待办", "任务"].includes(t.trim()));
+            if (aiTags.length > 0) {
+              return [...explicitTags, ...aiTags].slice(0, 3);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Gemini tag generation error, fallback to local matter rules:", err);
+      }
+    }
+
+    // 2. High-precision matter rules fallback
+    const text = rawText.toLowerCase();
+    const matterRules: Array<{ match: (t: string) => boolean; tag: string }> = [
+      { match: t => /(502|500|503|404|宕机|崩溃|报警|告警|网关告警)/.test(t) && /(网关|端口|nginx|8080|排查|修复)/.test(t), tag: '网关排查' },
+      { match: t => /(502|500|宕机|报警|告警|卡死|挂掉)/.test(t), tag: '502报警' },
+      { match: t => /(生产环境|线上环境|高危|故障修复|紧急排查)/.test(t), tag: '生产排查' },
+      { match: t => /(用例|测试用例)/.test(t) && /(评审|讨论|过例)/.test(t), tag: '用例评审' },
+      { match: t => /(冒烟|卡点|阻塞|冒烟测试)/.test(t), tag: '冒烟测试' },
+      { match: t => /(压测|压力测试|性能测试|吞吐量|tps)/.test(t), tag: '性能压测' },
+      { match: t => /(回归|验收|预发验收|qa验证)/.test(t), tag: '回归验收' },
+      { match: t => /(缺陷|bug|修复bug|提单)/.test(t), tag: 'Bug修复' },
+      { match: t => /(退款|支付|订单)/.test(t) && /(测试|用例|验证)/.test(t), tag: '支付测试' },
+      { match: t => /(prd|产品文档)/.test(t) && /(锁定|终审|定稿|签署)/.test(t), tag: 'PRD终审' },
+      { match: t => /(供应链|分销|仓储)/.test(t) && /(改造|系统|重构)/.test(t), tag: '供应链改造' },
+      { match: t => /(需求评审|方案评审|产品评审)/.test(t), tag: '需求评审' },
+      { match: t => /(原型|交互稿|ui稿|高保真|figma)/.test(t), tag: '原型设计' },
+      { match: t => /(代码cr|cr卡点|cr|review|代码评审|代码审查)/.test(t), tag: '代码审查' },
+      { match: t => /(灰度|发版|发版计划|上线计划|发布版本)/.test(t), tag: '灰度发版' },
+      { match: t => /(结算|支付|账单)/.test(t) && /(微服务|重构|服务化)/.test(t), tag: '微服务重构' },
+      { match: t => /(架构演进|中台演进|技术预研|立项预研)/.test(t), tag: '架构演进' },
+      { match: t => /(数据库迁移|分库分表|sql优化|索引重构)/.test(t), tag: '数据库迁移' },
+      { match: t => /(接口联调|api对接|联调卡点)/.test(t), tag: '接口联调' },
+      { match: t => /(同城双活|跨机房|灾备迁移|灾备演练)/.test(t), tag: '双活灾备' },
+      { match: t => /(机房迁移|机房割接|物理机搬迁)/.test(t), tag: '机房迁移' },
+      { match: t => /(弱电|机架回收|废旧机架|机柜|弱电供应)/.test(t), tag: '机架回收' },
+      { match: t => /(双周例会|双周进度|项目双周|进度例会)/.test(t), tag: '双周例会' },
+      { match: t => /(燃尽图|燃尽图更新|甘特图)/.test(t), tag: '燃尽图' },
+      { match: t => /(比价单|供应商比价|3家比价|三方比价)/.test(t), tag: '供应商比价' },
+      { match: t => /(算力服务器|硬件采购|服务器采购|设备采购)/.test(t), tag: '硬件采购' },
+      { match: t => /(预算申报|申报表|预算审批|财年预算)/.test(t), tag: '预算申报' },
+      { match: t => /(云资源预算|it研发预算|公有云开销)/.test(t), tag: '云资源预算' },
+      { match: t => /(技术终面|终面面谈|候选人终面|技术复试)/.test(t), tag: '架构师终面' },
+      { match: t => /(试用期1on1|试用期面谈|试用期考核|转正答辩)/.test(t), tag: '试用期1on1' },
+      { match: t => /(历史归档|老旧微服务|用例归档|归档目录)/.test(t), tag: '历史归档' },
+      { match: t => /(胃镜|肠镜|体检报告|核酸|年度体检)/.test(t), tag: '医疗体检' },
+      { match: t => /(挂号|门诊|三甲医院|看医生|就医)/.test(t), tag: '就医挂号' },
+      { match: t => /(力量训练|深蹲|卧推|健身房打卡)/.test(t), tag: '力量训练' },
+      { match: t => /(有氧慢跑|跑步打卡|5公里|晨跑)/.test(t), tag: '跑步锻炼' },
+      { match: t => /(雅思|托福|四六级|背单词|单词打卡)/.test(t), tag: '外语备考' },
+      { match: t => /(机票预订|高铁票|改签|订机票)/.test(t), tag: '票务预订' },
+      { match: t => /(寄快递|取快递|顺丰|菜鸟驿站)/.test(t), tag: '快递处理' },
+      { match: t => /(水电费|物业费|燃气费|生活缴费)/.test(t), tag: '生活缴费' },
+      { match: t => /(山姆|盒马|超市买菜|生鲜采买)/.test(t), tag: '生鲜采买' }
+    ];
+
+    const inferred = [...explicitTags];
+    for (const rule of matterRules) {
+      if (inferred.length >= 2) break;
+      if (rule.match(text) && !inferred.includes(rule.tag)) {
+        inferred.push(rule.tag);
+      }
+    }
+
+    if (inferred.length === 0) {
+      const dynamicMatch = text.match(/(支付|订单|网关|供应链|结算|机房|服务器|云资源|预算|用例|架构|合同|发票|论文|体检|机票)(改造|评审|排查|重构|申报|采购|迁移|比价|审批|测试|核算|检查|预订)/);
+      if (dynamicMatch && dynamicMatch[0]) inferred.push(dynamicMatch[0]);
+    }
+
+    if (inferred.length === 0) {
+      inferred.push('重点事项');
+    }
+
+    return inferred.slice(0, 2);
+  }
+
   // Evaluate task using Jev model via Vercel AI Gateway / TypeSafe API
   app.post("/api/jev/evaluate", async (req, res) => {
     try {
@@ -265,10 +395,13 @@ async function startServer() {
 
             const confidence = answers.category?.confidence ?? data.confidence ?? 0.95;
 
+            const specificTags = await generateSpecificMatterTags(text, req.body.geminiApiKey);
+
             return res.json({
               category,
               priority,
               urgencyScore,
+              tags: specificTags,
               needsCleanup: cleanupProb > 0.6,
               confidence,
               rawJevAnswers: answers,
@@ -318,10 +451,13 @@ async function startServer() {
         urgencyScore = /(采购|预算|评审|用例|例会|周五|周四|本周)/.test(lower) ? 0.72 : 0.65;
       }
 
+      const specificTags = await generateSpecificMatterTags(text, req.body.geminiApiKey);
+
       return res.json({
         category,
         priority,
         urgencyScore,
+        tags: specificTags,
         confidence: 0.93,
         source: "jev-calibrated-local"
       });
