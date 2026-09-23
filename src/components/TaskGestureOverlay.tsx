@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trash2, Clock, Check, X } from 'lucide-react';
 import { TaskItem as ITaskItem } from '../types';
 import { CardRect } from './TaskItem';
 
@@ -16,122 +15,124 @@ interface TaskGestureOverlayProps {
   gestureData: GestureData | null;
   onClose: () => void;
   onAction: (action: GestureActionType, task: ITaskItem) => void;
+  onTargetChange?: (target: GestureActionType) => void;
+  onChompChange?: (chomp: GestureActionType | null) => void;
 }
 
+// ==========================================
+// 统一高品质 3D 樱桃展示组件
+// ==========================================
+interface UnifiedCherryProps {
+  size?: number;
+}
+
+export const UnifiedCherry: React.FC<UnifiedCherryProps> = ({ size = 56 }) => {
+  return (
+    <div
+      className="relative flex items-center justify-center select-none pointer-events-none overflow-visible filter drop-shadow-[0_8px_16px_rgba(225,29,72,0.45)]"
+      style={{ width: size, height: size }}
+    >
+      <img
+        src="/assets/cherry.png"
+        alt="Cherry"
+        className="w-full h-full object-contain pointer-events-none overflow-visible"
+        draggable={false}
+      />
+    </div>
+  );
+};
+
+// ==========================================
+// 樱桃投喂手势调度组件 (无新蒙层，直接在原层呈现)
+// ==========================================
 export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
   gestureData,
   onClose,
-  onAction
+  onAction,
+  onTargetChange,
+  onChompChange
 }) => {
-  const [currentPos, setCurrentPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [activeAction, setActiveAction] = useState<GestureActionType>('none');
-  const [isNearCancel, setIsNearCancel] = useState(false);
-  const [isFinishing, setIsFinishing] = useState<GestureActionType | null>(null);
-  const [isPacked, setIsPacked] = useState(false);
-  const [showSectors, setShowSectors] = useState(false);
+  const [cherryPos, setCherryPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isMorphedToCherry, setIsMorphedToCherry] = useState(false);
+  const [isThrowing, setIsThrowing] = useState(false);
+  const [throwPos, setThrowPos] = useState<{ x: number; y: number; rotate: number; scale: number }>({
+    x: 0,
+    y: 0,
+    rotate: 0,
+    scale: 1
+  });
 
-  // Initialize and orchestrate sequential animation
+  // 使用 ref 避免频繁 re-render 闭包陈旧问题和反复绑定解绑监听器导致的抖动
+  const currentPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const activeTargetRef = useRef<GestureActionType>('none');
+  const isThrowingRef = useRef(false);
+  const animFrameRef = useRef<number | null>(null);
+
+  // 初始化长按手势与变樱桃过渡动效
   useEffect(() => {
     if (gestureData) {
-      setCurrentPos(gestureData.point);
-      setActiveAction('none');
-      setIsNearCancel(false);
-      setIsFinishing(null);
-      setIsPacked(false);
-      setShowSectors(false);
+      const initialPos = gestureData.point;
+      currentPosRef.current = initialPos;
+      setCherryPos(initialPos);
+      setThrowPos({ x: initialPos.x, y: initialPos.y, rotate: 0, scale: 1 });
+      activeTargetRef.current = 'none';
+      isThrowingRef.current = false;
+      setIsThrowing(false);
+      setIsMorphedToCherry(false);
 
-      const packTimer = setTimeout(() => {
-        setIsPacked(true);
-      }, 20);
+      onTargetChange?.('none');
+      onChompChange?.(null);
 
-      const sectorsTimer = setTimeout(() => {
-        setShowSectors(true);
-      }, 100);
+      // 稍微留出 35ms 确保浏览器完成首帧布局后启动平滑卡片缩拢变樱桃的过渡动画
+      const morphTimer = setTimeout(() => {
+        setIsMorphedToCherry(true);
+      }, 35);
 
       return () => {
-        clearTimeout(packTimer);
-        clearTimeout(sectorsTimer);
+        clearTimeout(morphTimer);
       };
     }
-  }, [gestureData]);
+  }, [gestureData?.task?.id]);
 
-  // Pointer & Touch tracking & sector detection (Full 180° Semicircle Trisected into 3x 60°)
+  // 绑定全局鼠标与触摸移动（在手势存续期内仅绑定一次，杜绝频繁拆解监听引起的鼠标抖动）
   useEffect(() => {
     if (!gestureData) return;
-    const { point: startPoint } = gestureData;
 
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
-    const rOuter = isMobile ? 120 : 136;
-    const rCenterButton = 26;
-    const minDragThreshold = 32; // Finger must move at least 32px before activating any sector
+    const processMove = (clientX: number, clientY: number) => {
+      if (isThrowingRef.current) return;
+      currentPosRef.current = { x: clientX, y: clientY };
+      setCherryPos({ x: clientX, y: clientY });
 
-    // Position center hub as close as possible to the user's touch point
-    const W = typeof window !== 'undefined' ? window.innerWidth : 800;
-    const H = typeof window !== 'undefined' ? window.innerHeight : 600;
-    const cy = Math.max(rOuter + 16, Math.min(H - 60, startPoint.y));
-    const cx = Math.max(rOuter + 8, Math.min(W - rOuter - 8, startPoint.x));
-
-    let hasEverMoved = false;
-
-    const processMove = (x: number, y: number) => {
-      setCurrentPos({ x, y });
-
-      const distFromStart = Math.hypot(x - startPoint.x, y - startPoint.y);
-      if (distFromStart > 10) {
-        hasEverMoved = true;
-      }
-
-      const deltaX = x - cx;
-      const deltaY = y - cy;
-      const distFromCenter = Math.hypot(deltaX, deltaY);
-
-      // Cancel zone detection: within central cancel button or dragged downwards into lower hemisphere
-      const inCancelZone = 
-        distFromCenter < rCenterButton + 12 || 
-        distFromStart < minDragThreshold || 
-        (deltaY > 14 && Math.abs(deltaX) < 48);
-
-      if (inCancelZone) {
-        if (!isNearCancel) {
-          setIsNearCancel(true);
-          if (typeof navigator !== 'undefined' && navigator.vibrate) {
-            try { navigator.vibrate(8); } catch {}
-          }
-        }
-        if (activeAction !== 'none') {
-          setActiveAction('none');
-        }
-        return;
-      }
-
-      if (isNearCancel) {
-        setIsNearCancel(false);
-      }
-
-      // Calculate angle in degrees (-180° to 180°)
-      const angleDeg = Math.atan2(deltaY, deltaX) * (180 / Math.PI);
+      // 计算是否拖入主体界面底部的 3 动物领地
+      const dockEl = document.getElementById('bottom-animal-dock');
+      const rect = dockEl?.getBoundingClientRect();
+      const H = typeof window !== 'undefined' ? window.innerHeight : 800;
 
       let detected: GestureActionType = 'none';
 
-      // 3 Equal 60° Slices spanning the entire 180° upper semicircle:
-      // Left (-180° to -120°): 删除 (Center = -150°)
-      // Center (-120° to -60°): 延后 (Center = -90°)
-      // Right (-60° to 0°): 完成 (Center = -30°)
-      if (hasEverMoved && distFromStart >= minDragThreshold) {
-        if (angleDeg >= -180 && angleDeg < -120) {
-          detected = 'delete';
-        } else if (angleDeg >= -120 && angleDeg < -60) {
-          detected = 'defer';
-        } else if (angleDeg >= -60 && angleDeg <= 0) {
-          detected = 'complete';
+      // 靠近底部领地（向上浮动 80px 范围即判定为已进入瞄准）
+      const triggerTop = rect ? rect.top - 70 : H - 180;
+
+      if (clientY > triggerTop) {
+        const left = rect ? rect.left : 0;
+        const width = rect ? rect.width : window.innerWidth;
+        const relativeX = clientX - left;
+
+        if (relativeX < width / 3) {
+          detected = 'delete';   // 左 1/3：小恐龙 (删除)
+        } else if (relativeX < (width * 2) / 3) {
+          detected = 'defer';    // 中 1/3：小树懒 (延后)
+        } else {
+          detected = 'complete'; // 右 1/3：小仓鼠 (完成)
         }
       }
 
-      if (detected !== activeAction) {
-        setActiveAction(detected);
+      if (detected !== activeTargetRef.current) {
+        activeTargetRef.current = detected;
+        onTargetChange?.(detected);
         if (detected !== 'none' && typeof navigator !== 'undefined' && navigator.vibrate) {
           try {
-            navigator.vibrate(14);
+            navigator.vibrate(12);
           } catch {}
         }
       }
@@ -142,544 +143,225 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      // Prevent mobile default scroll/bounce that disconnects touch
-      if (e.cancelable) {
-        e.preventDefault();
-      }
+      if (e.cancelable) e.preventDefault();
       if (e.touches && e.touches.length > 0) {
         processMove(e.touches[0].clientX, e.touches[0].clientY);
       }
     };
 
-    let finishedOrCancelled = false;
+    // 核心物理抛物线弹道引擎
+    const executeParabolicThrow = (target: GestureActionType, startX: number, startY: number) => {
+      isThrowingRef.current = true;
+      // 立即将起点设为当前松开位置，绝不会跳到 (0, 0)
+      setThrowPos({ x: startX, y: startY, rotate: 0, scale: 1 });
+      setIsThrowing(true);
 
-    const handleFinish = () => {
-      if (finishedOrCancelled) return;
-      finishedOrCancelled = true;
+      const dockEl = document.getElementById('bottom-animal-dock');
+      const rect = dockEl?.getBoundingClientRect();
+      const H = typeof window !== 'undefined' ? window.innerHeight : 800;
 
-      // Only execute if user deliberately moved into an action sector
-      if (activeAction !== 'none' && gestureData) {
-        setIsFinishing(activeAction);
-        if (typeof navigator !== 'undefined' && navigator.vibrate) {
-          try {
-            navigator.vibrate([16, 20]);
-          } catch {}
+      const dockLeft = rect ? rect.left : 0;
+      const dockWidth = rect ? rect.width : window.innerWidth;
+      const dockTop = rect ? rect.top : H - 120;
+      const cellWidth = dockWidth / 3;
+
+      let targetX = dockLeft + dockWidth / 2;
+      let targetY = dockTop + 45;
+
+      if (target === 'delete') {
+        // 小恐龙侧面朝右，大嘴位于左格子的偏右上方
+        targetX = dockLeft + cellWidth * 0.62;
+        targetY = dockTop + 42;
+      } else if (target === 'defer') {
+        // 小树懒侧面仰头，大嘴位于中格子的偏右上方
+        targetX = dockLeft + cellWidth + cellWidth * 0.54;
+        targetY = dockTop + 40;
+      } else if (target === 'complete') {
+        // 小仓鼠侧面朝左，大嘴位于右格子的偏左上方
+        targetX = dockLeft + cellWidth * 2 + cellWidth * 0.38;
+        targetY = dockTop + 38;
+      }
+
+      const duration = 380; // 飞行总耗时
+      const startTime = performance.now();
+      // 优美高拱抛物线弧度
+      const peakHeight = Math.max(70, Math.abs(startY - targetY) * 0.35 + 45);
+
+      const animateThrow = (now: number) => {
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        const t = progress;
+
+        // 抛物线方程
+        const curX = startX + (targetX - startX) * t;
+        const linearY = startY + (targetY - startY) * t;
+        const arcY = -4 * peakHeight * t * (1 - t);
+        const curY = linearY + arcY;
+
+        // 旋转与接近嘴巴时的微小缩放吸入感
+        const rotate = t * 360;
+        const scale = t > 0.82 ? 1 - ((t - 0.82) / 0.18) * 0.8 : 1;
+
+        setThrowPos({
+          x: curX,
+          y: curY,
+          rotate,
+          scale
+        });
+
+        if (progress < 1) {
+          animFrameRef.current = requestAnimationFrame(animateThrow);
+        } else {
+          // 精确飞入嘴中！触发动物闭嘴咀嚼与庆祝粒子
+          onChompChange?.(target);
+          if (typeof navigator !== 'undefined' && navigator.vibrate) {
+            try {
+              navigator.vibrate([18, 26, 20]);
+            } catch {}
+          }
+
+          // 保持咀嚼与台词气泡展示一段时间后，结算业务逻辑
+          setTimeout(() => {
+            onAction(target, gestureData.task);
+            onChompChange?.(null);
+            onTargetChange?.('none');
+            onClose();
+          }, 750);
         }
-        setTimeout(() => {
-          onAction(activeAction, gestureData.task);
-          onClose();
-        }, 160);
+      };
+
+      animFrameRef.current = requestAnimationFrame(animateThrow);
+    };
+
+    const handleRelease = () => {
+      if (isThrowingRef.current) return;
+      const target = activeTargetRef.current;
+      const releasePos = currentPosRef.current;
+
+      if (target !== 'none') {
+        executeParabolicThrow(target, releasePos.x, releasePos.y);
       } else {
-        // Safe release without triggering any accidental task completion
+        // 未拖入底部领地，安全取消
+        onTargetChange?.('none');
         onClose();
       }
     };
 
-    const handleCancelClean = () => {
-      if (finishedOrCancelled) return;
-      finishedOrCancelled = true;
-      setActiveAction('none');
+    const handleCancel = () => {
+      if (isThrowingRef.current) return;
+      onTargetChange?.('none');
       onClose();
     };
 
-    const handlePointerCancel = (e: PointerEvent) => {
-      // Ignore synthetic pointercancel generated by mobile browsers when touchmove prevents default
-      if (e.pointerType === 'touch') {
-        return;
-      }
-      handleCancelClean();
-    };
-
-    const handleTouchCancel = () => {
-      // If user had already moved into an active sector and system cancelled touch, complete it
-      if (activeAction !== 'none') {
-        handleFinish();
-      } else {
-        handleCancelClean();
-      }
-    };
-
-    const handleContextMenu = (e: MouseEvent) => {
-      e.preventDefault();
-    };
-
-    // Lock body scrolling and bouncing while radial gesture is active
-    const originalOverflow = document.body.style.overflow;
-    const originalTouchAction = document.body.style.touchAction;
-    document.body.style.overflow = 'hidden';
-    document.body.style.touchAction = 'none';
-
-    window.addEventListener('contextmenu', handleContextMenu, { capture: true });
     window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', handleFinish);
-    window.addEventListener('pointercancel', handlePointerCancel);
+    window.addEventListener('pointerup', handleRelease);
+    window.addEventListener('pointercancel', handleCancel);
 
-    // Native mobile touch events for 100% reliable tracking on iOS & Android
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', handleFinish);
-    window.addEventListener('touchcancel', handleTouchCancel);
+    window.addEventListener('touchend', handleRelease);
+    window.addEventListener('touchcancel', handleCancel);
 
     return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.touchAction = originalTouchAction;
-      window.removeEventListener('contextmenu', handleContextMenu, { capture: true });
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
       window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handleFinish);
-      window.removeEventListener('pointercancel', handlePointerCancel);
+      window.removeEventListener('pointerup', handleRelease);
+      window.removeEventListener('pointercancel', handleCancel);
       window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleFinish);
-      window.removeEventListener('touchcancel', handleTouchCancel);
+      window.removeEventListener('touchend', handleRelease);
+      window.removeEventListener('touchcancel', handleCancel);
     };
-  }, [gestureData, activeAction, isNearCancel, onAction, onClose]);
+  }, [gestureData?.task?.id, onAction, onClose, onTargetChange, onChompChange]);
 
   if (!gestureData) return null;
-
-  const { task, point: startPoint, cardRect } = gestureData;
-
-  const W = typeof window !== 'undefined' ? window.innerWidth : 800;
-  const H = typeof window !== 'undefined' ? window.innerHeight : 600;
-
-  // Geometry: Full 180° upper semicircle, trisected into 3 x 60° options
-  const isMobile = W < 640;
-  const rOuter = isMobile ? 120 : 136;
-  const rInner = isMobile ? 32 : 36;
-
-  const cy = Math.max(rOuter + 16, Math.min(H - 60, startPoint.y));
-  const cx = Math.max(rOuter + 8, Math.min(W - rOuter - 8, startPoint.x));
-
-  // Placement for icon and label along sector centerline
-  const rIcon = rInner + (rOuter - rInner) * 0.65; // ~103px
-  const rText = rInner + (rOuter - rInner) * 0.28; // ~65px
-
-  // Generates SVG path for a circular ring sector
-  const describeArcSector = (
-    centerX: number,
-    centerY: number,
-    rIn: number,
-    rOut: number,
-    startAngleDeg: number,
-    endAngleDeg: number
-  ) => {
-    const toRad = (deg: number) => (deg * Math.PI) / 180;
-    const sRad = toRad(startAngleDeg);
-    const eRad = toRad(endAngleDeg);
-
-    const x1 = centerX + rIn * Math.cos(sRad);
-    const y1 = centerY + rIn * Math.sin(sRad);
-    const x2 = centerX + rOut * Math.cos(sRad);
-    const y2 = centerY + rOut * Math.sin(sRad);
-    const x3 = centerX + rOut * Math.cos(eRad);
-    const y3 = centerY + rOut * Math.sin(eRad);
-    const x4 = centerX + rIn * Math.cos(eRad);
-    const y4 = centerY + rIn * Math.sin(eRad);
-
-    const largeArc = endAngleDeg - startAngleDeg > 180 ? 1 : 0;
-    return `M ${x1} ${y1} L ${x2} ${y2} A ${rOut} ${rOut} 0 ${largeArc} 1 ${x3} ${y3} L ${x4} ${y4} A ${rIn} ${rIn} 0 ${largeArc} 0 ${x1} ${y1} Z`;
-  };
-
-  // 3 Equal 60° Slices across the 180° Semicircle with clean 2° divider gaps:
-  // Left: -179° to -121° (Span = 58°, Centerline = EXACTLY -150.0°)
-  // Center: -119° to -61° (Span = 58°, Centerline = EXACTLY -90.0°)
-  // Right: -59° to -1° (Span = 58°, Centerline = EXACTLY -30.0°)
-  const leftSectorPath = describeArcSector(cx, cy, rInner, rOuter, -179, -121);
-  const centerSectorPath = describeArcSector(cx, cy, rInner, rOuter, -119, -61);
-  const rightSectorPath = describeArcSector(cx, cy, rInner, rOuter, -59, -1);
-
-  // Exact geometric coordinates along sector centerline
-  const getPoint = (angleDeg: number, radius: number) => {
-    const rad = (angleDeg * Math.PI) / 180;
-    return {
-      x: cx + radius * Math.cos(rad),
-      y: cy + radius * Math.sin(rad)
-    };
-  };
-
-  // Centerlines: -150° (Left), -90° (Center), -30° (Right)
-  const leftIconPos = getPoint(-150, rIcon);
-  const leftTextPos = getPoint(-150, rText);
-
-  const centerIconPos = getPoint(-90, rIcon);
-  const centerTextPos = getPoint(-90, rText);
-
-  const rightIconPos = getPoint(-30, rIcon);
-  const rightTextPos = getPoint(-30, rText);
+  const { task, cardRect } = gestureData;
 
   return (
     <AnimatePresence>
-      <div 
-        className="fixed inset-0 z-[150] select-none touch-none overflow-hidden"
-        style={{
-          WebkitTouchCallout: 'none',
-          WebkitUserSelect: 'none',
-          userSelect: 'none',
-          touchAction: 'none'
-        }}
-      >
-        {/* Soft, immersive blur backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.16 }}
-          className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-md"
-        />
-
-        {/* 180° Semicircle Trisected Radial Selection Area */}
-        {showSectors && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.88 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.88 }}
-            transition={{ type: 'spring', stiffness: 440, damping: 28 }}
-            className="absolute inset-0 pointer-events-none"
+      <div className="fixed inset-0 z-[150] select-none touch-none overflow-hidden pointer-events-none">
+        
+        {/* ========================================================= */}
+        {/* 动态抛物线飞向动物嘴巴的 3D 樱桃 (绝对从松开处起飞) */}
+        {/* ========================================================= */}
+        {isThrowing && (
+          <div
+            className="fixed pointer-events-none z-[160]"
+            style={{
+              left: `${throwPos.x}px`,
+              top: `${throwPos.y}px`,
+              transform: `translate(-50%, -50%) rotate(${throwPos.rotate}deg) scale(${throwPos.scale})`
+            }}
           >
-            {/* SVG Frosted Glass Sectors */}
-            <svg className="absolute inset-0 w-full h-full overflow-visible">
-              <defs>
-                {/* Refined delicate soft glows */}
-                <filter id="softGlowRed" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#f43f5e" floodOpacity="0.6" />
-                </filter>
-                <filter id="softGlowOrange" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#f59e0b" floodOpacity="0.6" />
-                </filter>
-                <filter id="softGlowGreen" x="-20%" y="-20%" width="140%" height="140%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="6" floodColor="#10b981" floodOpacity="0.6" />
-                </filter>
+            <UnifiedCherry size={50} />
+          </div>
+        )}
 
-                {/* Glassmorphic Gradient Fills */}
-                <radialGradient id="glassRedNormal" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.18" />
-                  <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.08" />
-                </radialGradient>
-                <radialGradient id="glassRedActive" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.75" />
-                  <stop offset="100%" stopColor="#e11d48" stopOpacity="0.55" />
-                </radialGradient>
-
-                <radialGradient id="glassOrangeNormal" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.18" />
-                  <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.08" />
-                </radialGradient>
-                <radialGradient id="glassOrangeActive" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.75" />
-                  <stop offset="100%" stopColor="#d97706" stopOpacity="0.55" />
-                </radialGradient>
-
-                <radialGradient id="glassGreenNormal" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.18" />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.08" />
-                </radialGradient>
-                <radialGradient id="glassGreenActive" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.75" />
-                  <stop offset="100%" stopColor="#059669" stopOpacity="0.55" />
-                </radialGradient>
-              </defs>
-
-              {/* --- Sector 1: 删除 (Left 60° · Frosted Rose) --- */}
-              <path
-                d={leftSectorPath}
-                fill={activeAction === 'delete' ? 'url(#glassRedActive)' : 'url(#glassRedNormal)'}
-                stroke={activeAction === 'delete' ? '#fb7185' : 'rgba(244, 63, 94, 0.4)'}
-                strokeWidth={activeAction === 'delete' ? 1.5 : 0.8}
-                filter={activeAction === 'delete' ? 'url(#softGlowRed)' : undefined}
-                className="transition-all duration-150"
-              />
-
-              {/* --- Sector 2: 延后 (Center 60° · Frosted Amber) --- */}
-              <path
-                d={centerSectorPath}
-                fill={activeAction === 'defer' || activeAction === 'planning' ? 'url(#glassOrangeActive)' : 'url(#glassOrangeNormal)'}
-                stroke={activeAction === 'defer' || activeAction === 'planning' ? '#fbbf24' : 'rgba(245, 158, 11, 0.4)'}
-                strokeWidth={activeAction === 'defer' || activeAction === 'planning' ? 1.5 : 0.8}
-                filter={activeAction === 'defer' || activeAction === 'planning' ? 'url(#softGlowOrange)' : undefined}
-                className="transition-all duration-150"
-              />
-
-              {/* --- Sector 3: 完成 (Right 60° · Frosted Emerald) --- */}
-              <path
-                d={rightSectorPath}
-                fill={activeAction === 'complete' ? 'url(#glassGreenActive)' : 'url(#glassGreenNormal)'}
-                stroke={activeAction === 'complete' ? '#34d399' : 'rgba(16, 185, 129, 0.4)'}
-                strokeWidth={activeAction === 'complete' ? 1.5 : 0.8}
-                filter={activeAction === 'complete' ? 'url(#softGlowGreen)' : undefined}
-                className="transition-all duration-150"
-              />
-
-              {/* Slender guidance filament to pointer */}
-              <line
-                x1={cx}
-                y1={cy}
-                x2={currentPos.x}
-                y2={currentPos.y}
-                stroke={
-                  isNearCancel
-                    ? 'rgba(244, 63, 94, 0.5)'
-                    : activeAction === 'delete'
-                    ? '#fb7185'
-                    : activeAction === 'defer' || activeAction === 'planning'
-                    ? '#fbbf24'
-                    : activeAction === 'complete'
-                    ? '#34d399'
-                    : 'rgba(255, 255, 255, 0.35)'
-                }
-                strokeWidth={activeAction !== 'none' || isNearCancel ? 1.5 : 1}
-                strokeDasharray={activeAction !== 'none' ? undefined : '2 3'}
-                opacity={activeAction !== 'none' || isNearCancel ? 0.85 : 0.45}
-              />
-            </svg>
-
-            {/* STRICTLY CENTERED LABELS & ICONS (Bisector angles: -150°, -90°, -30°) */}
-
-            {/* --- Left Sector: 删除 (Centerline -150°) --- */}
-            <div
-              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-150"
-              style={{
-                left: `${leftIconPos.x}px`,
-                top: `${leftIconPos.y}px`,
-                transform: `translate(-50%, -50%) scale(${activeAction === 'delete' ? 1.2 : 1})`
-              }}
-            >
-              <Trash2
-                className={`w-5 h-5 transition-all duration-150 ${
-                  activeAction === 'delete'
-                    ? 'text-white drop-shadow-[0_1px_6px_rgba(244,63,94,0.9)] stroke-[2.2]'
-                    : 'text-rose-500 dark:text-rose-400 stroke-[1.8]'
-                }`}
-              />
-            </div>
-            <div
-              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-150"
-              style={{
-                left: `${leftTextPos.x}px`,
-                top: `${leftTextPos.y}px`,
-                transform: `translate(-50%, -50%) scale(${activeAction === 'delete' ? 1.12 : 1})`
-              }}
-            >
-              <span
-                className={`text-xs tracking-wider transition-all duration-150 select-none ${
-                  activeAction === 'delete'
-                    ? 'text-white font-bold drop-shadow-[0_1px_4px_rgba(244,63,94,0.9)]'
-                    : 'text-rose-600 dark:text-rose-300 font-semibold'
-                }`}
+        {/* ========================================================= */}
+        {/* 待办卡片向光标处平滑凝聚变为樱桃的过渡动画 */}
+        {/* ========================================================= */}
+        {!isThrowing && (
+          <motion.div
+            layout
+            initial={{
+              left: cardRect.left,
+              top: cardRect.top,
+              width: cardRect.width,
+              height: cardRect.height,
+              borderRadius: 12,
+              opacity: 1
+            }}
+            animate={
+              isMorphedToCherry
+                ? {
+                    left: cherryPos.x - 26,
+                    top: cherryPos.y - 26,
+                    width: 52,
+                    height: 52,
+                    borderRadius: 999,
+                    opacity: 1
+                  }
+                : {
+                    left: cardRect.left,
+                    top: cardRect.top,
+                    width: cardRect.width,
+                    height: cardRect.height,
+                    borderRadius: 12,
+                    opacity: 1
+                  }
+            }
+            transition={{
+              type: 'spring',
+              stiffness: 360,
+              damping: 25
+            }}
+            className={`fixed pointer-events-none z-[155] flex items-center justify-center bg-transparent ${
+              isMorphedToCherry ? 'overflow-visible' : 'overflow-hidden shadow-xl'
+            }`}
+          >
+            {isMorphedToCherry ? (
+              // 变形完毕：展现晶莹饱满可爱的 3D 樱桃（完全无任何圆形边框裁切）
+              <motion.div
+                initial={{ scale: 0.2, rotate: -20 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 20 }}
+                className="overflow-visible flex items-center justify-center"
               >
-                删除
-              </span>
-            </div>
-
-            {/* --- Center Sector: 延后 (Centerline -90°) --- */}
-            <div
-              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-150"
-              style={{
-                left: `${centerIconPos.x}px`,
-                top: `${centerIconPos.y}px`,
-                transform: `translate(-50%, -50%) scale(${activeAction === 'defer' || activeAction === 'planning' ? 1.2 : 1})`
-              }}
-            >
-              <Clock
-                className={`w-5 h-5 transition-all duration-150 ${
-                  activeAction === 'defer' || activeAction === 'planning'
-                    ? 'text-white drop-shadow-[0_1px_6px_rgba(245,158,11,0.9)] stroke-[2.2]'
-                    : 'text-amber-500 dark:text-amber-400 stroke-[1.8]'
-                }`}
-              />
-            </div>
-            <div
-              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-150"
-              style={{
-                left: `${centerTextPos.x}px`,
-                top: `${centerTextPos.y}px`,
-                transform: `translate(-50%, -50%) scale(${activeAction === 'defer' || activeAction === 'planning' ? 1.12 : 1})`
-              }}
-            >
-              <span
-                className={`text-xs tracking-wider transition-all duration-150 select-none ${
-                  activeAction === 'defer' || activeAction === 'planning'
-                    ? 'text-white font-bold drop-shadow-[0_1px_4px_rgba(245,158,11,0.9)]'
-                    : 'text-amber-600 dark:text-amber-300 font-semibold'
-                }`}
+                <UnifiedCherry size={58} />
+              </motion.div>
+            ) : (
+              // 变形前：原卡片内容平滑收拢淡出
+              <motion.div
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="w-full h-full border border-white/40 dark:border-white/20 bg-white/95 dark:bg-neutral-900/95 rounded-xl px-3 py-2 flex items-center text-[var(--text-main)] shadow-xl"
               >
-                延后
-              </span>
-            </div>
-
-            {/* --- Right Sector: 完成 (Centerline -30°) --- */}
-            <div
-              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-150"
-              style={{
-                left: `${rightIconPos.x}px`,
-                top: `${rightIconPos.y}px`,
-                transform: `translate(-50%, -50%) scale(${activeAction === 'complete' ? 1.2 : 1})`
-              }}
-            >
-              <Check
-                className={`w-5 h-5 transition-all duration-150 ${
-                  activeAction === 'complete'
-                    ? 'text-white drop-shadow-[0_1px_6px_rgba(16,185,129,0.9)] stroke-[2.4]'
-                    : 'text-emerald-500 dark:text-emerald-400 stroke-[2]'
-                }`}
-              />
-            </div>
-            <div
-              className="absolute -translate-x-1/2 -translate-y-1/2 pointer-events-none transition-transform duration-150"
-              style={{
-                left: `${rightTextPos.x}px`,
-                top: `${rightTextPos.y}px`,
-                transform: `translate(-50%, -50%) scale(${activeAction === 'complete' ? 1.12 : 1})`
-              }}
-            >
-              <span
-                className={`text-xs tracking-wider transition-all duration-150 select-none ${
-                  activeAction === 'complete'
-                    ? 'text-white font-bold drop-shadow-[0_1px_4px_rgba(16,185,129,0.9)]'
-                    : 'text-emerald-600 dark:text-emerald-300 font-semibold'
-                }`}
-              >
-                完成
-              </span>
-            </div>
-
-            {/* Central Cancel Hub */}
-            <div
-              className={`absolute -translate-x-1/2 -translate-y-1/2 w-[56px] h-[56px] rounded-full backdrop-blur-2xl flex flex-col items-center justify-center pointer-events-none transition-all duration-200 ${
-                isNearCancel
-                  ? 'bg-rose-500/20 dark:bg-rose-500/25 border border-rose-400 shadow-[0_0_24px_rgba(244,63,94,0.45)] scale-110'
-                  : 'bg-white/80 dark:bg-neutral-900/80 border border-white/50 dark:border-white/15 shadow-[0_4px_16px_rgba(0,0,0,0.18)]'
-              }`}
-              style={{
-                left: `${cx}px`,
-                top: `${cy}px`
-              }}
-            >
-              {isNearCancel && (
-                <motion.div
-                  initial={{ scale: 0.9, opacity: 0.8 }}
-                  animate={{ scale: 1.35, opacity: 0 }}
-                  transition={{ repeat: Infinity, duration: 1.1, ease: 'easeOut' }}
-                  className="absolute inset-0 rounded-full border border-rose-400/70"
-                />
-              )}
-
-              <X
-                className={`w-3.5 h-3.5 mb-0.5 transition-colors duration-150 ${
-                  isNearCancel
-                    ? 'text-rose-500 dark:text-rose-400 stroke-[2.4]'
-                    : 'text-neutral-500 dark:text-neutral-400 stroke-[2]'
-                }`}
-              />
-              <span
-                className={`text-[9.5px] font-medium tracking-wider select-none leading-none transition-colors duration-150 ${
-                  isNearCancel
-                    ? 'text-rose-600 dark:text-rose-300 font-bold'
-                    : 'text-neutral-600 dark:text-neutral-400'
-                }`}
-              >
-                {isNearCancel ? '松手取消' : '取消'}
-              </span>
-            </div>
+                <span className="text-sm font-semibold truncate">{task.title}</span>
+              </motion.div>
+            )}
           </motion.div>
         )}
 
-        {/* Task Element */}
-        <motion.div
-          layout
-          initial={{
-            left: cardRect.left,
-            top: cardRect.top,
-            width: cardRect.width,
-            height: cardRect.height,
-            borderRadius: 12,
-            opacity: 1
-          }}
-          animate={
-            isFinishing
-              ? {
-                  scale: 0.15,
-                  opacity: 0,
-                  left:
-                    isFinishing === 'delete'
-                      ? leftIconPos.x - 65
-                      : isFinishing === 'defer' || isFinishing === 'planning'
-                      ? centerIconPos.x - 65
-                      : rightIconPos.x - 65,
-                  top:
-                    isFinishing === 'delete'
-                      ? leftIconPos.y - 17
-                      : isFinishing === 'defer' || isFinishing === 'planning'
-                      ? centerIconPos.y - 17
-                      : rightIconPos.y - 17
-                }
-              : isPacked
-              ? {
-                  left: currentPos.x - 65,
-                  top: currentPos.y - 17,
-                  width: 130,
-                  height: 34,
-                  borderRadius: 999,
-                  opacity: 1,
-                  scale: isNearCancel ? 0.94 : 1
-                }
-              : {
-                  left: cardRect.left,
-                  top: cardRect.top,
-                  width: cardRect.width,
-                  height: cardRect.height,
-                  borderRadius: 12,
-                  opacity: 1
-                }
-          }
-          transition={{
-            type: 'spring',
-            stiffness: 440,
-            damping: 30
-          }}
-          className="fixed pointer-events-none z-50 overflow-hidden shadow-xl"
-        >
-          <div
-            className={`w-full h-full flex items-center px-3 transition-colors duration-150 backdrop-blur-2xl ${
-              isPacked
-                ? `rounded-full border ${
-                    isNearCancel
-                      ? 'border-dashed border-rose-400/80 bg-rose-950/60 dark:bg-rose-950/60 shadow-[0_2px_12px_rgba(244,63,94,0.3)] text-rose-300'
-                      : activeAction === 'delete'
-                      ? 'border-rose-400/75 bg-rose-500/20 shadow-[0_4px_18px_rgba(244,63,94,0.35)] text-white'
-                      : activeAction === 'defer' || activeAction === 'planning'
-                      ? 'border-amber-400/75 bg-amber-500/20 shadow-[0_4px_18px_rgba(245,158,11,0.35)] text-white'
-                      : activeAction === 'complete'
-                      ? 'border-emerald-400/75 bg-emerald-500/20 shadow-[0_4px_18px_rgba(16,185,129,0.35)] text-white'
-                      : 'border-white/40 dark:border-white/15 bg-white/80 dark:bg-neutral-900/80 text-neutral-800 dark:text-neutral-200 shadow-lg'
-                  }`
-                : 'border border-white/30 dark:border-white/15 bg-white/90 dark:bg-neutral-900/90 rounded-xl text-[var(--text-main)] justify-between py-2 shadow-lg'
-            }`}
-          >
-            {isPacked ? (
-              <div className="flex items-center gap-2 w-full select-none">
-                <span
-                  className={`w-2 h-2 rounded-full shrink-0 transition-colors shadow-sm ${
-                    isNearCancel
-                      ? 'bg-rose-400 animate-pulse'
-                      : activeAction === 'delete'
-                      ? 'bg-rose-400'
-                      : activeAction === 'defer' || activeAction === 'planning'
-                      ? 'bg-amber-400'
-                      : activeAction === 'complete'
-                      ? 'bg-emerald-400'
-                      : 'bg-[var(--accent-fg)] opacity-80'
-                  }`}
-                />
-                <span className="text-[11.5px] font-medium truncate flex-1 leading-none">
-                  {isNearCancel ? '松手取消' : task.title}
-                </span>
-              </div>
-            ) : (
-              <div className="w-full">
-                <div className="text-sm font-semibold leading-snug line-clamp-1 text-[var(--text-main)]">
-                  {task.title}
-                </div>
-              </div>
-            )}
-          </div>
-        </motion.div>
       </div>
     </AnimatePresence>
   );

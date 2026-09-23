@@ -187,15 +187,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
-  // Prevent mobile native scroll hijacking when long-press gesture is activated
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (isGestureActiveRef.current) {
-      if (e.cancelable) {
-        e.preventDefault();
-      }
-    }
-  };
-
   // Dynamic time status and color
   const dueStatus = getDueDateStatus(task);
   const isOverdue = !task.completed && dueStatus.isOverdue;
@@ -208,7 +199,6 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
-      onTouchMove={handleTouchMove}
       onContextMenu={(e) => {
         if (isGestureActiveRef.current) {
           e.preventDefault();

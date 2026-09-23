@@ -1,4 +1,5 @@
 import express from "express";
+import http from "http";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
@@ -19,7 +20,8 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  const httpServer = http.createServer(app);
 
   app.use(express.json());
 
@@ -551,7 +553,10 @@ async function startServer() {
   // Vite middleware for development vs static in production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        ws: { server: httpServer }
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -563,7 +568,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }

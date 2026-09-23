@@ -148,8 +148,8 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
               {/* Header with App Logo & Close Button */}
               <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[var(--border-subtle)]">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/25 flex items-center justify-center font-bold text-sm shadow-xs select-none">
-                    🍒
+                  <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/25 flex items-center justify-center shadow-xs select-none p-1">
+                    <img src="/assets/cherry.png" alt="Cherry" className="w-full h-full object-contain" />
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">

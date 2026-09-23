@@ -49,6 +49,7 @@ import { PMSimulationModal } from './components/PMSimulationModal';
 import { AuthModal } from './components/AuthModal';
 import { CategoryDrawer } from './components/CategoryDrawer';
 import { TaskGestureOverlay, GestureData, GestureActionType } from './components/TaskGestureOverlay';
+import { BottomAnimalDock } from './components/BottomAnimalDock';
 import { JevDuplicateModal } from './components/JevDuplicateModal';
 import { JevBatchSplitModal, BatchParsedTask } from './components/JevBatchSplitModal';
 import { CardRect } from './components/TaskItem';
@@ -83,8 +84,10 @@ export default function App() {
   const categoryDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Active Long-Press 3-Sector Radial Gesture state
+  // Active Long-Press Cherry Feeding Gesture state
   const [gestureData, setGestureData] = useState<GestureData | null>(null);
+  const [animalActiveTarget, setAnimalActiveTarget] = useState<GestureActionType>('none');
+  const [animalChompingTarget, setAnimalChompingTarget] = useState<GestureActionType | null>(null);
 
   // Derive local storage key based on active user to isolate browser cache
   const currentStorageKey = useMemo(() => {
@@ -235,7 +238,6 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsCategoryDropdownOpen(false);
-        setIsThemeDropdownOpen(false);
         setIsUserDropdownOpen(false);
       }
     };
@@ -881,7 +883,7 @@ export default function App() {
     const currentIndex = THEMES.findIndex(t => t.id === settings.theme);
     const nextTheme = THEMES[(currentIndex + 1) % THEMES.length];
     handleSaveSettings({ ...settings, theme: nextTheme.id });
-    showToast(`${nextTheme.icon} ${nextTheme.label}`, 1400);
+    showToast(`${nextTheme.icon} ${nextTheme.label}`);
   };
 
   // Manual trigger cloud sync
@@ -1218,7 +1220,7 @@ export default function App() {
         </header>
 
         {/* Main Body */}
-        <main className="acrylic-panel rounded-b-2xl p-3.5 sm:p-4 pt-3 pb-24 shadow-2xl min-h-[540px]">
+        <main className="acrylic-panel rounded-b-2xl p-3.5 sm:p-4 pt-3 pb-24 shadow-2xl min-h-[540px] relative overflow-hidden">
           {/* Active Tag Filter Indicator */}
           {filterTag && (
             <div className="mb-3 px-2 py-1 rounded-lg bg-[var(--chip-bg)] border border-[var(--chip-border)] flex items-center justify-between text-xs">
@@ -1249,24 +1251,38 @@ export default function App() {
               onStartGesture={handleStartGesture}
             />
           </div>
+
+          {/* 底部 3 动物投喂领地 (仅在长按触发时出现在任务主体界面底部，透明背景 + 弱化阴影过渡) */}
+          <BottomAnimalDock
+            isVisible={!!gestureData}
+            activeTarget={animalActiveTarget}
+            chompingAnimal={animalChompingTarget}
+          />
         </main>
       </div>
 
-      {/* Floating Bottom Input Bar with Voice-to-Text */}
-      <FloatingInputBar
-        onAddTask={handleAddTask}
-        onOpenBatchModal={(text) => {
-          setBatchSplitInitialText(text || '');
-          setIsBatchSplitModalOpen(true);
-        }}
-        isProcessing={isProcessing}
-      />
+      {/* Floating Bottom Input Bar with Voice-to-Text (长按拖拽樱桃时优雅淡出，不阻挡视线) */}
+      <div className={`transition-opacity duration-200 ${gestureData ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <FloatingInputBar
+          onAddTask={handleAddTask}
+          onOpenBatchModal={(text) => {
+            setBatchSplitInitialText(text || '');
+            setIsBatchSplitModalOpen(true);
+          }}
+          isProcessing={isProcessing}
+        />
+      </div>
 
-      {/* Task 3-Sector Radial Gesture Overlay (Mounted at root level with 1:1 touch origin) */}
+      {/* 樱桃投喂手势调度层 (无新增蒙层遮罩，直接在原层呈现樱桃与抛物线弹道) */}
       <TaskGestureOverlay
         gestureData={gestureData}
-        onClose={() => setGestureData(null)}
+        onClose={() => {
+          setGestureData(null);
+          setAnimalActiveTarget('none');
+        }}
         onAction={handleGestureAction}
+        onTargetChange={setAnimalActiveTarget}
+        onChompChange={setAnimalChompingTarget}
       />
 
       {/* Left Slide-out Category Drawer */}

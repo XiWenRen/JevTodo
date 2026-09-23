@@ -32,16 +32,6 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
 
   return (
     <div className="space-y-2">
-      {/* Throw gesture interaction micro-guide banner */}
-      {pendingTasks.length > 0 && (
-        <div className="px-1 py-1 text-[10px] text-[var(--text-faint)] flex items-center justify-between border-b border-[var(--border-subtle)] pb-1.5 select-none">
-          <span className="flex items-center gap-1">
-            <Sparkles className="w-2.5 h-2.5 text-amber-500/70" />
-            <span>长按待办呼出 3 弧向手势（左滑删除 · 中滑延后 · 右滑完成）</span>
-          </span>
-          <span className="font-mono opacity-80">{pendingTasks.length} 项待办</span>
-        </div>
-      )}
 
       {/* Pending Tasks List */}
       {pendingTasks.length === 0 ? (
