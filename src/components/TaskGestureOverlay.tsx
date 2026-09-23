@@ -20,16 +20,16 @@ interface TaskGestureOverlayProps {
 }
 
 // ==========================================
-// 统一高品质 3D 樱桃展示组件
+// 统一高品质卡通樱桃展示组件
 // ==========================================
 interface UnifiedCherryProps {
   size?: number;
 }
 
-export const UnifiedCherry: React.FC<UnifiedCherryProps> = ({ size = 56 }) => {
+export const UnifiedCherry: React.FC<UnifiedCherryProps> = ({ size = 34 }) => {
   return (
     <div
-      className="relative flex items-center justify-center select-none pointer-events-none overflow-visible filter drop-shadow-[0_8px_16px_rgba(225,29,72,0.45)]"
+      className="relative flex items-center justify-center select-none pointer-events-none overflow-visible filter drop-shadow-[0_4px_10px_rgba(225,29,72,0.38)]"
       style={{ width: size, height: size }}
     >
       <img
@@ -54,6 +54,8 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
 }) => {
   const [cherryPos, setCherryPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isMorphedToCherry, setIsMorphedToCherry] = useState(false);
+  const [showRipple, setShowRipple] = useState(false);
+  const [tiltAngle, setTiltAngle] = useState(0);
   const [isThrowing, setIsThrowing] = useState(false);
   const [throwPos, setThrowPos] = useState<{ x: number; y: number; rotate: number; scale: number }>({
     x: 0,
@@ -79,17 +81,35 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       isThrowingRef.current = false;
       setIsThrowing(false);
       setIsMorphedToCherry(false);
+      setShowRipple(false);
+      setTiltAngle(0);
 
       onTargetChange?.('none');
       onChompChange?.(null);
 
-      // 稍微留出 35ms 确保浏览器完成首帧布局后启动平滑卡片缩拢变樱桃的过渡动画
+      // 第 1 阶段：稍微留出 25ms 启动平滑卡片缩拢凝结为樱桃光晕的过渡动画
       const morphTimer = setTimeout(() => {
         setIsMorphedToCherry(true);
-      }, 35);
+      }, 25);
+
+      // 第 2 阶段：卡片凝聚达到临界点，萌趣卡通樱桃破茧弹出并绽放微光涟漪
+      const rippleTimer = setTimeout(() => {
+        setShowRipple(true);
+        if (typeof navigator !== 'undefined' && navigator.vibrate) {
+          try {
+            navigator.vibrate(14);
+          } catch {}
+        }
+      }, 210);
+
+      const rippleCleanup = setTimeout(() => {
+        setShowRipple(false);
+      }, 700);
 
       return () => {
         clearTimeout(morphTimer);
+        clearTimeout(rippleTimer);
+        clearTimeout(rippleCleanup);
       };
     }
   }, [gestureData?.task?.id]);
@@ -100,6 +120,12 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
 
     const processMove = (clientX: number, clientY: number) => {
       if (isThrowingRef.current) return;
+      const prevX = currentPosRef.current.x;
+      const deltaX = clientX - prevX;
+      // 微妙物理惯性倾角（-16deg 到 +16deg）
+      const tilt = Math.max(-16, Math.min(16, deltaX * 1.6));
+      setTiltAngle(tilt);
+
       currentPosRef.current = { x: clientX, y: clientY };
       setCherryPos({ x: clientX, y: clientY });
 
@@ -198,9 +224,9 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
         const arcY = -4 * peakHeight * t * (1 - t);
         const curY = linearY + arcY;
 
-        // 旋转与接近嘴巴时的微小缩放吸入感
-        const rotate = t * 360;
-        const scale = t > 0.82 ? 1 - ((t - 0.82) / 0.18) * 0.8 : 1;
+        // 旋转与接近嘴巴时的微小缩放吸入感（从 1.0 平滑吸小至 ~0.48，让樱桃顺畅进入嘴中）
+        const rotate = t * 450;
+        const scale = t > 0.6 ? 1 - ((t - 0.6) / 0.4) * 0.52 : 1;
 
         setThrowPos({
           x: curX,
@@ -282,7 +308,7 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       <div className="fixed inset-0 z-[150] select-none touch-none overflow-hidden pointer-events-none">
         
         {/* ========================================================= */}
-        {/* 动态抛物线飞向动物嘴巴的 3D 樱桃 (绝对从松开处起飞) */}
+        {/* 动态抛物线飞向动物嘴巴的卡通樱桃 (绝对从松开处起飞，吸入嘴中) */}
         {/* ========================================================= */}
         {isThrowing && (
           <div
@@ -293,72 +319,135 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
               transform: `translate(-50%, -50%) rotate(${throwPos.rotate}deg) scale(${throwPos.scale})`
             }}
           >
-            <UnifiedCherry size={50} />
+            <UnifiedCherry size={34} />
           </div>
         )}
 
         {/* ========================================================= */}
-        {/* 待办卡片向光标处平滑凝聚变为樱桃的过渡动画 */}
+        {/* 待办卡片向光标处平滑凝聚变为樱桃的多阶段有机过渡动画 */}
         {/* ========================================================= */}
         {!isThrowing && (
           <motion.div
-            layout
             initial={{
               left: cardRect.left,
               top: cardRect.top,
               width: cardRect.width,
               height: cardRect.height,
-              borderRadius: 12,
-              opacity: 1
+              borderRadius: 12
             }}
             animate={
               isMorphedToCherry
                 ? {
-                    left: cherryPos.x - 26,
-                    top: cherryPos.y - 26,
-                    width: 52,
-                    height: 52,
-                    borderRadius: 999,
-                    opacity: 1
+                    left: cherryPos.x - 17,
+                    top: cherryPos.y - 17,
+                    width: 34,
+                    height: 34,
+                    borderRadius: 999
                   }
                 : {
                     left: cardRect.left,
                     top: cardRect.top,
                     width: cardRect.width,
                     height: cardRect.height,
-                    borderRadius: 12,
-                    opacity: 1
+                    borderRadius: 12
                   }
             }
             transition={{
               type: 'spring',
-              stiffness: 360,
-              damping: 25
+              stiffness: 340,
+              damping: 24
             }}
-            className={`fixed pointer-events-none z-[155] flex items-center justify-center bg-transparent ${
-              isMorphedToCherry ? 'overflow-visible' : 'overflow-hidden shadow-xl'
-            }`}
+            className="fixed pointer-events-none z-[155] flex items-center justify-center overflow-visible"
           >
-            {isMorphedToCherry ? (
-              // 变形完毕：展现晶莹饱满可爱的 3D 樱桃（完全无任何圆形边框裁切）
-              <motion.div
-                initial={{ scale: 0.2, rotate: -20 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: 'spring', stiffness: 420, damping: 20 }}
-                className="overflow-visible flex items-center justify-center"
-              >
-                <UnifiedCherry size={58} />
-              </motion.div>
-            ) : (
-              // 变形前：原卡片内容平滑收拢淡出
-              <motion.div
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="w-full h-full border border-white/40 dark:border-white/20 bg-white/95 dark:bg-neutral-900/95 rounded-xl px-3 py-2 flex items-center text-[var(--text-main)] shadow-xl"
-              >
-                <span className="text-sm font-semibold truncate">{task.title}</span>
-              </motion.div>
+            {/* 阶段 1：原卡片内容与外框平滑收缩凝聚并淡出 */}
+            <motion.div
+              className="absolute inset-0 rounded-xl overflow-hidden flex items-center px-3 border border-white/60 dark:border-white/20 bg-white/95 dark:bg-stone-900/95 shadow-md pointer-events-none"
+              animate={{
+                opacity: isMorphedToCherry ? 0 : 1,
+                scale: isMorphedToCherry ? 0.6 : 1,
+                filter: isMorphedToCherry ? 'blur(4px)' : 'blur(0px)'
+              }}
+              transition={{ duration: 0.18, ease: 'easeIn' }}
+            >
+              <span className="text-xs font-semibold truncate text-[var(--text-main)]">
+                {task.title}
+              </span>
+            </motion.div>
+
+            {/* 阶段 2：卡片收缩为果实核心时的粉晶樱桃光晕水滴 */}
+            <motion.div
+              className="absolute inset-0 rounded-full pointer-events-none"
+              initial={{ opacity: 0, scale: 0.4 }}
+              animate={
+                isMorphedToCherry
+                  ? {
+                      opacity: [0, 0.9, 0],
+                      scale: [0.4, 1.35, 0.9]
+                    }
+                  : { opacity: 0, scale: 0.4 }
+              }
+              transition={{
+                duration: 0.36,
+                times: [0, 0.5, 1],
+                ease: 'easeOut'
+              }}
+              style={{
+                background:
+                  'radial-gradient(circle, rgba(255, 117, 151, 0.9) 0%, rgba(225, 29, 72, 0.45) 60%, transparent 100%)'
+              }}
+            />
+
+            {/* 阶段 3：萌趣樱桃破茧而出，伴随弹性震颤与涟漪环 */}
+            {showRipple && (
+              <>
+                <motion.div
+                  initial={{ scale: 0.3, opacity: 0.9 }}
+                  animate={{ scale: 2.2, opacity: 0 }}
+                  transition={{ duration: 0.42, ease: 'easeOut' }}
+                  className="absolute rounded-full border-2 border-rose-400 pointer-events-none"
+                  style={{ width: 34, height: 34 }}
+                />
+                <motion.div
+                  initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
+                  animate={{ x: -14, y: -14, scale: 1.1, opacity: 0 }}
+                  transition={{ duration: 0.38, ease: 'easeOut' }}
+                  className="absolute text-[11px] pointer-events-none"
+                >
+                  ✨
+                </motion.div>
+                <motion.div
+                  initial={{ x: 0, y: 0, scale: 0, opacity: 1 }}
+                  animate={{ x: 15, y: -12, scale: 1.1, opacity: 0 }}
+                  transition={{ duration: 0.4, ease: 'easeOut' }}
+                  className="absolute text-[11px] pointer-events-none"
+                >
+                  🌸
+                </motion.div>
+              </>
             )}
+
+            {/* 阶段 4：精致卡通樱桃果实（富有弹性的弹出动画 + 随手指摆动的动态摇晃倾角） */}
+            <motion.div
+              className="relative flex items-center justify-center overflow-visible pointer-events-none"
+              initial={{ opacity: 0, scale: 0.1, rotate: -20 }}
+              animate={
+                isMorphedToCherry
+                  ? {
+                      opacity: 1,
+                      scale: [0.1, 1.25, 0.92, 1],
+                      rotate: [-20, 10, -4, tiltAngle]
+                    }
+                  : { opacity: 0, scale: 0.1, rotate: -20 }
+              }
+              transition={{
+                delay: 0.08,
+                duration: 0.4,
+                times: [0, 0.55, 0.8, 1],
+                ease: 'easeOut'
+              }}
+            >
+              <UnifiedCherry size={34} />
+            </motion.div>
           </motion.div>
         )}
 
