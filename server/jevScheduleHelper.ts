@@ -12,16 +12,126 @@ export interface ScheduledTaskSummary {
 }
 
 /**
+ * High-precision Subject & System Entity Extractor.
+ * Identifies explicit core subjects, systems, platforms, middleware, projects, and apps.
+ * e.g. "CRM系统", "OA系统", "ERP系统", "风控平台", "K8s集群", "MySQL", "工单系统", "飞书", "微信小程序", "用户中心"
+ */
+export function extractSubjectEntities(text: string): string[] {
+  if (!text) return [];
+  const entities: string[] = [];
+
+  const leadingNoise = /^(在|从|到|把|将|给|对|向|和|跟|与|于|通过|使用|按|按照|优化|修复|排查|升级|更新|核对|配置|处理|推进|搭建|重构|迁移|同步|对接|编写|修改|完善|维护|接入|开发|测试|梳理|评估|设计|部署|上线|发布|管理|监控|查询|导出|录入|提交|复核|调优|巡检)+/g;
+
+  const addEntity = (candidate: string) => {
+    if (!candidate) return;
+    let clean = candidate.trim().replace(/^[#@\[【（("']+|[#@\]】）)"']+$/g, '');
+
+    // If candidate contains intermediate prepositions like "组织架构到用户中心", split and take the noun part
+    if (/(从|到|在|给|向|对于)/.test(clean)) {
+      const parts = clean.split(/(?:从|到|在|给|向|对于)/);
+      clean = parts[parts.length - 1];
+    }
+
+    clean = clean.replace(leadingNoise, '').trim();
+    if (clean.length < 2 || clean.length > 15) return;
+
+    const noiseWords = [
+      '这个系统', '某个系统', '相关系统', '业务系统', '整个系统', '各个系统', '当前系统', '该系统', '此系统',
+      '这个平台', '某个平台', '相关平台', '整个平台', '当前平台', '该平台',
+      '中心', '系统', '平台', '服务', '模块', '应用', '项目', '计划', '任务', '事项'
+    ];
+    if (noiseWords.includes(clean)) return;
+    if (!entities.includes(clean)) entities.push(clean);
+  };
+
+  // 1. Quoted / Bracketed entities: 【xxx】, “xxx”, "xxx", 「xxx」
+  const bracketRegex = /[【「“"']([^【】「」“”"'\s]{2,12})[】」”"']/g;
+  let bMatch;
+  while ((bMatch = bracketRegex.exec(text)) !== null) {
+    addEntity(bMatch[1]);
+  }
+
+  // 2. English / Acronym System & Platform combinations
+  // e.g. CRM系统, OA系统, ERP平台, WMS系统, MES系统, BI系统, CDP中台, TMS系统, DMS系统, POS系统, SSO服务, CMS后台, K8s集群, CI流水线, API网关, APISIX网关
+  const engSysRegex = /(?:^|[^a-zA-Z0-9])([A-Za-z0-9_-]{2,10}(?:系统|平台|服务|中心|模块|引擎|网关|底座|集群|组件|后台|前台|流水线|数据库|中台|应用|客户端|小程序|SDK|API))/g;
+  let esMatch;
+  while ((esMatch = engSysRegex.exec(text)) !== null) {
+    addEntity(esMatch[1]);
+  }
+
+  // 3. Known enterprise acronyms (even without "系统" suffix, e.g. "在CRM中", "提交ERP审批")
+  const acronyms = [/(?:^|[^a-zA-Z0-9])(CRM|OA|ERP|WMS|MES|BI|CDP|TMS|POS|SSO|CMS|PLM|SCM|BPM)(?:[^a-zA-Z0-9]|$)/gi];
+  for (const ac of acronyms) {
+    let aMatch;
+    while ((aMatch = ac.exec(text)) !== null) {
+      const upper = aMatch[1].toUpperCase();
+      const withSys = `${upper}系统`;
+      addEntity(withSys);
+    }
+  }
+
+  // 4. Tech stack, Cloud, Database & Middleware subjects
+  const techEntities = [
+    'Kubernetes', 'K8s', 'Docker', 'Redis', 'MySQL', 'PostgreSQL', 'PgSQL', 'MongoDB',
+    'Elasticsearch', 'Kafka', 'RabbitMQ', 'RocketMQ', 'Nginx', 'Kong', 'APISIX',
+    'GitHub', 'GitLab', 'Jenkins', 'Linux', 'Apollo', 'Nacos', 'Dubbo',
+    'Prometheus', 'Grafana', 'Flink', 'Spark', 'Hadoop', 'Hive', 'ClickHouse',
+    '阿里云', '腾讯云', '华为云', 'AWS', 'Azure'
+  ];
+  for (const tech of techEntities) {
+    const escaped = tech.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?:^|[^a-zA-Z0-9])${escaped}(?:[^a-zA-Z0-9]|$)`, 'i');
+    if (regex.test(text)) {
+      addEntity(tech);
+    }
+  }
+
+  // 5. Ecosystem & Collaboration Products
+  const ecosystemEntities = [
+    '飞书', '企业微信', '钉钉', '微信小程序', '小程序', '微信公众号', '公众号', '支付宝'
+  ];
+  for (const eco of ecosystemEntities) {
+    if (text.includes(eco)) {
+      addEntity(eco);
+    }
+  }
+
+  // 6. Chinese System / Platform / Center / Middleware Nouns
+  // e.g. 工单系统, 客服系统, 财务系统, 风控系统, 支付系统, 结算系统, 资产管理系统, 用户中心, 业务中台
+  const cnSysRegex = /([\u4e00-\u9fa5]{2,6}(?:系统|平台|中台|服务|中心|模块|引擎|网关|后台|前台|底座|组件|流水线|数据库|数据仓库|应用|客户端|小程序|官网|门户|知识库|开放平台))/g;
+  let cnMatch;
+  while ((cnMatch = cnSysRegex.exec(text)) !== null) {
+    addEntity(cnMatch[1]);
+  }
+
+  // 7. Projects, Campaigns and Initiatives
+  // e.g. 星火计划, 618大促, 双11, 架构重构, 双活迁移
+  const projectRegex = /([\u4e00-\u9fa5a-zA-Z0-9]{2,8}(?:项目|计划|重构|迁移|专项|大促|版本|迭代))/g;
+  let pMatch;
+  while ((pMatch = projectRegex.exec(text)) !== null) {
+    addEntity(pMatch[1]);
+  }
+
+  // Deduplicate: if an entity is substring of a longer entity (e.g. 'K8s' vs 'K8s集群', or '小程序' vs '微信小程序'), keep the longer more specific entity
+  const filtered = entities.filter(ent => {
+    return !entities.some(other => other !== ent && other.includes(ent));
+  });
+
+  return filtered.slice(0, 3);
+}
+
+/**
  * Extract 1-2 prominent domain nouns / action phrases from raw input to serve as candidate tags.
  */
 export function extractDomainKeywords(text: string): string[] {
   if (!text) return [];
   const cleaned = text
     .replace(/(今天|明天|后天|大后天|昨晚|昨天|前天|上午|下午|晚上|早晨|早上|中午|夜里|这周|本周|下周|周[一二三四五六日天1-7]|\d+点|\d+分|点前|半前|分前|之后|之前|月底|月初|年中|年底)/g, '')
-    .replace(/(要和|要跟|要去|要给|要与|要同|要对|要把|要向|要|和|跟|与|同|给|对|把|向|从|在|让|去|帮|需|需要|想要|打算|准备|负责|协助|组织|安排|进行|推进|落实|完成|做好|搞定|处理|搞好|弄好|请|一起|共同|一下|一次|一番|这件|这个|那个|相关|等等|以及|部分|还有|一个|一份|一项)/g, '')
+    .replace(/(要和|要跟|要去|要给|要与|要同|要对|要把|要向|要|和|跟|与|同(?!步|意|事|学|样|类|行)|给|对|把|向|从|在|让|去|帮|需(?!求)|想要|打算|准备|负责|协助|安排|进行|推进|落实|完成|做好|搞定|处理|搞好|弄好|请|一起|共同|一下|一次|一番|这件|这个|那个|相关|等等|以及|还有|一个|一份|一项)/g, '')
     .trim();
 
   const domainPatterns = [
+    /(数据同步|接口联调|慢SQL|死锁|性能优化|熔断降级|鉴权认证|黑名单|告警排查|报表导出|凭证核对|用例编写|灰度发布|容灾演练|对账单|漏洞修复|跨域配置|证书更新|网络抖动|集群扩容|备份恢复|权限配置|审批流|单点登录|打卡考勤|结算流程|购物车|组织架构|需求评审|方案设计|架构设计|代码审查|发版跟进|业务复盘|转正答辩|绩效面谈|架构评审|技术选型|采购审批|财务报销)/,
     /(支付|订单|网关|中台|供应链|结算|机房|服务器|云资源|预算|用例|架构|合同|发票|论文|体检|机票|疫苗|租房|财报|专利)(改造|评审|排查|重构|申报|采购|迁移|比价|审批|测试|核算|检查|预订|同步|对接|接种|缴纳|编写|申请)?/,
     /(方案|报告|调研|规划|复盘|总结|分享|面试|答辩|汇报)([a-zA-Z\u4e00-\u9fa5]{2,4})?/
   ];
@@ -30,7 +140,9 @@ export function extractDomainKeywords(text: string): string[] {
   for (const pat of domainPatterns) {
     const match = cleaned.match(pat);
     if (match && match[0] && match[0].length >= 2) {
-      results.push(match[0]);
+      if (!results.includes(match[0])) {
+        results.push(match[0]);
+      }
     }
   }
 
@@ -39,7 +151,7 @@ export function extractDomainKeywords(text: string): string[] {
 
 /**
  * Compose dynamic matter_tag criteria merging user custom tags,
- * pre-extracted keywords from the prompt, and baseline domain fallbacks.
+ * pre-extracted subject entities, domain keywords, and baseline fallbacks.
  */
 export function buildDynamicTagCriteria(
   userTags?: string[],
@@ -47,7 +159,15 @@ export function buildDynamicTagCriteria(
 ): Record<string, string> {
   const criteria: Record<string, string> = {};
 
-  // 1. Inject user-specific custom tags (up to 12)
+  // 1. Core Subject / System Entities (Highest Priority)
+  const subjectEntities = extractSubjectEntities(text);
+  for (const ent of subjectEntities) {
+    if (!criteria[ent]) {
+      criteria[ent] = `【核心主体系统/实体】涉及「${ent}」相关的系统架构、功能开发、接口对接、数据或日常运维保障事项`;
+    }
+  }
+
+  // 2. User-specific custom tags (up to 12)
   if (Array.isArray(userTags)) {
     for (const tag of userTags) {
       if (typeof tag === 'string') {
@@ -59,15 +179,15 @@ export function buildDynamicTagCriteria(
     }
   }
 
-  // 2. Inject novel keywords extracted from prompt
-  const extracted = extractDomainKeywords(text);
-  for (const kw of extracted) {
+  // 3. Domain Action Keywords extracted from prompt
+  const domainKws = extractDomainKeywords(text);
+  for (const kw of domainKws) {
     if (!criteria[kw] && Object.keys(criteria).length < 15) {
-      criteria[kw] = `根据当前任务内容提取的候选领域：与「${kw}」相关的具体事务`;
+      criteria[kw] = `【具体业务事项】与「${kw}」相关的具体业务动作、技术实现或执行事务`;
     }
   }
 
-  // 3. Baseline high-frequency domain categories
+  // 4. Baseline high-frequency domain categories
   const baselineCategories: Record<string, string> = {
     '技术方案': '系统架构设计、技术方案撰写、技术选型与评审',
     '代码审查': '代码CR、Review、合并卡点处理与分支发布',

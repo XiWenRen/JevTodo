@@ -1,6 +1,6 @@
 import { writeJevLogEntry } from '../../server/jevFileLogger.js';
 import { resolveJevDateTime } from '../../server/jevTimeHelper.js';
-import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria, buildDynamicTitleCriteria } from '../../server/jevScheduleHelper.js';
+import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria, buildDynamicTitleCriteria, extractSubjectEntities, extractDomainKeywords } from '../../server/jevScheduleHelper.js';
 
 export default async function handler(req: any, res: any) {
   const startTime = Date.now();
@@ -63,7 +63,7 @@ export default async function handler(req: any, res: any) {
             },
             matter_tag: {
               type: 'choice',
-              instructions: '该待办事项最匹配的业务事件或技术领域分类标签是什么？（包含用户自定义标签与前置候选）',
+              instructions: '该待办事项最匹配的业务事件、技术领域或【核心主体系统/平台】标签是什么？（若任务明确提及某系统、平台、组件或业务主体，优先选取该主体系统标签）：',
               criteria: matterTagCriteria
             },
             time_scope: {
@@ -146,7 +146,7 @@ export default async function handler(req: any, res: any) {
 
           const confidence = answers.category?.confidence ?? answers.urgency_score?.confidence ?? data.confidence ?? 0.95;
 
-          // 1. Tags directly powered by Jev
+          // 1. Tags directly powered by Jev & Subject Entity Recognition
           const explicitTags: string[] = [];
           const tagRegex = /#([\u4e00-\u9fa5\w-]+)/g;
           let tm;
@@ -155,17 +155,44 @@ export default async function handler(req: any, res: any) {
           }
 
           const jevTags = [...explicitTags];
+
+          // A. High-precision Subject & System Entities recognized from text
+          const subjectEntities = extractSubjectEntities(text);
+          for (const entity of subjectEntities) {
+            if (jevTags.length >= 3) break;
+            if (!jevTags.includes(entity) && entity !== '常规待办') {
+              jevTags.push(entity);
+            }
+          }
+
+          // B. Primary Jev domain / matter choice
           const primaryJevTag = answers.matter_tag?.choice;
           if (primaryJevTag && primaryJevTag !== '常规待办' && !jevTags.includes(primaryJevTag)) {
-            jevTags.push(primaryJevTag);
+            if (jevTags.length < 3) {
+              jevTags.push(primaryJevTag);
+            }
           }
+
+          // C. Probabilities from Jev
           const probs = answers.matter_tag?.probabilities || {};
           for (const [tName, prob] of Object.entries(probs)) {
-            if (jevTags.length >= 2) break;
+            if (jevTags.length >= 3) break;
             if (typeof prob === 'number' && prob >= 0.2 && tName !== '常规待办' && !jevTags.includes(tName)) {
               jevTags.push(tName);
             }
           }
+
+          // D. Pair core subject with concrete business action if only 1 tag is populated
+          if (jevTags.length < 2) {
+            const domainKws = extractDomainKeywords(text);
+            for (const dKw of domainKws) {
+              if (jevTags.length >= 2) break;
+              if (!jevTags.includes(dKw) && dKw !== '常规待办') {
+                jevTags.push(dKw);
+              }
+            }
+          }
+
           if (jevTags.length === 0) jevTags.push('常规待办');
 
           // 2. Task Time directly powered by Jev

@@ -500,6 +500,112 @@ export function formatDynamicDueDate(
 }
 
 /**
+ * High-precision Subject & System Entity Extractor.
+ * Identifies explicit core subjects, systems, platforms, middleware, projects, and apps.
+ * e.g. "CRM系统", "OA系统", "ERP系统", "风控平台", "K8s集群", "MySQL", "工单系统", "飞书", "微信小程序", "用户中心"
+ */
+export function extractSubjectEntities(text: string): string[] {
+  if (!text) return [];
+  const entities: string[] = [];
+
+  const leadingNoise = /^(在|从|到|把|将|给|对|向|和|跟|与|于|通过|使用|按|按照|优化|修复|排查|升级|更新|核对|配置|处理|推进|搭建|重构|迁移|同步|对接|编写|修改|完善|维护|接入|开发|测试|梳理|评估|设计|部署|上线|发布|管理|监控|查询|导出|录入|提交|复核|调优|巡检)+/g;
+
+  const addEntity = (candidate: string) => {
+    if (!candidate) return;
+    let clean = candidate.trim().replace(/^[#@\[【（("']+|[#@\]】）)"']+$/g, '');
+
+    // If candidate contains intermediate prepositions like "组织架构到用户中心", split and take the noun part
+    if (/(从|到|在|给|向|对于)/.test(clean)) {
+      const parts = clean.split(/(?:从|到|在|给|向|对于)/);
+      clean = parts[parts.length - 1];
+    }
+
+    clean = clean.replace(leadingNoise, '').trim();
+    if (clean.length < 2 || clean.length > 15) return;
+
+    const noiseWords = [
+      '这个系统', '某个系统', '相关系统', '业务系统', '整个系统', '各个系统', '当前系统', '该系统', '此系统',
+      '这个平台', '某个平台', '相关平台', '整个平台', '当前平台', '该平台',
+      '中心', '系统', '平台', '服务', '模块', '应用', '项目', '计划', '任务', '事项'
+    ];
+    if (noiseWords.includes(clean)) return;
+    if (!entities.includes(clean)) entities.push(clean);
+  };
+
+  // 1. Quoted / Bracketed entities: 【xxx】, “xxx”, "xxx", 「xxx」
+  const bracketRegex = /[【「“"']([^【】「」“”"'\s]{2,12})[】」”"']/g;
+  let bMatch;
+  while ((bMatch = bracketRegex.exec(text)) !== null) {
+    addEntity(bMatch[1]);
+  }
+
+  // 2. English / Acronym System & Platform combinations
+  const engSysRegex = /(?:^|[^a-zA-Z0-9])([A-Za-z0-9_-]{2,10}(?:系统|平台|服务|中心|模块|引擎|网关|底座|集群|组件|后台|前台|流水线|数据库|中台|应用|客户端|小程序|SDK|API))/g;
+  let esMatch;
+  while ((esMatch = engSysRegex.exec(text)) !== null) {
+    addEntity(esMatch[1]);
+  }
+
+  // 3. Known enterprise acronyms
+  const acronyms = [/(?:^|[^a-zA-Z0-9])(CRM|OA|ERP|WMS|MES|BI|CDP|TMS|POS|SSO|CMS|PLM|SCM|BPM)(?:[^a-zA-Z0-9]|$)/gi];
+  for (const ac of acronyms) {
+    let aMatch;
+    while ((aMatch = ac.exec(text)) !== null) {
+      const upper = aMatch[1].toUpperCase();
+      const withSys = `${upper}系统`;
+      addEntity(withSys);
+    }
+  }
+
+  // 4. Tech stack, Cloud, Database & Middleware subjects
+  const techEntities = [
+    'Kubernetes', 'K8s', 'Docker', 'Redis', 'MySQL', 'PostgreSQL', 'PgSQL', 'MongoDB',
+    'Elasticsearch', 'Kafka', 'RabbitMQ', 'RocketMQ', 'Nginx', 'Kong', 'APISIX',
+    'GitHub', 'GitLab', 'Jenkins', 'Linux', 'Apollo', 'Nacos', 'Dubbo',
+    'Prometheus', 'Grafana', 'Flink', 'Spark', 'Hadoop', 'Hive', 'ClickHouse',
+    '阿里云', '腾讯云', '华为云', 'AWS', 'Azure'
+  ];
+  for (const tech of techEntities) {
+    const escaped = tech.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?:^|[^a-zA-Z0-9])${escaped}(?:[^a-zA-Z0-9]|$)`, 'i');
+    if (regex.test(text)) {
+      addEntity(tech);
+    }
+  }
+
+  // 5. Ecosystem & Collaboration Products
+  const ecosystemEntities = [
+    '飞书', '企业微信', '钉钉', '微信小程序', '小程序', '微信公众号', '公众号', '支付宝'
+  ];
+  for (const eco of ecosystemEntities) {
+    if (text.includes(eco)) {
+      addEntity(eco);
+    }
+  }
+
+  // 6. Chinese System / Platform / Center / Middleware Nouns
+  const cnSysRegex = /([\u4e00-\u9fa5]{2,6}(?:系统|平台|中台|服务|中心|模块|引擎|网关|后台|前台|底座|组件|流水线|数据库|数据仓库|应用|客户端|小程序|官网|门户|知识库|开放平台))/g;
+  let cnMatch;
+  while ((cnMatch = cnSysRegex.exec(text)) !== null) {
+    addEntity(cnMatch[1]);
+  }
+
+  // 7. Projects, Campaigns and Initiatives
+  const projectRegex = /([\u4e00-\u9fa5a-zA-Z0-9]{2,8}(?:项目|计划|重构|迁移|专项|大促|版本|迭代))/g;
+  let pMatch;
+  while ((pMatch = projectRegex.exec(text)) !== null) {
+    addEntity(pMatch[1]);
+  }
+
+  // Deduplicate: if an entity is substring of a longer entity, keep the longer more specific entity
+  const filtered = entities.filter(ent => {
+    return !entities.some(other => other !== ent && other.includes(ent));
+  });
+
+  return filtered.slice(0, 3);
+}
+
+/**
  * Extract flomo-style tags from input or automatically infer granular matter-specific tags.
  * Prohibits vague generic tags like "工作", "测试", "生活", "学习" in favor of concrete event tags.
  */
@@ -521,6 +627,16 @@ export function extractFlomoTags(input: string): { tags: string[]; remainingText
 
   // If user provided explicit tags, keep them
   const inferredTags = [...explicitTags];
+
+  // A. Extract Core Subject & System Entities from text
+  const subjectEntities = extractSubjectEntities(input);
+  for (const ent of subjectEntities) {
+    if (inferredTags.length >= 3) break;
+    if (!inferredTags.includes(ent)) {
+      inferredTags.push(ent);
+    }
+  }
+
   if (inferredTags.length >= 2) {
     return {
       tags: inferredTags.slice(0, 3),
