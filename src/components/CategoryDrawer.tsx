@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { ActiveView, TaskItem, AppTheme } from '../types';
 import { AuthUser } from '../utils/auth';
+import { CherryIcon } from './CherryIcon';
 
 interface CategoryDrawerProps {
   isOpen: boolean;
@@ -154,8 +155,8 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
               {/* Header with App Logo & Close Button */}
               <div className="flex items-center justify-between pb-3.5 mb-3 border-b border-[var(--border-subtle)]">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/25 flex items-center justify-center shadow-xs select-none p-1">
-                    <img src="/assets/cherry.webp" alt="Cherry" className="w-full h-full object-contain" />
+                  <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/25 flex items-center justify-center shadow-xs select-none">
+                    <CherryIcon size={20} />
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">

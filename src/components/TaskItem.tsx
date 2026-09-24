@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { TaskItem as ITaskItem, TaskCategory } from '../types';
 import { formatDynamicDueDate, extractDateTime } from '../utils/jev';
+import { CherryIcon } from './CherryIcon';
 
 export interface CardRect {
   left: number;
@@ -263,7 +264,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                   className="mt-[1px] inline-flex items-center justify-center shrink-0 hover:scale-125 active:scale-90 transition-transform cursor-pointer select-none group/cherry-btn"
                   title="开启樱桃时钟倒计时"
                 >
-                  <span className="text-sm leading-none select-none filter drop-shadow-[0_1px_2px_rgba(244,63,94,0.3)]">🍒</span>
+                  <CherryIcon size={16} className="filter drop-shadow-[0_1px_3px_rgba(244,63,94,0.4)]" />
                 </button>
               )}
 

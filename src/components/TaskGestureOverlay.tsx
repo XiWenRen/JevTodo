@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TaskItem as ITaskItem } from '../types';
 import { CardRect } from './TaskItem';
+import { CherryIcon } from './CherryIcon';
 
 export type GestureActionType = 'none' | 'delete' | 'defer' | 'planning' | 'complete';
 
@@ -17,6 +18,7 @@ interface TaskGestureOverlayProps {
   onAction: (action: GestureActionType, task: ITaskItem) => void;
   onTargetChange?: (target: GestureActionType) => void;
   onChompChange?: (chomp: GestureActionType | null) => void;
+  onJumpChange?: (jump: GestureActionType | null) => void;
 }
 
 // ==========================================
@@ -29,15 +31,10 @@ interface UnifiedCherryProps {
 export const UnifiedCherry: React.FC<UnifiedCherryProps> = ({ size = 34 }) => {
   return (
     <div
-      className="relative flex items-center justify-center select-none pointer-events-none overflow-visible filter drop-shadow-[0_4px_10px_rgba(225,29,72,0.38)]"
+      className="relative flex items-center justify-center select-none pointer-events-none overflow-visible filter drop-shadow-[0_6px_14px_rgba(244,63,94,0.55)]"
       style={{ width: size, height: size }}
     >
-      <img
-        src="/assets/cherry.webp"
-        alt="Cherry"
-        className="w-full h-full object-contain pointer-events-none overflow-visible"
-        draggable={false}
-      />
+      <CherryIcon size={size} />
     </div>
   );
 };
@@ -50,7 +47,8 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
   onClose,
   onAction,
   onTargetChange,
-  onChompChange
+  onChompChange,
+  onJumpChange
 }) => {
   const [cherryPos, setCherryPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isMorphedToCherry, setIsMorphedToCherry] = useState(false);
@@ -70,6 +68,21 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
   const isThrowingRef = useRef(false);
   const animFrameRef = useRef<number | null>(null);
 
+  // 稳定保存外部回调，防止父组件更新 state 时重新挂载动效或意外 cancelAnimationFrame
+  const onActionRef = useRef(onAction);
+  const onCloseRef = useRef(onClose);
+  const onTargetChangeRef = useRef(onTargetChange);
+  const onChompChangeRef = useRef(onChompChange);
+  const onJumpChangeRef = useRef(onJumpChange);
+
+  useEffect(() => {
+    onActionRef.current = onAction;
+    onCloseRef.current = onClose;
+    onTargetChangeRef.current = onTargetChange;
+    onChompChangeRef.current = onChompChange;
+    onJumpChangeRef.current = onJumpChange;
+  });
+
   // 初始化长按手势与变樱桃过渡动效
   useEffect(() => {
     if (gestureData) {
@@ -84,8 +97,9 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       setShowRipple(false);
       setTiltAngle(0);
 
-      onTargetChange?.('none');
-      onChompChange?.(null);
+      onTargetChangeRef.current?.('none');
+      onChompChangeRef.current?.(null);
+      onJumpChangeRef.current?.(null);
 
       // 第 1 阶段：稍微留出 25ms 启动平滑卡片缩拢凝结为樱桃光晕的过渡动画
       const morphTimer = setTimeout(() => {
@@ -155,7 +169,7 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
 
       if (detected !== activeTargetRef.current) {
         activeTargetRef.current = detected;
-        onTargetChange?.(detected);
+        onTargetChangeRef.current?.(detected);
         if (detected !== 'none' && typeof navigator !== 'undefined' && navigator.vibrate) {
           try {
             navigator.vibrate(12);
@@ -175,10 +189,10 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       }
     };
 
-    // 核心物理抛物线弹道引擎
+    // 核心物理抛物线弹道引擎与空中交汇捕捉算法
     const executeParabolicThrow = (target: GestureActionType, startX: number, startY: number) => {
       isThrowingRef.current = true;
-      // 立即将起点设为当前松开位置，绝不会跳到 (0, 0)
+      // 立即将起点设为当前松开位置，绝对不抖动或跳回 (0, 0)
       setThrowPos({ x: startX, y: startY, rotate: 0, scale: 1 });
       setIsThrowing(true);
 
@@ -191,42 +205,54 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       const dockTop = rect ? rect.top : H - 120;
       const cellWidth = dockWidth / 3;
 
-      let targetX = dockLeft + dockWidth / 2;
-      let targetY = dockTop + 45;
+      // 目标交汇点：动物跃至半空最高点时的嘴巴空间坐标
+      let meetX = dockLeft + dockWidth / 2;
+      let meetY = dockTop + 14;
 
       if (target === 'delete') {
-        // 小恐龙侧面朝右，大嘴位于左格子的偏右上方
-        targetX = dockLeft + cellWidth * 0.62;
-        targetY = dockTop + 42;
+        // 小恐龙向右看，半空大嘴迎接樱桃
+        meetX = dockLeft + cellWidth * 0.60;
+        meetY = dockTop + 14;
       } else if (target === 'defer') {
-        // 小树懒侧面仰头，大嘴位于中格子的偏右上方
-        targetX = dockLeft + cellWidth + cellWidth * 0.54;
-        targetY = dockTop + 40;
+        // 小树懒仰头向天空伸展
+        meetX = dockLeft + cellWidth + cellWidth * 0.50;
+        meetY = dockTop + 12;
       } else if (target === 'complete') {
-        // 小仓鼠侧面朝左，大嘴位于右格子的偏左上方
-        targetX = dockLeft + cellWidth * 2 + cellWidth * 0.38;
-        targetY = dockTop + 38;
+        // 小松鼠向左侧跃起
+        meetX = dockLeft + cellWidth * 2 + cellWidth * 0.40;
+        meetY = dockTop + 10;
       }
 
-      const duration = 380; // 飞行总耗时
+      const duration = 500; // 飞行总耗时 500ms
       const startTime = performance.now();
       // 优美高拱抛物线弧度
-      const peakHeight = Math.max(70, Math.abs(startY - targetY) * 0.35 + 45);
+      const peakHeight = Math.max(90, Math.abs(startY - meetY) * 0.45 + 55);
+
+      let animalHasJumped = false;
 
       const animateThrow = (now: number) => {
         const elapsed = now - startTime;
         const progress = Math.min(1, elapsed / duration);
         const t = progress;
 
+        // 运动轨迹交汇物理逻辑：
+        // 1. 樱桃先高高抛起上升，动物在地面注视；
+        // 2. 当樱桃接近顶点并开始俯冲（t >= 0.35，约 175ms）时，动物蹬地一跃而起！
+        // 3. 动物跳跃上升耗时约 220ms，恰好在 t = 1.0 (500ms) 时与下落的樱桃在空中交汇点 (meetX, meetY) 完美相撞吞入！
+        if (t >= 0.35 && !animalHasJumped) {
+          animalHasJumped = true;
+          onJumpChangeRef.current?.(target);
+        }
+
         // 抛物线方程
-        const curX = startX + (targetX - startX) * t;
-        const linearY = startY + (targetY - startY) * t;
+        const curX = startX + (meetX - startX) * t;
+        const linearY = startY + (meetY - startY) * t;
         const arcY = -4 * peakHeight * t * (1 - t);
         const curY = linearY + arcY;
 
-        // 旋转与接近嘴巴时的微小缩放吸入感（从 1.0 平滑吸小至 ~0.48，让樱桃顺畅进入嘴中）
-        const rotate = t * 450;
-        const scale = t > 0.6 ? 1 - ((t - 0.6) / 0.4) * 0.52 : 1;
+        // 旋转与接近嘴巴时的微小缩放吸入感（从 1.0 平滑吸小至 ~0.35，让樱桃顺畅进入嘴中）
+        const rotate = t * 540;
+        const scale = t > 0.65 ? 1 - ((t - 0.65) / 0.35) * 0.65 : 1;
 
         setThrowPos({
           x: curX,
@@ -238,8 +264,9 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
         if (progress < 1) {
           animFrameRef.current = requestAnimationFrame(animateThrow);
         } else {
-          // 精确飞入嘴中！触发动物闭嘴咀嚼与庆祝粒子
-          onChompChange?.(target);
+          // 精确在空中交汇飞入嘴中！动物落回地面、闭嘴咀嚼与庆祝粒子爆发
+          onJumpChangeRef.current?.(null);
+          onChompChangeRef.current?.(target);
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             try {
               navigator.vibrate([18, 26, 20]);
@@ -248,10 +275,11 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
 
           // 保持咀嚼与台词气泡展示一段时间后，结算业务逻辑
           setTimeout(() => {
-            onAction(target, gestureData.task);
-            onChompChange?.(null);
-            onTargetChange?.('none');
-            onClose();
+            onActionRef.current?.(target, gestureData.task);
+            onChompChangeRef.current?.(null);
+            onTargetChangeRef.current?.('none');
+            onJumpChangeRef.current?.(null);
+            onCloseRef.current?.();
           }, 750);
         }
       };
@@ -268,15 +296,15 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
         executeParabolicThrow(target, releasePos.x, releasePos.y);
       } else {
         // 未拖入底部领地，安全取消
-        onTargetChange?.('none');
-        onClose();
+        onTargetChangeRef.current?.('none');
+        onCloseRef.current?.();
       }
     };
 
     const handleCancel = () => {
       if (isThrowingRef.current) return;
-      onTargetChange?.('none');
-      onClose();
+      onTargetChangeRef.current?.('none');
+      onCloseRef.current?.();
     };
 
     window.addEventListener('pointermove', handlePointerMove);
@@ -298,7 +326,7 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       window.removeEventListener('touchend', handleRelease);
       window.removeEventListener('touchcancel', handleCancel);
     };
-  }, [gestureData?.task?.id, onAction, onClose, onTargetChange, onChompChange]);
+  }, [gestureData?.task?.id]);
 
   if (!gestureData) return null;
   const { task, cardRect } = gestureData;

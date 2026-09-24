@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, Pause, X } from 'lucide-react';
 import { TaskItem, AppTheme } from '../types';
+import { CherryIcon } from './CherryIcon';
 
 interface CherryClockModalProps {
   isOpen: boolean;
@@ -52,17 +53,17 @@ export function playCherryCompletionChime() {
 }
 
 /**
- * Realistic Cherry with Progressive Teeth Bite Marks
- * Ball center is precisely aligned at viewBox (50, 50) for perfect 1:1 anchor positioning.
+ * Realistic Cherry Fruit with Progressive Teeth Bite Marks
+ * Non-anthropomorphic juicy fruit with bite indentations, pulp texture, and pit core.
+ * Center aligned at viewBox (50, 50).
  */
 const ProgressiveCherry: React.FC<{ stage: number; direction: 'left' | 'right' | 'top' }> = ({ 
   stage, 
   direction 
 }) => {
-  const transformStyle = 
-    direction === 'right' 
-      ? 'scaleX(-1)' 
-      : direction === 'top' 
+  const transformStyle = direction === 'left' 
+    ? 'scaleX(-1)' 
+    : direction === 'top' 
       ? 'rotate(45deg)' 
       : 'none';
 
@@ -379,9 +380,10 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-3 text-sm text-emerald-400 font-medium tracking-wide"
+                className="mt-3 text-sm text-emerald-400 font-medium tracking-wide flex items-center justify-center gap-1.5"
               >
-                已达成 1 颗樱桃专注勋章 🍒
+                <span>已达成 1 颗樱桃专注勋章</span>
+                <CherryIcon size={18} />
               </motion.div>
             )}
           </div>
@@ -468,9 +470,11 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
                   initial={{ scale: 0, opacity: 0 }}
                   animate={{ scale: [1, 1.2, 1], opacity: 1 }}
                   transition={{ repeat: Infinity, duration: 0.9 }}
-                  className="absolute -top-8 text-2xl select-none"
+                  className="absolute -top-8 text-2xl select-none flex items-center justify-center gap-2"
                 >
-                  🎉 🍒 🎉
+                  <span>🎉</span>
+                  <CherryIcon size={28} />
+                  <span>🎉</span>
                 </motion.div>
               )}
             </div>
@@ -503,7 +507,9 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
                   opacity: 1
                 }}
               >
-                <div className="text-3xl select-none">🍒</div>
+                <div className="flex justify-center select-none">
+                  <CherryIcon size={38} className="filter drop-shadow-[0_2px_8px_rgba(244,63,94,0.4)]" />
+                </div>
                 <div>
                   <h3 className="text-sm font-semibold text-[var(--text-main)]">
                     提前离开将不记录樱桃
