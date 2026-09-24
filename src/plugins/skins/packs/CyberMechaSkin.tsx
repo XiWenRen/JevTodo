@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Zap, ShieldAlert, Cpu, Orbit, Sparkles, Terminal, Activity } from 'lucide-react';
+import { Zap, ShieldAlert, Cpu, Orbit, Activity } from 'lucide-react';
 import { ISkinPlugin, CompanionRenderProps, ActionDockRenderProps, FocusPetConfig } from '../types';
 
 /**
@@ -8,15 +8,23 @@ import { ISkinPlugin, CompanionRenderProps, ActionDockRenderProps, FocusPetConfi
  * 包含：量子核心悬浮球、赛博引力领地（黑洞粉碎、曲率跃迁、量子收容）与机械智械陪伴
  */
 
-const CyberCompanionWidget: React.FC<CompanionRenderProps> = ({ isBlinking, isAllCompleted }) => {
+const CyberCompanionWidget: React.FC<CompanionRenderProps> = ({
+  activityState,
+  isAllCompleted,
+  isSleeping
+}) => {
+  const isRunning = activityState === 'running';
+
   return (
     <div 
       className="absolute inset-[3px] rounded-full flex items-center justify-center overflow-hidden border transition-all duration-300"
       style={{
         background: 'radial-gradient(circle at 35% 35%, #0f172a 0%, #020617 100%)',
-        borderColor: isAllCompleted ? '#34d399' : '#06b6d4',
+        borderColor: isAllCompleted ? '#34d399' : isRunning ? '#38bdf8' : '#06b6d4',
         boxShadow: isAllCompleted 
           ? '0 0 16px rgba(52, 211, 153, 0.6), inset 0 0 6px rgba(52, 211, 153, 0.4)'
+          : isRunning
+          ? '0 0 18px rgba(56, 189, 248, 0.8), inset 0 0 8px rgba(56, 189, 248, 0.5)'
           : '0 0 16px rgba(6, 182, 212, 0.6), inset 0 0 6px rgba(6, 182, 212, 0.4)'
       }}
     >
@@ -24,18 +32,18 @@ const CyberCompanionWidget: React.FC<CompanionRenderProps> = ({ isBlinking, isAl
         {/* Rotating Energy Ring */}
         <motion.div 
           animate={{ rotate: 360 }}
-          transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+          transition={{ duration: isRunning ? 1.2 : isSleeping ? 12 : 6, repeat: Infinity, ease: 'linear' }}
           className="absolute inset-0 rounded-full border border-dashed border-cyan-400/40 pointer-events-none"
         />
         {/* Cyber Core Aperture */}
-        {isBlinking ? (
-          <div className="w-3 h-0.5 bg-cyan-300 shadow-[0_0_8px_#22d3ee] rounded-full" />
+        {isSleeping ? (
+          <div className="w-2.5 h-0.5 bg-cyan-500/60 shadow-[0_0_6px_#06b6d4] rounded-full animate-pulse" />
         ) : isAllCompleted ? (
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_12px_#34d399] flex items-center justify-center">
             <Zap className="w-2 h-2 text-slate-950" />
           </div>
         ) : (
-          <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_#06b6d4] animate-pulse" />
+          <div className={`w-2 h-2 rounded-full shadow-[0_0_10px_#06b6d4] ${isRunning ? 'bg-amber-300 animate-ping' : 'bg-cyan-400 animate-pulse'}`} />
         )}
       </div>
     </div>
@@ -45,7 +53,8 @@ const CyberCompanionWidget: React.FC<CompanionRenderProps> = ({ isBlinking, isAl
 const CyberActionDock: React.FC<ActionDockRenderProps> = ({
   isVisible,
   activeTarget,
-  chompingAction
+  chompingAction,
+  jumpingAnimal
 }) => {
   return (
     <AnimatePresence>
@@ -65,7 +74,7 @@ const CyberActionDock: React.FC<ActionDockRenderProps> = ({
             {/* 领地 1：黑洞湮灭仓 (删除) */}
             <div
               className={`relative flex flex-col items-center justify-end pb-2 transition-all duration-200 overflow-visible ${
-                activeTarget === 'delete' ? 'filter drop-shadow-[0_0_20px_rgba(244,63,94,0.8)]' : ''
+                activeTarget === 'delete' || jumpingAnimal === 'delete' ? 'filter drop-shadow-[0_0_20px_rgba(244,63,94,0.8)]' : ''
               }`}
             >
               <AnimatePresence>
@@ -82,13 +91,19 @@ const CyberActionDock: React.FC<ActionDockRenderProps> = ({
                 )}
               </AnimatePresence>
 
-              <div className="relative mb-1 flex items-center justify-center w-16 h-16 rounded-full bg-slate-900/80 border border-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.3)]">
-                <Orbit className={`w-8 h-8 text-rose-400 transition-transform duration-300 ${activeTarget === 'delete' ? 'scale-125 animate-spin' : ''}`} />
+              <div 
+                className="relative mb-1 flex items-center justify-center w-16 h-16 rounded-full bg-slate-900/80 border border-rose-500/40 shadow-[0_0_15px_rgba(244,63,94,0.3)]"
+                style={{
+                  transition: 'transform 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+                  transform: jumpingAnimal === 'delete' ? 'scale(1.3) translateY(-30px)' : activeTarget === 'delete' ? 'scale(1.15)' : 'scale(1)'
+                }}
+              >
+                <Orbit className={`w-8 h-8 text-rose-400 transition-transform duration-300 ${activeTarget === 'delete' || jumpingAnimal === 'delete' ? 'scale-125 animate-spin' : ''}`} />
               </div>
 
               <div className="relative z-10 mt-1">
                 <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-mono flex items-center gap-1 transition-all ${
-                  activeTarget === 'delete'
+                  activeTarget === 'delete' || jumpingAnimal === 'delete'
                     ? 'bg-rose-600 text-white font-bold shadow-[0_0_16px_rgba(244,63,94,0.9)]'
                     : 'text-rose-300 bg-slate-900/60 border border-rose-500/30'
                 }`}>
@@ -101,7 +116,7 @@ const CyberActionDock: React.FC<ActionDockRenderProps> = ({
             {/* 领地 2：时空曲率舱 (延后) */}
             <div
               className={`relative flex flex-col items-center justify-end pb-2 transition-all duration-200 overflow-visible ${
-                activeTarget === 'defer' ? 'filter drop-shadow-[0_0_20px_rgba(245,158,11,0.8)]' : ''
+                activeTarget === 'defer' || jumpingAnimal === 'defer' ? 'filter drop-shadow-[0_0_20px_rgba(245,158,11,0.8)]' : ''
               }`}
             >
               <AnimatePresence>
@@ -118,13 +133,19 @@ const CyberActionDock: React.FC<ActionDockRenderProps> = ({
                 )}
               </AnimatePresence>
 
-              <div className="relative mb-1 flex items-center justify-center w-16 h-16 rounded-full bg-slate-900/80 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.3)]">
-                <Cpu className={`w-8 h-8 text-amber-400 transition-transform duration-300 ${activeTarget === 'defer' ? 'scale-125 animate-pulse' : ''}`} />
+              <div 
+                className="relative mb-1 flex items-center justify-center w-16 h-16 rounded-full bg-slate-900/80 border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.3)]"
+                style={{
+                  transition: 'transform 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+                  transform: jumpingAnimal === 'defer' ? 'scale(1.3) translateY(-30px)' : activeTarget === 'defer' ? 'scale(1.15)' : 'scale(1)'
+                }}
+              >
+                <Cpu className={`w-8 h-8 text-amber-400 transition-transform duration-300 ${activeTarget === 'defer' || jumpingAnimal === 'defer' ? 'scale-125 animate-pulse' : ''}`} />
               </div>
 
               <div className="relative z-10 mt-1">
                 <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-mono flex items-center gap-1 transition-all ${
-                  activeTarget === 'defer'
+                  activeTarget === 'defer' || jumpingAnimal === 'defer'
                     ? 'bg-amber-600 text-white font-bold shadow-[0_0_16px_rgba(245,158,11,0.9)]'
                     : 'text-amber-300 bg-slate-900/60 border border-amber-500/30'
                 }`}>
@@ -137,7 +158,7 @@ const CyberActionDock: React.FC<ActionDockRenderProps> = ({
             {/* 领地 3：量子收容舱 (完成) */}
             <div
               className={`relative flex flex-col items-center justify-end pb-2 transition-all duration-200 overflow-visible ${
-                activeTarget === 'complete' ? 'filter drop-shadow-[0_0_20px_rgba(16,185,129,0.8)]' : ''
+                activeTarget === 'complete' || jumpingAnimal === 'complete' ? 'filter drop-shadow-[0_0_20px_rgba(16,185,129,0.8)]' : ''
               }`}
             >
               <AnimatePresence>
@@ -154,13 +175,19 @@ const CyberActionDock: React.FC<ActionDockRenderProps> = ({
                 )}
               </AnimatePresence>
 
-              <div className="relative mb-1 flex items-center justify-center w-16 h-16 rounded-full bg-slate-900/80 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-                <Zap className={`w-8 h-8 text-emerald-400 transition-transform duration-300 ${activeTarget === 'complete' ? 'scale-125' : ''}`} />
+              <div 
+                className="relative mb-1 flex items-center justify-center w-16 h-16 rounded-full bg-slate-900/80 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]"
+                style={{
+                  transition: 'transform 0.28s cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+                  transform: jumpingAnimal === 'complete' ? 'scale(1.3) translateY(-30px)' : activeTarget === 'complete' ? 'scale(1.15)' : 'scale(1)'
+                }}
+              >
+                <Zap className={`w-8 h-8 text-emerald-400 transition-transform duration-300 ${activeTarget === 'complete' || jumpingAnimal === 'complete' ? 'scale-125' : ''}`} />
               </div>
 
               <div className="relative z-10 mt-1">
                 <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-mono flex items-center gap-1 transition-all ${
-                  activeTarget === 'complete'
+                  activeTarget === 'complete' || jumpingAnimal === 'complete'
                     ? 'bg-emerald-600 text-white font-bold shadow-[0_0_16px_rgba(16,185,129,0.9)]'
                     : 'text-emerald-300 bg-slate-900/60 border border-emerald-500/30'
                 }`}>
@@ -202,6 +229,14 @@ export const CyberMechaSkin: ISkinPlugin = {
   icon: '⚡',
   author: 'CherryTodo Studio',
   CompanionWidget: CyberCompanionWidget,
+  getCompanionButtonStyle: (props) => ({
+    backgroundColor: 'rgba(15, 23, 42, 0.88)',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: props.isAllCompleted ? '1.5px solid rgba(52, 211, 153, 0.7)' : '1.5px solid rgba(6, 182, 212, 0.7)',
+    boxShadow: props.isAllCompleted ? '0 0 16px rgba(52, 211, 153, 0.45)' : '0 0 16px rgba(6, 182, 212, 0.45)',
+    transition: 'border 0.5s ease, box-shadow 0.5s ease'
+  }),
   ActionDock: CyberActionDock,
   focusPets: cyberFocusPets
 };
