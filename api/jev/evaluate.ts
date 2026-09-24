@@ -1,5 +1,6 @@
 import { writeJevLogEntry } from '../../server/jevFileLogger.js';
 import { resolveJevDateTime } from '../../server/jevTimeHelper.js';
+import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria } from '../../server/jevScheduleHelper.js';
 
 export default async function handler(req: any, res: any) {
   const startTime = Date.now();
@@ -16,7 +17,7 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { text, apiKey, endpoint, triggerType, allowFallback } = req.body || {};
+    const { text, apiKey, endpoint, triggerType, allowFallback, userTags, existingSchedule } = req.body || {};
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: "Missing or invalid 'text' field" });
     }
@@ -31,11 +32,17 @@ export default async function handler(req: any, res: any) {
     let lastError: string | null = null;
     let payload: any = null;
 
+    // 1. Build dynamic tag criteria (user custom tags + input-extracted keywords + baseline)
+    const matterTagCriteria = buildDynamicTagCriteria(userTags, text);
+
+    // 2. Build schedule-aware context and dynamic target_hour criteria with conflict badges
+    const { enrichedState, targetHourCriteria, freeWindowSummary } = buildScheduleContextAndHourCriteria(existingSchedule, text);
+
     if (activeApiKey) {
       try {
         payload = {
           model: 'jev-latest',
-          state: text,
+          state: enrichedState,
           questions: {
             category: {
               type: 'choice',
@@ -48,30 +55,8 @@ export default async function handler(req: any, res: any) {
             },
             matter_tag: {
               type: 'choice',
-              instructions: '该待办事项最匹配的业务事件或技术领域分类标签是什么？',
-              criteria: {
-                '网关排查': '502/500/网关/端口/告警排查与服务恢复',
-                '生产排查': '生产环境故障、线上紧急异常排查',
-                '用例评审': '测试用例、冒烟测试、功能评审',
-                '代码审查': '代码CR、Review、合并卡点处理',
-                '灰度发版': '版本发布、灰度上线、发版跟进',
-                '中台同步': '中台数据对接、接口对齐、同步联调',
-                '接口联调': '前后端接口对接、API调试、服务联调',
-                '微服务重构': '服务化改造、结算微服务重构',
-                '数据库备份': '数据库全量/增量备份、快照容灾',
-                '双周例会': '项目进度双周例会、站会',
-                '燃尽图': '燃尽图更新、甘特图与进度管理',
-                '硬件采购': '算力服务器硬件采购、设备选型',
-                '供应商比价': '三家比价单、供应商招投标比价',
-                '预算申报': '财年IT研发与云资源预算申报',
-                '架构师终面': '资深技术终面、专家面试',
-                '试用期1on1': '试用期沟通、绩效面谈、转正答辩',
-                '医疗体检': '就医检查、胃镜、医院门诊体检',
-                '运动健身': '健身房力量训练、跑步打卡',
-                '生活琐事': '日常超市购物、生鲜买菜、生活缴费',
-                '语言学习': '托福、雅思、外语备考、学习规划',
-                '常规待办': '其他未明确归类的常规工作或生活事项'
-              }
+              instructions: '该待办事项最匹配的业务事件或技术领域分类标签是什么？（包含用户自定义标签与前置候选）',
+              criteria: matterTagCriteria
             },
             time_scope: {
               type: 'choice',
@@ -88,7 +73,7 @@ export default async function handler(req: any, res: any) {
             },
             time_slot: {
               type: 'choice',
-              instructions: '该任务是否有明确的执行时段倾向？',
+              instructions: '该任务是否有明确的执行时段倾向？（优先选择未冲突的可用时段）',
               criteria: {
                 '上午': '上午时段（08:00 - 12:00）',
                 '中午': '中午时段（12:00 - 13:00）',
@@ -99,19 +84,8 @@ export default async function handler(req: any, res: any) {
             },
             target_hour: {
               type: 'choice',
-              instructions: '该任务如果指定了具体的几点钟执行，请选择对应的点钟；若未指定具体点钟请选择未指定。',
-              criteria: {
-                '09:00': '上午9点左右',
-                '10:00': '上午10点左右',
-                '11:00': '上午11点左右',
-                '14:00': '下午2点（14点）左右',
-                '15:00': '下午3点（15点）左右',
-                '16:00': '下午4点（16点）左右',
-                '17:00': '下午5点（17点）左右',
-                '20:00': '晚上8点（20点）左右',
-                '21:00': '晚上9点（21点）左右',
-                '未指定具体点钟': '未提及具体几点钟'
-              }
+              instructions: '结合今日日程占用与空闲时段，为该任务推荐选择最佳执行开始点钟（优先避开冲突安排在空闲窗口；若任务无需固定钟点可全天灵活推进请选未指定）：',
+              criteria: targetHourCriteria
             },
             urgency_score: {
               type: 'score',
@@ -219,6 +193,7 @@ export default async function handler(req: any, res: any) {
             dueDateIso,
             dueTimestamp,
             needsCleanup: cleanupProb > 0.6,
+            freeWindowSummary,
             confidence,
             rawJevAnswers: answers,
             source: 'typesafe-jev-systemone',

@@ -708,9 +708,25 @@ export function extractFlomoTags(input: string): { tags: string[]; remainingText
  * When Jev API key is configured, queries Vercel AI Gateway / TypeSafe Jev model.
  * Otherwise, uses high-speed local decision matching to provide instant responses.
  */
+export interface EvaluateWithJevOptions {
+  apiKey?: string;
+  endpoint?: string;
+  triggerType?: 'preview' | 'create_task' | 'manual';
+  allowFallback?: boolean;
+  userTags?: string[];
+  existingSchedule?: Array<{
+    id?: string;
+    title: string;
+    dueDate?: string;
+    dueDateIso?: string;
+    dueTimestamp?: number;
+    durationMinutes?: number;
+  }>;
+}
+
 export async function evaluateWithJev(
   rawInput: string,
-  options?: { apiKey?: string; endpoint?: string; triggerType?: 'preview' | 'create_task' | 'manual'; allowFallback?: boolean }
+  options?: EvaluateWithJevOptions
 ): Promise<JevDecision> {
   const startTime = performance.now();
   const allowFallback = options?.allowFallback === true;
@@ -738,7 +754,9 @@ export async function evaluateWithJev(
           apiKey: effectiveApiKey,
           endpoint: targetEndpoint,
           triggerType,
-          allowFallback
+          allowFallback,
+          userTags: options?.userTags,
+          existingSchedule: options?.existingSchedule
         })
       });
 
@@ -754,6 +772,7 @@ export async function evaluateWithJev(
             dueDate: data.dueDate,
             dueDateIso: data.dueDateIso,
             dueTimestamp: data.dueTimestamp,
+            freeWindowSummary: data.freeWindowSummary,
             confidence: data.confidence ?? 0.94,
             rawJevAnswers: data.rawJevAnswers,
             source: data.source || 'typesafe-jev-systemone'

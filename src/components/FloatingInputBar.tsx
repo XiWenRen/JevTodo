@@ -11,6 +11,8 @@ interface FloatingInputBarProps {
   apiKey?: string;
   endpoint?: string;
   allowFallback?: boolean;
+  userTags?: string[];
+  existingTasks?: any[];
 }
 
 export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
@@ -19,7 +21,9 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
   isProcessing = false,
   apiKey,
   endpoint,
-  allowFallback = false
+  allowFallback = false,
+  userTags,
+  existingTasks
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -77,11 +81,24 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
 
       setIsPredicting(true);
       try {
+        const existingSchedule = (existingTasks || [])
+          .filter(t => !t.completed && (t.category === '即刻完成' || t.dueDate?.includes('今天') || t.dueTimestamp))
+          .map(t => ({
+            id: t.id,
+            title: t.title,
+            dueDate: t.dueDate,
+            dueDateIso: t.dueDateIso,
+            dueTimestamp: t.dueTimestamp,
+            durationMinutes: 45
+          }));
+
         const decision = await evaluateWithJev(trimmed, {
           apiKey,
           endpoint,
           allowFallback,
-          triggerType: 'preview'
+          triggerType: 'preview',
+          userTags,
+          existingSchedule
         });
         if (inputTextRef.current.trim() === trimmed) {
           setPreview({
@@ -316,9 +333,19 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                     {preview.category}
                   </span>
                   {preview.dueDate && (
-                    <span className="inline-flex items-center gap-0.5 text-[var(--text-sub)] bg-[var(--chip-bg)] border border-[var(--chip-border)] px-1.5 py-0.5 rounded text-[10px]">
-                      <Clock className="w-2.5 h-2.5" />
-                      {preview.dueDate}
+                    <span 
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors ${
+                        preview.decision?.freeWindowSummary
+                          ? 'text-cyan-400 bg-cyan-500/10 border border-cyan-500/25 font-medium'
+                          : 'text-[var(--text-sub)] bg-[var(--chip-bg)] border border-[var(--chip-border)]'
+                      }`}
+                      title={preview.decision?.freeWindowSummary ? `Jev 已避开冲突，推荐空闲时段: ${preview.decision.freeWindowSummary}` : undefined}
+                    >
+                      <Clock className="w-2.5 h-2.5 shrink-0" />
+                      <span>{preview.dueDate}</span>
+                      {preview.decision?.freeWindowSummary && (
+                        <span className="text-[9px] opacity-80">(避开冲突)</span>
+                      )}
                     </span>
                   )}
                   {preview.tags.map(t => (

@@ -524,11 +524,24 @@ export default function App() {
     setIsProcessing(true);
 
     try {
+      const existingSchedule = tasks
+        .filter(t => !t.completed && (t.category === '即刻完成' || t.dueDate?.includes('今天') || t.dueTimestamp))
+        .map(t => ({
+          id: t.id,
+          title: t.title,
+          dueDate: t.dueDate,
+          dueDateIso: t.dueDateIso,
+          dueTimestamp: t.dueTimestamp,
+          durationMinutes: 45
+        }));
+
       const decision = precomputedDecision || await evaluateWithJev(rawInput, {
         apiKey: settings.jevApiKey,
         endpoint: settings.jevEndpoint,
         allowFallback: settings.allowFallback ?? false,
-        triggerType: 'create_task'
+        triggerType: 'create_task',
+        userTags: allTags,
+        existingSchedule
       });
 
       // 2. Jev Duplicate Detection against existing tasks
@@ -656,11 +669,24 @@ export default function App() {
     setIsProcessing(true);
 
     try {
+      const existingSchedule = tasks
+        .filter(t => !t.completed && (t.category === '即刻完成' || t.dueDate?.includes('今天') || t.dueTimestamp))
+        .map(t => ({
+          id: t.id,
+          title: t.title,
+          dueDate: t.dueDate,
+          dueDateIso: t.dueDateIso,
+          dueTimestamp: t.dueTimestamp,
+          durationMinutes: 45
+        }));
+
       const decision = await evaluateWithJev(rawInput, {
         apiKey: settings.jevApiKey,
         endpoint: settings.jevEndpoint,
         allowFallback: settings.allowFallback ?? false,
-        triggerType: 'create_task'
+        triggerType: 'create_task',
+        userTags: allTags,
+        existingSchedule
       });
 
       const newTask: TaskItem = {
@@ -1460,6 +1486,8 @@ export default function App() {
             apiKey={settings.jevApiKey}
             endpoint={settings.jevEndpoint}
             allowFallback={settings.allowFallback ?? false}
+            userTags={allTags}
+            existingTasks={tasks}
           />
         </div>
       )}

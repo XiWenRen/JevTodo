@@ -63,6 +63,7 @@ export interface JevDecision {
   dueDate?: string;
   dueDateIso?: string;
   dueTimestamp?: number;
+  freeWindowSummary?: string;
   confidence: number;
   rawJevAnswers?: Record<string, any>;
   source: string;
