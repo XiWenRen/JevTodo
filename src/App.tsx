@@ -1525,8 +1525,6 @@ export default function App() {
         onToggleCompactMode={() => handleSaveSettings({ ...settings, widgetWidth: isCompactMode ? 'standard' : 'compact' })}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenOperationLogs={() => setIsLogModalOpen(true)}
-        hasUserApiKey={Boolean(settings.jevApiKey && settings.jevApiKey.trim().length > 0)}
-        onOpenApiKeyUsage={() => setIsApiKeyUsageModalOpen(true)}
         onOpenBatchSplit={() => {
           setBatchSplitInitialText('');
           setIsBatchSplitModalOpen(true);
@@ -1671,6 +1669,7 @@ export default function App() {
         onTriggerCloudSync={handleManualCloudSync}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenApiKeyUsage={() => setIsApiKeyUsageModalOpen(true)}
       />
 
       {/* Immersive Cherry Clock Countdown Modal */}
