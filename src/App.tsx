@@ -1260,6 +1260,7 @@ export default function App() {
               <TaskSection
                 category={activeView}
                 tasks={currentViewTasks}
+                activeGestureTaskId={gestureData?.task?.id || null}
                 onToggleComplete={handleToggleComplete}
                 onUpdateTask={handleUpdateTask}
                 onDeleteTask={handleDeleteTask}
