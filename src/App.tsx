@@ -25,7 +25,7 @@ import {
 import { TaskItem, TaskCategory, ActiveView, AppSettings, AppTheme } from './types';
 import { TaskSnapshot } from './types/operationLog';
 import { recordOperation, taskToSnapshot } from './utils/operationLog';
-import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev, extractDateTime } from './utils/jev';
+import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev, extractDateTime, JevDecision } from './utils/jev';
 import { 
   checkAndFetchCloudTasks, 
   syncTaskToCloud, 
@@ -135,14 +135,15 @@ export default function App() {
         const parsed = JSON.parse(saved);
         return {
           theme: 'obsidian',
-          ...parsed
+          ...parsed,
+          jevApiKey: parsed.jevApiKey || (import.meta.env.VITE_JEV_API_KEY as string) || ''
         };
       }
     } catch (e) {
       console.warn('Error reading settings from storage:', e);
     }
     return {
-      jevApiKey: '',
+      jevApiKey: (import.meta.env.VITE_JEV_API_KEY as string) || '',
       jevEndpoint: 'https://ai-gateway.vercel.sh/typesafe/v1/systemone',
       autoCleanupEnabled: true,
       autoCleanupDays: 5,
@@ -399,7 +400,7 @@ export default function App() {
   }, [tasks]);
 
   // Add Task with Jev Decision
-  const handleAddTask = async (rawInput: string) => {
+  const handleAddTask = async (rawInput: string, precomputedDecision?: JevDecision) => {
     if (!rawInput.trim()) return;
 
     // 1. Check if input contains multiple tasks (batch text input)
@@ -413,7 +414,7 @@ export default function App() {
     setIsProcessing(true);
 
     try {
-      const decision = await evaluateWithJev(rawInput, {
+      const decision = precomputedDecision || await evaluateWithJev(rawInput, {
         apiKey: settings.jevApiKey,
         endpoint: settings.jevEndpoint
       });
@@ -1300,6 +1301,7 @@ export default function App() {
               <TaskSection
                 category={activeView}
                 tasks={currentViewTasks}
+                activeGestureTaskId={gestureData?.task?.id || null}
                 onToggleComplete={handleToggleComplete}
                 onUpdateTask={handleUpdateTask}
                 onDeleteTask={handleDeleteTask}
@@ -1330,6 +1332,8 @@ export default function App() {
               setIsBatchSplitModalOpen(true);
             }}
             isProcessing={isProcessing}
+            apiKey={settings.jevApiKey}
+            endpoint={settings.jevEndpoint}
           />
         </div>
       )}

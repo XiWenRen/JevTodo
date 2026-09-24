@@ -7,6 +7,7 @@ import { TaskItem, CardRect } from './TaskItem';
 interface TaskSectionProps {
   category: TaskCategory | '全部事项';
   tasks: ITaskItem[];
+  activeGestureTaskId?: string | null;
   onToggleComplete: (id: string) => void;
   onUpdateTask: (task: ITaskItem) => void;
   onDeleteTask: (id: string) => void;
@@ -19,6 +20,7 @@ interface TaskSectionProps {
 export const TaskSection: React.FC<TaskSectionProps> = ({
   category,
   tasks,
+  activeGestureTaskId,
   onToggleComplete,
   onUpdateTask,
   onDeleteTask,
@@ -50,18 +52,21 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
         </div>
       ) : (
         <div className="space-y-1.5">
-          {pendingTasks.map(task => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onToggleComplete={onToggleComplete}
-              onUpdate={onUpdateTask}
-              onDelete={onDeleteTask}
-              onMoveToPlanning={onMoveToPlanning}
-              onStartGesture={onStartGesture}
-              onStartCherryClock={onStartCherryClock}
-            />
-          ))}
+          <AnimatePresence mode="popLayout" initial={false}>
+            {pendingTasks.map(task => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                isGhost={task.id === activeGestureTaskId}
+                onToggleComplete={onToggleComplete}
+                onUpdate={onUpdateTask}
+                onDelete={onDeleteTask}
+                onMoveToPlanning={onMoveToPlanning}
+                onStartGesture={onStartGesture}
+                onStartCherryClock={onStartCherryClock}
+              />
+            ))}
+          </AnimatePresence>
         </div>
       )}
 

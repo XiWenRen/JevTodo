@@ -18,6 +18,7 @@ export interface CardRect {
 
 interface TaskItemProps {
   task: ITaskItem;
+  isGhost?: boolean;
   onToggleComplete: (id: string) => void;
   onUpdate: (updated: ITaskItem) => void;
   onDelete: (id: string) => void;
@@ -51,6 +52,7 @@ export function getDueDateStatus(task: ITaskItem, referenceNow: Date = new Date(
 
 export const TaskItem: React.FC<TaskItemProps> = ({
   task,
+  isGhost = false,
   onToggleComplete,
   onUpdate,
   onDelete,
@@ -193,9 +195,33 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const dueStatus = getDueDateStatus(task);
   const isOverdue = !task.completed && dueStatus.isOverdue;
 
+  // 樱桃投喂手势调度中：保留原始占位空间，仅展示优雅的虚线框
+  if (isGhost) {
+    return (
+      <motion.div
+        layout
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 30 }}
+        className="w-full rounded-xl border-2 border-dashed border-rose-400/40 dark:border-rose-400/30 bg-rose-500/[0.03] dark:bg-rose-500/[0.04] flex items-center justify-center select-none pointer-events-none transition-colors"
+        style={{
+          height: cardRectRef.current?.height ? `${cardRectRef.current.height}px` : '48px',
+          minHeight: '48px'
+        }}
+      >
+        <span className="text-[11px] font-medium text-rose-400/60 dark:text-rose-400/50 flex items-center gap-1.5 tracking-wider">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-400/50 animate-ping" />
+          <span>正在投喂...</span>
+        </span>
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       layout
+      exit={{ opacity: 0, scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 420, damping: 30 }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}

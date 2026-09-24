@@ -15,6 +15,7 @@ import {
   getUserById
 } from "./server/db.js";
 import { signToken, verifyToken, extractUserIdFromReq } from "./server/auth.js";
+import { writeJevLogEntry, readJevLogFile, clearJevLogFile } from "./server/jevFileLogger.js";
 
 dotenv.config();
 
@@ -397,14 +398,26 @@ async function startServer() {
 
   // Evaluate task using Jev model via Vercel AI Gateway / TypeSafe API
   app.post("/api/jev/evaluate", async (req, res) => {
+    const requestStart = Date.now();
     try {
-      const { text, apiKey, endpoint } = req.body;
+      const { text, apiKey, endpoint, triggerType } = req.body;
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Missing or invalid 'text' field" });
       }
 
       const activeApiKey = apiKey || process.env.JEV_API_KEY || process.env.VERCEL_AI_GATEWAY_KEY;
       const targetEndpoint = endpoint || "https://ai-gateway.vercel.sh/typesafe/v1/systemone";
+      const maskedKey = activeApiKey ? `${activeApiKey.slice(0, 10)}...${activeApiKey.slice(-6)} (长${activeApiKey.length})` : '(未提供)';
+
+      console.log(`\n================== [Jev AI Request] ==================`);
+      console.log(`⏱️ [时间]: ${new Date().toLocaleTimeString()}`);
+      console.log(`🎯 [触发类型]: ${triggerType || 'evaluate'}`);
+      console.log(`📝 [输入文本]: "${text}"`);
+      console.log(`🌐 [目标网关]: ${targetEndpoint}`);
+      console.log(`🔑 [API Key]: ${maskedKey}`);
+
+      let lastGatewayError = null;
+      let sentPayload = null;
 
       // If key is available, call the remote Jev System One endpoint
       if (activeApiKey) {
@@ -419,15 +432,6 @@ async function startServer() {
                   "即刻完成": "今天内需做完、紧急重要事项",
                   "近期完成": "本周或几天内需处理推进的事项",
                   "规划待办": "未来计划、长期目标或随时可做的事项"
-                }
-              },
-              priority: {
-                type: "choice",
-                criteria: {
-                  "P0": "最高紧急必做，立即执行",
-                  "P1": "重要今日完成",
-                  "P2": "常规近期推进",
-                  "P3": "长期规划或闲暇安排"
                 }
               },
               urgency_score: {
@@ -447,7 +451,9 @@ async function startServer() {
               }
             }
           };
+          sentPayload = payload;
 
+          const fetchStart = Date.now();
           const jevRes = await fetch(targetEndpoint, {
             method: "POST",
             headers: {
@@ -456,13 +462,13 @@ async function startServer() {
             },
             body: JSON.stringify(payload)
           });
+          const gatewayDuration = Date.now() - fetchStart;
 
           if (jevRes.ok) {
             const data = await jevRes.json();
             const answers = data.answers || {};
 
             const category = answers.category?.value || answers.category || "即刻完成";
-            const priority = answers.priority?.value || answers.priority || "P1";
             
             let urgencyScore = 0.8;
             const scoreVal = typeof answers.urgency_score === "number"
@@ -480,19 +486,39 @@ async function startServer() {
 
             const specificTags = await generateSpecificMatterTags(text, req.body.geminiApiKey);
 
+            console.log(`✅ [网关响应]: HTTP 200 OK (${gatewayDuration}ms)`);
+            console.log(`🎯 [决策结果]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(specificTags)}`);
+            console.log(`======================================================\n`);
+
+            writeJevLogEntry({
+              triggerType,
+              inputText: text,
+              targetEndpoint,
+              apiKeyMasked: maskedKey,
+              status: "HTTP 200 OK",
+              statusCode: 200,
+              durationMs: gatewayDuration,
+              requestPayload: payload,
+              result: { category, urgencyScore, tags: specificTags, source: "vercel-ai-gateway-jev" }
+            });
+
             return res.json({
               category,
-              priority,
               urgencyScore,
               tags: specificTags,
               needsCleanup: cleanupProb > 0.6,
               confidence,
               rawJevAnswers: answers,
-              source: "vercel-ai-gateway-jev"
+              source: "vercel-ai-gateway-jev",
+              requestPayload: payload,
+              durationMs: gatewayDuration
             });
           } else {
             const errBody = await jevRes.text();
-            console.warn("Vercel AI Gateway Jev response non-200:", jevRes.status, errBody);
+            lastGatewayError = `HTTP ${jevRes.status}: ${errBody}`;
+            console.warn(`⚠️ [网关响应异常]: HTTP ${jevRes.status} (${gatewayDuration}ms) - ${errBody.slice(0, 180)}`);
+            console.log(`🔄 [自动降级]: 切换至 Jev 本地校准引擎进行高精度评估`);
+
             if (req.body.isTest) {
               let msg = errBody;
               try {
@@ -505,49 +531,76 @@ async function startServer() {
               });
             }
           }
-        } catch (fetchErr) {
-          console.warn("Error calling Jev endpoint:", fetchErr);
+        } catch (fetchErr: any) {
+          lastGatewayError = fetchErr?.message || String(fetchErr);
+          console.warn("⚠️ [网关连接异常]:", lastGatewayError);
+          console.log(`🔄 [自动降级]: 切换至 Jev 本地校准引擎进行高精度评估`);
         }
       }
 
       // High-accuracy fallback decision
       const lower = text.toLowerCase();
       let category = "近期完成";
-      let priority = "P2";
       let urgencyScore = 0.5;
 
       const hasFutureDay = /(明天|明早|明晚|后天|这周|本周|下周)/.test(lower);
       const isPastDay = /(昨天|昨日|昨晚|昨早|前天|前日|前晚|大前天|上周|上星期)/.test(lower);
-      const isUrgentIncident = /(宕机|502|故障|报警|告警|p0|严重)/.test(lower);
+      const isUrgentIncident = /(宕机|502|故障|报警|告警|严重)/.test(lower);
 
       if (!isPastDay && (!hasFutureDay || isUrgentIncident) && /(今天|今晚|下午|上午|马上|立即|紧急|现在|开会|交差|deadline|宕机|告警|报警|502|卡点|阻塞|故障|冒烟)/.test(lower)) {
         category = "即刻完成";
-        priority = /(紧急|重要|p0|严重|今天内|宕机|502|高危|告警|报警|生产环境|故障)/.test(lower) ? "P0" : "P1";
-        urgencyScore = priority === "P0" ? 0.98 : 0.92;
+        urgencyScore = /(紧急|重要|严重|今天内|宕机|502|高危|告警|报警|生产环境|故障)/.test(lower) ? 0.98 : 0.92;
       } else if (/(下个月|明年|长远|有空|闲暇|抽空|规划|梦想|想学|下半年|架构演进|储备|远期)/.test(lower)) {
         category = "规划待办";
-        priority = "P3";
         urgencyScore = 0.25;
       } else {
         category = "近期完成";
-        priority = /(紧急|重要|p1)/.test(lower) ? "P1" : "P2";
         urgencyScore = /(采购|预算|评审|用例|例会|周五|周四|本周)/.test(lower) ? 0.72 : 0.65;
       }
 
       const specificTags = await generateSpecificMatterTags(text, req.body.geminiApiKey);
+      const totalElapsed = Date.now() - requestStart;
+
+      console.log(`🎯 [本地校准决策]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(specificTags)} (${totalElapsed}ms)`);
+      console.log(`======================================================\n`);
+
+      writeJevLogEntry({
+        triggerType,
+        inputText: text,
+        targetEndpoint,
+        apiKeyMasked: maskedKey,
+        status: "FALLBACK (Jev Local Engine)",
+        durationMs: totalElapsed,
+        requestPayload: sentPayload,
+        result: { category, urgencyScore, tags: specificTags, source: "jev-calibrated-local" },
+        error: lastGatewayError || "Fallback to local engine"
+      });
 
       return res.json({
         category,
-        priority,
         urgencyScore,
         tags: specificTags,
         confidence: 0.93,
-        source: "jev-calibrated-local"
+        source: "jev-calibrated-local",
+        gatewayError: lastGatewayError,
+        requestPayload: sentPayload,
+        durationMs: totalElapsed
       });
     } catch (err: any) {
       console.error("Server evaluate error:", err);
       res.status(500).json({ error: err?.message || "Internal evaluation error" });
     }
+  });
+
+  // Access Jev Log File directly via HTTP (e.g. /api/jev/logs)
+  app.get("/api/jev/logs", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (req.query?.clear === "true") {
+      clearJevLogFile();
+      return res.type("text/plain; charset=utf-8").send("Jev log file cleared.\n");
+    }
+    const logs = readJevLogFile();
+    res.type("text/plain; charset=utf-8").send(logs);
   });
 
   // Vite middleware for development vs static in production

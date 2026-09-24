@@ -4,6 +4,13 @@
  */
 
 import { TaskCategory, JevDecision, TaskItem, JevCleanupItem, JevDuplicateCheckResult } from '../types';
+export type { JevDecision };
+
+function maskApiKey(key?: string): string {
+  if (!key) return '(未配置)';
+  if (key.length <= 16) return '******';
+  return `${key.slice(0, 10)}...${key.slice(-6)}`;
+}
 
 const CHINESE_NUM_MAP: Record<string, number> = {
   '零': 0, '〇': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4,
@@ -703,28 +710,41 @@ export function extractFlomoTags(input: string): { tags: string[]; remainingText
  */
 export async function evaluateWithJev(
   rawInput: string,
-  options?: { apiKey?: string; endpoint?: string }
+  options?: { apiKey?: string; endpoint?: string; triggerType?: 'preview' | 'create_task' | 'manual' }
 ): Promise<JevDecision> {
+  const startTime = performance.now();
   const { dueDate, dueDateIso, dueTimestamp, cleanTitle } = extractDateTime(rawInput);
   const { tags, remainingText } = extractFlomoTags(cleanTitle);
 
-  // If user provided an API key, call the backend /api/jev/evaluate endpoint
-  if (options?.apiKey) {
+  // Check if API key is provided directly or via env
+  const effectiveApiKey =
+    options?.apiKey ||
+    (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_JEV_API_KEY as string)) ||
+    '';
+  const triggerType = options?.triggerType || 'preview';
+  const targetEndpoint = options?.endpoint || 'https://ai-gateway.vercel.sh/typesafe/v1/systemone';
+  const maskedKey = maskApiKey(effectiveApiKey);
+
+  // If user provided an API key or env var is present, call the backend /api/jev/evaluate endpoint
+  if (effectiveApiKey) {
     try {
       const res = await fetch('/api/jev/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: rawInput,
-          apiKey: options.apiKey,
-          endpoint: options.endpoint
+          apiKey: effectiveApiKey,
+          endpoint: options?.endpoint,
+          triggerType
         })
       });
+
+      const durationMs = Math.round(performance.now() - startTime);
 
       if (res.ok) {
         const data = await res.json();
         if (data && data.category) {
-          return {
+          const finalDecision: JevDecision = {
             category: data.category,
             urgencyScore: data.urgencyScore ?? 0.8,
             tags: data.tags && data.tags.length > 0 ? data.tags : tags,
@@ -733,9 +753,32 @@ export async function evaluateWithJev(
             dueTimestamp: data.dueTimestamp || dueTimestamp,
             confidence: data.confidence ?? 0.94,
             rawJevAnswers: data.rawJevAnswers,
-            source: 'jev-api'
+            source: data.source || 'jev-api'
           };
+
+          const isRemote = data.source === 'vercel-ai-gateway-jev';
+          console.groupCollapsed(
+            `%c[Jev AI]%c ${triggerType === 'preview' ? '⚡ 1s实时预测' : '🚀 任务创建评估'}: "${rawInput}" %c(${durationMs}ms) [${isRemote ? '云端模型' : '本地校准'}]`,
+            `background: ${isRemote ? '#10b981' : '#f59e0b'}; color: white; padding: 1px 6px; border-radius: 3px; font-weight: bold;`,
+            'color: inherit; font-weight: normal;',
+            'color: #06b6d4; font-weight: bold;'
+          );
+          console.log('📌 输入文本:', rawInput);
+          console.log('🔑 使用 Key:', maskedKey);
+          console.log('🌐 决策来源:', data.source);
+          console.log('🎯 分类结果:', finalDecision.category);
+          console.log('⚡ 紧迫评分:', finalDecision.urgencyScore);
+          console.log('🏷️ 细化标签:', finalDecision.tags);
+          if (data.requestPayload) console.log('📤 交互 Payload:', data.requestPayload);
+          if (data.gatewayError) console.warn('⚠️ 远端告警/降级原因:', data.gatewayError);
+          console.log('📦 完整响应:', data);
+          console.groupEnd();
+
+          return finalDecision;
         }
+      } else {
+        const errText = await res.text().catch(() => '');
+        console.warn(`[Jev AI] 接口响应非 200: HTTP ${res.status}`, errText);
       }
     } catch (err) {
       console.warn('Jev API request failed, falling back to local Jev engine:', err);
@@ -778,7 +821,8 @@ export async function evaluateWithJev(
   const defaultDueMs = category === '即刻完成' ? new Date().setHours(18, 0, 0, 0) : undefined;
   const defaultIso = category === '即刻完成' ? `${new Date().toISOString().slice(0, 10)}T18:00:00` : undefined;
 
-  return {
+  const durationMs = Math.round(performance.now() - startTime);
+  const localDecision: JevDecision = {
     category,
     urgencyScore,
     tags,
@@ -788,6 +832,19 @@ export async function evaluateWithJev(
     confidence,
     source: 'jev-hybrid-engine'
   };
+
+  console.groupCollapsed(
+    `%c[Jev AI]%c 本地引擎评估: "${rawInput}" %c(${durationMs}ms)`,
+    'background: #64748b; color: white; padding: 1px 6px; border-radius: 3px; font-weight: bold;',
+    'color: inherit; font-weight: normal;',
+    'color: #06b6d4; font-weight: bold;'
+  );
+  console.log('📌 输入文本:', rawInput);
+  console.log('🎯 分类结果:', localDecision.category);
+  console.log('🏷️ 细化标签:', localDecision.tags);
+  console.groupEnd();
+
+  return localDecision;
 }
 
 /**

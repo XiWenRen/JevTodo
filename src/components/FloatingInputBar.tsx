@@ -1,19 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mic, MicOff, ArrowUp, Sparkles, X, Clock, ListPlus } from 'lucide-react';
-import { extractDateTime, extractFlomoTags, splitTasksWithJev } from '../utils/jev';
+import { splitTasksWithJev, evaluateWithJev, JevDecision } from '../utils/jev';
 import { TaskCategory } from '../types';
 
 interface FloatingInputBarProps {
-  onAddTask: (text: string) => Promise<void>;
+  onAddTask: (text: string, precomputedDecision?: JevDecision) => Promise<void>;
   onOpenBatchModal?: (initialText?: string) => void;
   isProcessing?: boolean;
+  apiKey?: string;
+  endpoint?: string;
 }
 
 export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
   onAddTask,
   onOpenBatchModal,
-  isProcessing = false
+  isProcessing = false,
+  apiKey,
+  endpoint
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -23,6 +27,19 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
   const recognitionRef = useRef<any>(null);
   const baseTextRef = useRef<string>('');
 
+  // Jev real-time preview state with 1s debounce
+  const [preview, setPreview] = useState<{
+    category: TaskCategory;
+    dueDate?: string;
+    tags: string[];
+    decision: JevDecision;
+  } | null>(null);
+  const [isPredicting, setIsPredicting] = useState(false);
+  const inputTextRef = useRef<string>('');
+  const lastPredictedTextRef = useRef<string>('');
+
+  inputTextRef.current = inputText;
+
   // Check if multiple tasks are detected in the input
   const splitCandidates = React.useMemo(() => {
     if (!inputText.trim()) return [];
@@ -31,24 +48,59 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
 
   const isMultiTask = splitCandidates.length > 1;
 
-  // Quick live preview of Jev's parsing
-  const preview = React.useMemo(() => {
-    if (!inputText.trim()) return null;
-    const { dueDate } = extractDateTime(inputText);
-    const { tags } = extractFlomoTags(inputText);
-    
-    // Preliminary category guess
-    let category: TaskCategory = '近期完成';
-    const lower = inputText.toLowerCase();
-    const isPast = /(昨天|昨日|昨晚|昨早|前天|前日|前晚|大前天|上周|上星期)/.test(lower);
-    if (!isPast && (/(今天|今晚|马上|紧急|现在|尽快)/.test(lower) || (dueDate && dueDate.includes('今天')))) {
-      category = '即刻完成';
-    } else if (/(下个月|明年|长远|规划|计划|想学)/.test(lower)) {
-      category = '规划待办';
+  // 1s debounce after typing stops -> directly call Jev for prediction
+  useEffect(() => {
+    const trimmed = inputText.trim();
+    if (!trimmed) {
+      setPreview(null);
+      setIsPredicting(false);
+      lastPredictedTextRef.current = '';
+      return;
     }
 
-    return { category, dueDate, tags };
-  }, [inputText]);
+    if (lastPredictedTextRef.current === trimmed && preview) {
+      return;
+    }
+
+    // Reset previous preview while editing to avoid inconsistency
+    setPreview(null);
+    setIsPredicting(false);
+
+    if (splitTasksWithJev(trimmed).length > 1) {
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      if (inputTextRef.current.trim() !== trimmed) return;
+
+      setIsPredicting(true);
+      try {
+        const decision = await evaluateWithJev(trimmed, {
+          apiKey,
+          endpoint
+        });
+        if (inputTextRef.current.trim() === trimmed) {
+          setPreview({
+            category: decision.category,
+            dueDate: decision.dueDate,
+            tags: decision.tags,
+            decision
+          });
+          lastPredictedTextRef.current = trimmed;
+        }
+      } catch (err) {
+        console.warn('Jev preview prediction error:', err);
+      } finally {
+        if (inputTextRef.current.trim() === trimmed) {
+          setIsPredicting(false);
+        }
+      }
+    }, 1000);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [inputText, apiKey, endpoint]);
 
   // Cleanup speech recognition on unmount
   useEffect(() => {
@@ -166,8 +218,15 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
     }
 
     const textToSubmit = inputText.trim();
+    const matchedDecision = (lastPredictedTextRef.current === textToSubmit && preview?.decision)
+      ? preview.decision
+      : undefined;
+
     setInputText('');
     baseTextRef.current = '';
+    setPreview(null);
+    lastPredictedTextRef.current = '';
+    setIsPredicting(false);
 
     // If text contains multiple tasks, open batch split modal if available
     if (splitTasksWithJev(textToSubmit).length > 1 && onOpenBatchModal) {
@@ -175,7 +234,7 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
       return;
     }
 
-    await onAddTask(textToSubmit);
+    await onAddTask(textToSubmit, matchedDecision);
     if (inputRef.current) {
       inputRef.current.focus();
     }
@@ -206,7 +265,7 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
       <div className="acrylic-panel rounded-2xl p-2 sm:p-2.5 shadow-2xl transition-all duration-300">
         {/* Live Jev parsing indicator bar */}
         <AnimatePresence>
-          {preview && isOpen && (
+          {(isMultiTask || preview || isPredicting) && (isOpen || !!inputText.trim()) && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
@@ -231,11 +290,16 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                     <ListPlus className="w-3 h-3" />
                   </button>
                 </div>
-              ) : (
+              ) : isPredicting ? (
+                <div className="flex items-center gap-1.5 text-[var(--text-sub)]">
+                  <Sparkles className="w-3 h-3 text-[var(--cherry-red)] animate-spin" />
+                  <span className="text-[10px]">Cherry (Jev) 预测中...</span>
+                </div>
+              ) : preview ? (
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="flex items-center gap-1 text-[var(--text-main)] font-medium">
-                    <Sparkles className="w-3 h-3 text-[var(--text-faint)]" />
-                    Cherry 预判:
+                    <Sparkles className="w-3 h-3 text-[var(--cherry-red)]" />
+                    Cherry 预测:
                   </span>
                   <span className="bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] px-1.5 py-0.5 rounded text-[10px]">
                     {preview.category}
@@ -252,7 +316,7 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                     </span>
                   ))}
                 </div>
-              )}
+              ) : null}
             </motion.div>
           )}
         </AnimatePresence>
