@@ -65,7 +65,7 @@ export interface JevDecision {
   dueTimestamp?: number;
   confidence: number;
   rawJevAnswers?: Record<string, any>;
-  source: 'jev-api' | 'jev-hybrid-engine';
+  source: string;
 }
 
 export interface JevCleanupItem {
@@ -87,4 +87,5 @@ export interface AppSettings {
   theme: AppTheme;
   cherryDurationMinutes?: number; // 樱桃时钟默认时长（分钟），默认25
   cherrySoundEnabled?: boolean;  // 樱桃时钟到期提示音，默认开启
+  allowFallback?: boolean; // 是否允许降级到 Cherry 本地引擎（默认关闭）
 }

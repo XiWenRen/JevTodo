@@ -710,11 +710,10 @@ export function extractFlomoTags(input: string): { tags: string[]; remainingText
  */
 export async function evaluateWithJev(
   rawInput: string,
-  options?: { apiKey?: string; endpoint?: string; triggerType?: 'preview' | 'create_task' | 'manual' }
+  options?: { apiKey?: string; endpoint?: string; triggerType?: 'preview' | 'create_task' | 'manual'; allowFallback?: boolean }
 ): Promise<JevDecision> {
   const startTime = performance.now();
-  const { dueDate, dueDateIso, dueTimestamp, cleanTitle } = extractDateTime(rawInput);
-  const { tags, remainingText } = extractFlomoTags(cleanTitle);
+  const allowFallback = options?.allowFallback === true;
 
   // Check if API key is provided directly or via env
   const effectiveApiKey =
@@ -738,7 +737,8 @@ export async function evaluateWithJev(
           text: rawInput,
           apiKey: effectiveApiKey,
           endpoint: targetEndpoint,
-          triggerType
+          triggerType,
+          allowFallback
         })
       });
 
@@ -750,28 +750,29 @@ export async function evaluateWithJev(
           const finalDecision: JevDecision = {
             category: data.category,
             urgencyScore: data.urgencyScore ?? 0.8,
-            tags: data.tags && data.tags.length > 0 ? data.tags : tags,
-            dueDate: data.dueDate || dueDate,
-            dueDateIso: data.dueDateIso || dueDateIso,
-            dueTimestamp: data.dueTimestamp || dueTimestamp,
+            tags: data.tags && data.tags.length > 0 ? data.tags : ['常规待办'],
+            dueDate: data.dueDate,
+            dueDateIso: data.dueDateIso,
+            dueTimestamp: data.dueTimestamp,
             confidence: data.confidence ?? 0.94,
             rawJevAnswers: data.rawJevAnswers,
-            source: data.source || 'jev-api'
+            source: data.source || 'typesafe-jev-systemone'
           };
 
-          const isRemote = data.source === 'typesafe-jev-systemone' || data.source === 'vercel-ai-gateway-jev';
+          const isJev = finalDecision.source === 'typesafe-jev-systemone' || finalDecision.source.includes('jev');
           console.groupCollapsed(
-            `%c[Jev AI]%c ${triggerType === 'preview' ? '⚡ 1s实时预测' : '🚀 任务创建评估'}: "${rawInput}" %c(${durationMs}ms) [${isRemote ? '云端模型' : '本地校准'}]`,
-            `background: ${isRemote ? '#10b981' : '#f59e0b'}; color: white; padding: 1px 6px; border-radius: 3px; font-weight: bold;`,
+            `%c[${isJev ? 'Jev AI 智能解析' : 'Cherry 本地解析'}]%c ${triggerType === 'preview' ? '⚡ 1s实时预测' : '🚀 任务创建评估'}: "${rawInput}" %c(${durationMs}ms) [${finalDecision.source}]`,
+            `background: ${isJev ? '#06b6d4' : '#f43f5e'}; color: white; padding: 1px 6px; border-radius: 3px; font-weight: bold;`,
             'color: inherit; font-weight: normal;',
             'color: #06b6d4; font-weight: bold;'
           );
           console.log('📌 输入文本:', rawInput);
           console.log('🔑 使用 Key:', maskedKey);
-          console.log('🌐 决策来源:', data.source);
+          console.log('🌐 决策来源:', finalDecision.source);
           console.log('🎯 分类结果:', finalDecision.category);
           console.log('⚡ 紧迫评分:', finalDecision.urgencyScore);
-          console.log('🏷️ 细化标签:', finalDecision.tags);
+          console.log('🏷️ 细化标签 (Jev):', finalDecision.tags);
+          console.log('⏰ 任务时间 (Jev):', finalDecision.dueDate || '无明确时限');
           if (data.requestPayload) console.log('📤 交互 Payload:', data.requestPayload);
           if (data.gatewayError) console.warn('⚠️ 远端告警/降级原因:', data.gatewayError);
           console.log('📦 完整响应:', data);
@@ -782,14 +783,23 @@ export async function evaluateWithJev(
       } else {
         const errText = await res.text().catch(() => '');
         console.warn(`[Jev AI] 接口响应非 200: HTTP ${res.status}`, errText);
+        if (!allowFallback) {
+          throw new Error(`Jev 智能决策失败 (HTTP ${res.status}): ${errText}`);
+        }
       }
     } catch (err) {
-      console.warn('Jev API request failed, falling back to local Jev engine:', err);
+      console.warn('Jev API request failed:', err);
+      if (!allowFallback) {
+        throw err;
+      }
     }
+  } else if (!allowFallback) {
+    throw new Error('未配置有效 Jev API Key，且偏好设置中已禁止降级');
   }
 
-  // Local Jev Decision Engine (System One decision emulation)
-  // Jev evaluates category: '即刻完成' | '近期完成' | '规划待办'
+  // Fallback to local Cherry Engine (only if allowFallback is true)
+  const { dueDate, dueDateIso, dueTimestamp, cleanTitle } = extractDateTime(rawInput);
+  const { tags } = extractFlomoTags(cleanTitle);
   const text = rawInput.toLowerCase();
 
   let category: TaskCategory = '近期完成';
@@ -833,12 +843,12 @@ export async function evaluateWithJev(
     dueDateIso: dueDateIso || defaultIso,
     dueTimestamp: dueTimestamp || defaultDueMs,
     confidence,
-    source: 'jev-hybrid-engine'
+    source: 'cherry-calibrated-local'
   };
 
   console.groupCollapsed(
-    `%c[Jev AI]%c 本地引擎评估: "${rawInput}" %c(${durationMs}ms)`,
-    'background: #64748b; color: white; padding: 1px 6px; border-radius: 3px; font-weight: bold;',
+    `%c[Cherry 智能解析]%c 本地降级引擎评估: "${rawInput}" %c(${durationMs}ms)`,
+    'background: #f43f5e; color: white; padding: 1px 6px; border-radius: 3px; font-weight: bold;',
     'color: inherit; font-weight: normal;',
     'color: #06b6d4; font-weight: bold;'
   );

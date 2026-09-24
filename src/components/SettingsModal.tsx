@@ -53,6 +53,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [selectedTheme, setSelectedTheme] = useState<AppTheme>(settings.theme || 'obsidian');
   const [cherryDuration, setCherryDuration] = useState<number>(settings.cherryDurationMinutes || 25);
   const [cherrySound, setCherrySound] = useState<boolean>(settings.cherrySoundEnabled ?? true);
+  const [allowFallback, setAllowFallback] = useState<boolean>(settings.allowFallback ?? false);
   const [showKey, setShowKey] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [testMessage, setTestMessage] = useState<string>('');
@@ -157,7 +158,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       jevEndpoint: endpoint.trim(),
       theme: selectedTheme,
       cherryDurationMinutes: cherryDuration,
-      cherrySoundEnabled: cherrySound
+      cherrySoundEnabled: cherrySound,
+      allowFallback
     });
     onClose();
   };
@@ -460,6 +462,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 placeholder="https://api.typesafe.ai/v1/systemone"
                 className="w-full bg-[var(--bg-input)] border border-[var(--border-medium)] rounded-lg px-3 py-2 text-[var(--text-main)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent-bg)] font-mono text-xs"
               />
+            </div>
+
+            {/* Allow Fallback Toggle */}
+            <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)]">
+              <div className="space-y-0.5 pr-3">
+                <div className="text-xs font-medium text-[var(--text-main)] flex items-center gap-1.5">
+                  <span>允许本地算法降级</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${allowFallback ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                    {allowFallback ? '已开启' : '已关闭 (严格Jev驱动)'}
+                  </span>
+                </div>
+                <div className="text-[10px] text-[var(--text-faint)] leading-normal">
+                  默认关闭以确保所有分类、标签与时间推导 100% 由 Jev 远端模型输出；开启后仅在网络异常时由 Cherry 本地算法兜底。
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input
+                  type="checkbox"
+                  checked={allowFallback}
+                  onChange={(e) => setAllowFallback(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-[var(--bg-main)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[var(--accent-bg)] border border-[var(--border-subtle)]"></div>
+              </label>
             </div>
 
             {/* Test Connection Button & Status */}

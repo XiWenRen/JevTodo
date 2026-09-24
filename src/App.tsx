@@ -140,7 +140,8 @@ export default function App() {
           theme: 'obsidian',
           ...parsed,
           jevEndpoint: endpoint,
-          jevApiKey: parsed.jevApiKey || (import.meta.env.VITE_JEV_API_KEY as string) || ''
+          jevApiKey: parsed.jevApiKey || (import.meta.env.VITE_JEV_API_KEY as string) || '',
+          allowFallback: parsed.allowFallback ?? false
         };
       }
     } catch (e) {
@@ -153,7 +154,8 @@ export default function App() {
       autoCleanupDays: 5,
       widgetWidth: 'compact',
       showCompleted: true,
-      theme: 'obsidian'
+      theme: 'obsidian',
+      allowFallback: false
     };
   });
 
@@ -426,7 +428,9 @@ export default function App() {
     try {
       const decision = precomputedDecision || await evaluateWithJev(rawInput, {
         apiKey: settings.jevApiKey,
-        endpoint: settings.jevEndpoint
+        endpoint: settings.jevEndpoint,
+        allowFallback: settings.allowFallback ?? false,
+        triggerType: 'create_task'
       });
 
       // 2. Jev Duplicate Detection against existing tasks
@@ -556,7 +560,9 @@ export default function App() {
     try {
       const decision = await evaluateWithJev(rawInput, {
         apiKey: settings.jevApiKey,
-        endpoint: settings.jevEndpoint
+        endpoint: settings.jevEndpoint,
+        allowFallback: settings.allowFallback ?? false,
+        triggerType: 'create_task'
       });
 
       const newTask: TaskItem = {
@@ -1344,6 +1350,7 @@ export default function App() {
             isProcessing={isProcessing}
             apiKey={settings.jevApiKey}
             endpoint={settings.jevEndpoint}
+            allowFallback={settings.allowFallback ?? false}
           />
         </div>
       )}

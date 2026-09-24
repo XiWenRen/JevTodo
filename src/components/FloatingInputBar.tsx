@@ -10,6 +10,7 @@ interface FloatingInputBarProps {
   isProcessing?: boolean;
   apiKey?: string;
   endpoint?: string;
+  allowFallback?: boolean;
 }
 
 export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
@@ -17,7 +18,8 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
   onOpenBatchModal,
   isProcessing = false,
   apiKey,
-  endpoint
+  endpoint,
+  allowFallback = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -77,7 +79,9 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
       try {
         const decision = await evaluateWithJev(trimmed, {
           apiKey,
-          endpoint
+          endpoint,
+          allowFallback,
+          triggerType: 'preview'
         });
         if (inputTextRef.current.trim() === trimmed) {
           setPreview({
@@ -100,7 +104,7 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
     return () => {
       clearTimeout(timer);
     };
-  }, [inputText, apiKey, endpoint]);
+  }, [inputText, apiKey, endpoint, allowFallback]);
 
   // Cleanup speech recognition on unmount
   useEffect(() => {
@@ -291,17 +295,24 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                   </button>
                 </div>
               ) : isPredicting ? (
-                <div className="flex items-center gap-1.5 text-[var(--text-sub)]">
-                  <Sparkles className="w-3 h-3 text-[var(--cherry-red)] animate-spin" />
-                  <span className="text-[10px]">Cherry (Jev) 预测中...</span>
+                <div className="flex items-center gap-1.5 text-cyan-400">
+                  <Sparkles className="w-3 h-3 text-cyan-400 animate-spin" />
+                  <span className="text-[10px] font-medium">Jev 智能解析中...</span>
                 </div>
               ) : preview ? (
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="flex items-center gap-1 text-[var(--text-main)] font-medium">
-                    <Sparkles className="w-3 h-3 text-[var(--cherry-red)]" />
-                    Cherry 预测:
-                  </span>
-                  <span className="bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] px-1.5 py-0.5 rounded text-[10px]">
+                  {preview.decision?.source === 'typesafe-jev-systemone' || preview.decision?.source?.includes('jev') ? (
+                    <span className="flex items-center gap-1 text-cyan-400 font-medium">
+                      <Sparkles className="w-3 h-3 text-cyan-400" />
+                      Jev 智能解析:
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-[var(--cherry-red)] font-medium">
+                      <Sparkles className="w-3 h-3 text-[var(--cherry-red)]" />
+                      Cherry 智能解析:
+                    </span>
+                  )}
+                  <span className="bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] px-1.5 py-0.5 rounded text-[10px] font-medium">
                     {preview.category}
                   </span>
                   {preview.dueDate && (

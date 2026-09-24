@@ -20,6 +20,7 @@ import {
 } from "./server/db.js";
 import { signToken, verifyToken, extractUserIdFromReq } from "./server/auth.js";
 import { writeJevLogEntry, readJevLogFile, clearJevLogFile } from "./server/jevFileLogger.js";
+import { resolveJevDateTime } from "./server/jevTimeHelper.js";
 
 dotenv.config();
 
@@ -480,11 +481,11 @@ async function startServer() {
     return inferred.slice(0, 2);
   }
 
-  // Evaluate task using Jev model via Vercel AI Gateway / TypeSafe API
+  // Evaluate task using Jev model via TypeSafe System One API
   app.post("/api/jev/evaluate", async (req, res) => {
     const requestStart = Date.now();
     try {
-      const { text, apiKey, endpoint, triggerType } = req.body;
+      const { text, apiKey, endpoint, triggerType, allowFallback } = req.body;
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Missing or invalid 'text' field" });
       }
@@ -502,6 +503,7 @@ async function startServer() {
       console.log(`📝 [输入文本]: "${text}"`);
       console.log(`🌐 [目标端点]: ${targetEndpoint}`);
       console.log(`🔑 [API Key]: ${maskedKey}`);
+      console.log(`🛡️ [允许降级]: ${allowFallback === true ? '已开启' : '已关闭 (严格Jev)'}`);
 
       let lastGatewayError = null;
       let sentPayload = null;
@@ -520,6 +522,73 @@ async function startServer() {
                   "即刻完成": "今天内需做完、紧急重要事项",
                   "近期完成": "本周或几天内需处理推进的事项",
                   "规划待办": "未来计划、长期目标或随时可做的事项"
+                }
+              },
+              matter_tag: {
+                type: "choice",
+                instructions: "该待办事项最匹配的业务事件或技术领域分类标签是什么？",
+                criteria: {
+                  "网关排查": "502/500/网关/端口/告警排查与服务恢复",
+                  "生产排查": "生产环境故障、线上紧急异常排查",
+                  "用例评审": "测试用例、冒烟测试、功能评审",
+                  "代码审查": "代码CR、Review、合并卡点处理",
+                  "灰度发版": "版本发布、灰度上线、发版跟进",
+                  "中台同步": "中台数据对接、接口对齐、同步联调",
+                  "接口联调": "前后端接口对接、API调试、服务联调",
+                  "微服务重构": "服务化改造、结算微服务重构",
+                  "数据库备份": "数据库全量/增量备份、快照容灾",
+                  "双周例会": "项目进度双周例会、站会",
+                  "燃尽图": "燃尽图更新、甘特图与进度管理",
+                  "硬件采购": "算力服务器硬件采购、设备选型",
+                  "供应商比价": "三家比价单、供应商招投标比价",
+                  "预算申报": "财年IT研发与云资源预算申报",
+                  "架构师终面": "资深技术终面、专家面试",
+                  "试用期1on1": "试用期沟通、绩效面谈、转正答辩",
+                  "医疗体检": "就医检查、胃镜、医院门诊体检",
+                  "运动健身": "健身房力量训练、跑步打卡",
+                  "生活琐事": "日常超市购物、生鲜买菜、生活缴费",
+                  "语言学习": "托福、雅思、外语备考、学习规划",
+                  "常规待办": "其他未明确归类的常规工作或生活事项"
+                }
+              },
+              time_scope: {
+                type: "choice",
+                instructions: "根据任务内容判断，该待办事项应该安排在何时完成？",
+                criteria: {
+                  "今天": "今天内需要处理或完成（包括今天上午、下午、今晚、立即、马上）",
+                  "明天": "明天需要处理或推进（包括明早、明晚）",
+                  "后天": "后天需要处理或推进",
+                  "本周内": "本周内某个工作日（周一至周五、周末前）",
+                  "下周": "下周需要推进处理的事项",
+                  "长期规划": "下个月、下半年、明年或长期未来规划",
+                  "随时待办": "未指定具体日期或随时可做的事项"
+                }
+              },
+              time_slot: {
+                type: "choice",
+                instructions: "该任务是否有明确的执行时段倾向？",
+                criteria: {
+                  "上午": "上午时段（08:00 - 12:00）",
+                  "中午": "中午时段（12:00 - 13:00）",
+                  "下午": "下午时段（13:00 - 18:00）",
+                  "晚上": "晚间时段（18:00 - 23:00）",
+                  "全天灵活": "全天任意时间或未指定特定时段"
+                }
+              },
+              target_hour: {
+                type: "choice",
+                instructions: "该任务如果指定了具体的几点钟执行，请选择对应的点钟；若未指定具体点钟请选择未指定。",
+                criteria: {
+                  "09:00": "上午9点左右",
+                  "10:00": "上午10点左右",
+                  "11:00": "上午11点左右",
+                  "14:00": "下午2点（14点）左右",
+                  "15:00": "下午3点（15点）左右",
+                  "16:00": "下午4点（16点）左右",
+                  "17:00": "下午5点（17点）左右",
+                  "20:00": "晚上8点（20点）左右",
+                  "21:00": "晚上9点（21点）左右",
+                  "未指定具体点钟": "未提及具体几点钟"
                 }
               },
               urgency_score: {
@@ -572,10 +641,36 @@ async function startServer() {
 
             const confidence = answers.category?.confidence ?? answers.urgency_score?.confidence ?? data.confidence ?? 0.95;
 
-            const specificTags = await generateSpecificMatterTags(text, req.body.geminiApiKey);
+            // 1. Tags directly powered by Jev
+            const explicitTags: string[] = [];
+            const tagRegex = /#([\u4e00-\u9fa5\w-]+)/g;
+            let tm;
+            while ((tm = tagRegex.exec(text)) !== null) {
+              if (!explicitTags.includes(tm[1])) explicitTags.push(tm[1]);
+            }
+
+            const jevTags = [...explicitTags];
+            const primaryJevTag = answers.matter_tag?.choice;
+            if (primaryJevTag && primaryJevTag !== "常规待办" && !jevTags.includes(primaryJevTag)) {
+              jevTags.push(primaryJevTag);
+            }
+            const probs = answers.matter_tag?.probabilities || {};
+            for (const [tName, prob] of Object.entries(probs)) {
+              if (jevTags.length >= 2) break;
+              if (typeof prob === "number" && prob >= 0.2 && tName !== "常规待办" && !jevTags.includes(tName)) {
+                jevTags.push(tName);
+              }
+            }
+            if (jevTags.length === 0) jevTags.push("常规待办");
+
+            // 2. Task Time directly powered by Jev
+            const timeScope = answers.time_scope?.choice;
+            const timeSlot = answers.time_slot?.choice;
+            const targetHour = answers.target_hour?.choice;
+            const { dueDate, dueDateIso, dueTimestamp } = resolveJevDateTime(timeScope, timeSlot, targetHour, text);
 
             console.log(`✅ [TypeSafe Jev 响应]: HTTP 200 OK (${gatewayDuration}ms)`);
-            console.log(`🎯 [决策结果]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(specificTags)}`);
+            console.log(`🎯 [决策结果]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(jevTags)}, 时间=${dueDate || '未设定'}`);
             console.log(`======================================================\n`);
 
             writeJevLogEntry({
@@ -587,13 +682,22 @@ async function startServer() {
               statusCode: 200,
               durationMs: gatewayDuration,
               requestPayload: payload,
-              result: { category, urgencyScore, tags: specificTags, source: "typesafe-jev-systemone" }
+              result: {
+                category,
+                urgencyScore,
+                tags: jevTags,
+                time: { scope: timeScope, slot: timeSlot, hour: targetHour, dueDate: dueDate || "无明确时限" },
+                source: "typesafe-jev-systemone"
+              }
             });
 
             return res.json({
               category,
               urgencyScore,
-              tags: specificTags,
+              tags: jevTags,
+              dueDate,
+              dueDateIso,
+              dueTimestamp,
               needsCleanup: cleanupProb > 0.6,
               confidence,
               rawJevAnswers: answers,
@@ -605,7 +709,6 @@ async function startServer() {
             const errBody = await jevRes.text();
             lastGatewayError = `HTTP ${jevRes.status}: ${errBody}`;
             console.warn(`⚠️ [网关响应异常]: HTTP ${jevRes.status} (${gatewayDuration}ms) - ${errBody.slice(0, 180)}`);
-            console.log(`🔄 [自动降级]: 切换至 Jev 本地校准引擎进行高精度评估`);
 
             if (req.body.isTest) {
               let msg = errBody;
@@ -614,7 +717,7 @@ async function startServer() {
                 msg = parsed.message || parsed.error || errBody;
               } catch {}
               return res.status(jevRes.status).json({
-                error: `Vercel AI Gateway Jev (${jevRes.status}): ${msg}`,
+                error: `TypeSafe Jev (${jevRes.status}): ${msg}`,
                 source: "gateway-error"
               });
             }
@@ -622,11 +725,33 @@ async function startServer() {
         } catch (fetchErr: any) {
           lastGatewayError = fetchErr?.message || String(fetchErr);
           console.warn("⚠️ [网关连接异常]:", lastGatewayError);
-          console.log(`🔄 [自动降级]: 切换至 Jev 本地校准引擎进行高精度评估`);
         }
       }
 
-      // High-accuracy fallback decision
+      // If fallback is not permitted (default), abort and return error
+      if (allowFallback !== true) {
+        const errMsg = lastGatewayError || "未配置有效 JEV_API_KEY，且已在设置中关闭本地降级";
+        console.warn(`❌ [Jev 决策终止]: ${errMsg} (本地降级已关闭)`);
+        writeJevLogEntry({
+          triggerType,
+          inputText: text,
+          targetEndpoint,
+          apiKeyMasked: maskedKey,
+          status: "FAILED (Fallback disabled)",
+          statusCode: 502,
+          durationMs: Date.now() - requestStart,
+          requestPayload: sentPayload,
+          error: errMsg
+        });
+        return res.status(502).json({
+          error: errMsg,
+          source: "jev-failed",
+          allowFallback: false
+        });
+      }
+
+      // Fallback decision (only if allowFallback === true)
+      console.log(`🔄 [允许降级]: 切换至 Cherry 本地校准引擎进行高精度评估`);
       const lower = text.toLowerCase();
       let category = "近期完成";
       let urgencyScore = 0.5;
@@ -649,7 +774,7 @@ async function startServer() {
       const specificTags = await generateSpecificMatterTags(text, req.body.geminiApiKey);
       const totalElapsed = Date.now() - requestStart;
 
-      console.log(`🎯 [本地校准决策]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(specificTags)} (${totalElapsed}ms)`);
+      console.log(`🎯 [Cherry 本地校准决策]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(specificTags)} (${totalElapsed}ms)`);
       console.log(`======================================================\n`);
 
       writeJevLogEntry({
@@ -657,11 +782,11 @@ async function startServer() {
         inputText: text,
         targetEndpoint,
         apiKeyMasked: maskedKey,
-        status: "FALLBACK (Jev Local Engine)",
+        status: "FALLBACK (Cherry Local Engine)",
         durationMs: totalElapsed,
         requestPayload: sentPayload,
-        result: { category, urgencyScore, tags: specificTags, source: "jev-calibrated-local" },
-        error: lastGatewayError || "Fallback to local engine"
+        result: { category, urgencyScore, tags: specificTags, source: "cherry-calibrated-local" },
+        error: lastGatewayError || "Fallback to Cherry local engine"
       });
 
       return res.json({
@@ -669,7 +794,7 @@ async function startServer() {
         urgencyScore,
         tags: specificTags,
         confidence: 0.93,
-        source: "jev-calibrated-local",
+        source: "cherry-calibrated-local",
         gatewayError: lastGatewayError,
         requestPayload: sentPayload,
         durationMs: totalElapsed
