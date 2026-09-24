@@ -243,11 +243,28 @@ export async function handleJevEvaluate(req: any, res: any) {
         if (!apiKey) {
           return res.status(403).json({ error: "安全拦截：未列入官方白名单的第三方端点必须由客户端自行提供专属 API Key，禁止继承服务端全局 Key" });
         }
-        // 2. Reject internal / cloud metadata networks
+        // 2. Reject non-http protocols and internal / cloud metadata networks
         try {
           const parsed = new URL(requestedEndpoint);
+          if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+            return res.status(403).json({ error: "安全拦截：仅支持 HTTP/HTTPS 协议" });
+          }
           const host = parsed.hostname.toLowerCase();
-          if (host === 'localhost' || host === '127.0.0.1' || host === '169.254.169.254' || host.startsWith('10.') || host.startsWith('192.168.') || host.startsWith('172.16.') || host === '0.0.0.0') {
+          if (
+            host === 'localhost' ||
+            host.endsWith('.localhost') ||
+            host === '127.0.0.1' ||
+            host.startsWith('127.') ||
+            host === '0.0.0.0' ||
+            host === '::1' ||
+            host === '[::1]' ||
+            host === '169.254.169.254' ||
+            host.startsWith('10.') ||
+            host.startsWith('192.168.') ||
+            /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+            host.startsWith('fc00:') ||
+            host.startsWith('fe80:')
+          ) {
             return res.status(403).json({ error: "安全拦截：禁止访问内网或云元数据服务地址" });
           }
           targetEndpoint = requestedEndpoint;

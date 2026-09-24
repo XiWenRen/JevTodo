@@ -62,6 +62,20 @@ export class PersonalTagLedger {
       existing.usageCount += 1;
       existing.lastUsedAt = Date.now();
     } else {
+      // Memory protection: cap at 200 tags per ledger, evict least used if exceeded
+      if (this.tags.size >= 200) {
+        let lowestKey: string | null = null;
+        let lowestScore = Infinity;
+        for (const [k, v] of this.tags.entries()) {
+          const score = v.usageCount * 1000 + v.lastUsedAt / 1000000;
+          if (score < lowestScore) {
+            lowestScore = score;
+            lowestKey = k;
+          }
+        }
+        if (lowestKey) this.tags.delete(lowestKey);
+      }
+
       this.tags.set(targetKey, {
         name: targetKey,
         usageCount: 1,
@@ -118,12 +132,19 @@ export class PersonalTagLedger {
 }
 
 // User-scoped tag ledger cache to prevent cross-tenant contamination
+const MAX_CACHED_USER_LEDGERS = 500;
 const userLedgers = new Map<string, PersonalTagLedger>();
 
 export function getPersonalTagLedger(userId: string = 'default'): PersonalTagLedger {
   const safeId = (userId && typeof userId === 'string' && userId.trim()) ? userId.trim() : 'default';
   let ledger = userLedgers.get(safeId);
   if (!ledger) {
+    if (userLedgers.size >= MAX_CACHED_USER_LEDGERS) {
+      const oldestKey = userLedgers.keys().next().value;
+      if (oldestKey && oldestKey !== 'default') {
+        userLedgers.delete(oldestKey);
+      }
+    }
     ledger = new PersonalTagLedger();
     userLedgers.set(safeId, ledger);
   }

@@ -7,7 +7,7 @@ const STORAGE_KEY_ACTIVE_SKIN = 'jev_cherry_active_skin_id_v1';
 
 class SkinRegistryService {
   private skins = new Map<string, ISkinPlugin>();
-  private activeSkinId: string = 'cute-animals';
+  private activeSkinId: string = 'cute-animal';
   private listeners = new Set<() => void>();
 
   constructor() {
@@ -17,7 +17,8 @@ class SkinRegistryService {
 
     // 从 LocalStorage 读取用户保存的皮肤偏好
     try {
-      const saved = localStorage.getItem(STORAGE_KEY_ACTIVE_SKIN);
+      let saved = localStorage.getItem(STORAGE_KEY_ACTIVE_SKIN);
+      if (saved === 'cute-animals') saved = 'cute-animal';
       if (saved && this.skins.has(saved)) {
         this.activeSkinId = saved;
       }
