@@ -15,7 +15,14 @@ interface FloatingProgressWidgetProps {
   onOpenConfirmModal?: () => void;
 }
 
-type HamsterActivityState = 'running' | 'decelerating' | 'walking' | 'settling' | 'sleeping';
+type HamsterActivityState = 
+  | 'running' 
+  | 'decelerating' 
+  | 'walking' 
+  | 'slowing' 
+  | 'stopped' 
+  | 'settling' 
+  | 'sleeping';
 
 export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
   tasks,
@@ -27,6 +34,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
   onConfirmOrganize
 }) => {
   const [activityState, setActivityState] = useState<HamsterActivityState>('sleeping');
+  const [animDur, setAnimDur] = useState<string>('1.4s');
   const [isHovered, setIsHovered] = useState<boolean>(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState<boolean>(false);
 
@@ -44,37 +52,88 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
   // 进度深度系数 0 ~ 1 (无任务完成时跑轮淡雅轻盈，随完成度加深显色润泽)
   const progressRatio = Math.max(0, Math.min(1, progressPercent / 100));
 
-  const runTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const sleepTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerIdsRef = useRef<NodeJS.Timeout[]>([]);
   const isFirstMount = useRef<boolean>(true);
   const prevCompletedCountRef = useRef<number>(completedTasksCount);
   const popoverRef = useRef<HTMLDivElement | null>(null);
 
-  // 完整平滑状态链路：冲刺跑 (1.8s) -> 慢跑减速 (1.0s) -> 轻松漫步 (1.4s) -> 慢慢趴下收爪 (1.2s) -> 安稳熟睡
+  // 清除所有调度定时器
+  const clearAllTimers = () => {
+    timerIdsRef.current.forEach(id => clearTimeout(id));
+    timerIdsRef.current = [];
+  };
+
+  const scheduleStep = (fn: () => void, delayMs: number) => {
+    const id = setTimeout(fn, delayMs);
+    timerIdsRef.current.push(id);
+    return id;
+  };
+
+  // 线性平滑减速直到站定，再慢慢趴下入睡：
+  // 走 (walking) -> 线性放慢步频 (1.8s -> 2.6s -> 3.6s -> 4.8s) -> 站定 (stopped) -> 慢慢趴下 (settling) -> 安稳熟睡 (sleeping)
+  const startLinearSlowdown = () => {
+    clearAllTimers();
+    setActivityState('slowing');
+
+    // 线性递增动画周期，步频与跑轮由快到慢逐步减速
+    // 第 1 档缓行: 1.8s
+    setAnimDur('1.8s');
+
+    scheduleStep(() => {
+      // 第 2 档慢步: 2.6s
+      setAnimDur('2.6s');
+
+      scheduleStep(() => {
+        // 第 3 档极慢收步: 3.6s
+        setAnimDur('3.6s');
+
+        scheduleStep(() => {
+          // 第 4 档临近刹车: 4.8s
+          setAnimDur('4.8s');
+
+          scheduleStep(() => {
+            // 第 5 档停下站定: 四足平稳落于底轨，身体挺拔自然 (800ms)
+            setActivityState('stopped');
+
+            scheduleStep(() => {
+              // 第 6 档慢慢趴下: 肚皮轻落贴轨，四肢蜷曲内收，双眼半耷拉放松 (1200ms)
+              setActivityState('settling');
+
+              scheduleStep(() => {
+                // 第 7 档安稳熟睡: 双眼完全闭合，进入轻柔呼吸循环，飘出 Zzz 气泡
+                setActivityState('sleeping');
+              }, 1200);
+            }, 800);
+          }, 900);
+        }, 800);
+      }, 700);
+    }, 600);
+  };
+
+  // 完整平滑状态链路：冲刺跑 (1.8s) -> 慢跑减速 (1.0s) -> 轻松漫步 (1.2s) -> 线性放慢步频 -> 站定 -> 慢慢趴下 -> 安稳熟睡
   const startFullRunSequence = () => {
-    if (runTimerRef.current) clearTimeout(runTimerRef.current);
-    if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
+    clearAllTimers();
 
     // 阶段 1：飞快冲刺
     setActivityState('running');
+    setAnimDur('0.34s');
 
-    runTimerRef.current = setTimeout(() => {
+    scheduleStep(() => {
       // 阶段 2：慢速缓跑
       setActivityState('decelerating');
+      setAnimDur('0.72s');
 
-      runTimerRef.current = setTimeout(() => {
+      scheduleStep(() => {
         // 阶段 3：慢走漫步
         setActivityState('walking');
+        setAnimDur('1.2s');
 
-        runTimerRef.current = setTimeout(() => {
-          // 阶段 4：如果鼠标不在悬浮且未开气泡，开始慢慢趴下收爪
-          setActivityState('settling');
-
-          runTimerRef.current = setTimeout(() => {
-            // 阶段 5：安稳熟睡呼吸
-            setActivityState('sleeping');
-          }, 1200);
-        }, 1400);
+        scheduleStep(() => {
+          // 阶段 4：若未 hover 且未打开整理气泡，开始线性减速入睡
+          if (!isHovered && !isPopoverOpen) {
+            startLinearSlowdown();
+          }
+        }, 1200);
       }, 1000);
     }, 1800);
   };
@@ -104,37 +163,37 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isPopoverOpen]);
 
-  // 清除定时器
+  // 组件卸载时清除定时器
   useEffect(() => {
     return () => {
-      if (runTimerRef.current) clearTimeout(runTimerRef.current);
-      if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
+      clearAllTimers();
     };
   }, []);
 
   // 鼠标悬停：唤醒并开始轻快漫步
   const handleMouseEnter = () => {
     setIsHovered(true);
-    if (runTimerRef.current) clearTimeout(runTimerRef.current);
-    if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
-    if (activityState === 'sleeping' || activityState === 'settling') {
+    clearAllTimers();
+    if (activityState !== 'running' && activityState !== 'decelerating') {
       setActivityState('walking');
+      setAnimDur('1.2s');
     }
   };
 
-  // 鼠标离开：过 1.2 秒慢慢趴下 -> 再过 1.2 秒安稳睡着
+  // 鼠标离开：若气泡未展开，立即进入线性放慢步频 -> 站定 -> 趴下 -> 熟睡流程
   const handleMouseLeave = () => {
     setIsHovered(false);
-    if (activityState === 'walking' && !isPopoverOpen) {
-      if (sleepTimerRef.current) clearTimeout(sleepTimerRef.current);
-      sleepTimerRef.current = setTimeout(() => {
-        setActivityState('settling');
-        sleepTimerRef.current = setTimeout(() => {
-          setActivityState('sleeping');
-        }, 1200);
-      }, 1200);
+    if (!isPopoverOpen) {
+      startLinearSlowdown();
     }
   };
+
+  // 整理气泡关闭且鼠标未悬停时，也触发平滑线性减速入睡
+  useEffect(() => {
+    if (!isPopoverOpen && !isHovered && (activityState === 'walking' || activityState === 'running' || activityState === 'decelerating')) {
+      startLinearSlowdown();
+    }
+  }, [isPopoverOpen]);
 
   // 点击悬浮球：启动冲刺飞奔序列 + 向左展开智能整理微型气泡
   const handleClick = () => {
@@ -172,19 +231,10 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     setIsPopoverOpen(false);
   };
 
-  // 根据当前动作状态计算动画周期 --dur
-  const getDurValue = () => {
-    switch (activityState) {
-      case 'running': return '0.34s';
-      case 'decelerating': return '0.72s';
-      case 'walking': return '1.4s';
-      case 'settling': return '2.6s';
-      case 'sleeping': return '2.6s';
-    }
-  };
-
-  const isSleeping = activityState === 'sleeping';
+  const isStopped = activityState === 'stopped';
   const isSettling = activityState === 'settling';
+  const isSleeping = activityState === 'sleeping';
+  const isStationary = isStopped || isSettling || isSleeping;
 
   // 定位于主卡片右边缘外部浮动
   const leftPosCalc = isCompactMode
@@ -223,7 +273,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         }
 
         .kantner-hamster-wheel {
-          --dur: ${getDurValue()};
+          --dur: ${animDur};
           position: relative;
           width: 12em;
           height: 12em;
@@ -258,8 +308,21 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           z-index: 2;
           animation: wheelSpinClockwise var(--dur) linear infinite;
           transform-origin: 50% 50%;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           pointer-events: none;
+        }
+
+        /* 静止态 (停下站定 / 慢慢趴下 / 熟睡)：停止四肢与躯干的关键帧摇摆动画，由 CSS transition 接管平滑姿态 */
+        .kantner-hamster-wheel.is-stationary .hamster__head,
+        .kantner-hamster-wheel.is-stationary .hamster__ear,
+        .kantner-hamster-wheel.is-stationary .hamster__eye,
+        .kantner-hamster-wheel.is-stationary .hamster__body,
+        .kantner-hamster-wheel.is-stationary .hamster__limb--fr,
+        .kantner-hamster-wheel.is-stationary .hamster__limb--fl,
+        .kantner-hamster-wheel.is-stationary .hamster__limb--br,
+        .kantner-hamster-wheel.is-stationary .hamster__limb--bl,
+        .kantner-hamster-wheel.is-stationary .hamster__tail {
+          animation: none !important;
         }
 
         /* 跑轮反光晶莹弧光 (随着完成度提高，高光更加饱满透亮) */
@@ -342,21 +405,26 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           transform: rotate(4deg) translate(-0.8em, 1.85em);
           transform-origin: 50% 0;
           animation: hamsterAnim var(--dur) ease-in-out infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
-          transition: transform 0.9s cubic-bezier(0.25, 1, 0.5, 1);
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
-        /* 阶段 4：慢慢趴下收爪 */
+        /* 阶段 5：线性减速后停下站定 (四足平稳落于跑轮底轨，身体端正自然) */
+        .kantner-hamster-wheel.is-stopped .hamster-unit {
+          transform: rotate(3deg) translate(-0.8em, 1.95em);
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        /* 阶段 6：慢慢趴下收爪 (身体沉向跑道，四肢缩进腹下，眼皮半耷拉) */
         .kantner-hamster-wheel.is-settling .hamster-unit {
-          transform: rotate(1deg) translate(-0.8em, 2.18em);
+          transform: rotate(1deg) translate(-0.8em, 2.22em);
           transition: transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
-        /* 阶段 5：安稳熟睡呼吸 */
+        /* 阶段 7：安稳熟睡呼吸 (完全放松闭眼，胸腹柔和起伏) */
         .kantner-hamster-wheel.is-sleeping .hamster-unit {
           transform: rotate(0deg) translate(-0.8em, 2.25em);
-          animation: hamsterSleepBreath 2.6s ease-in-out infinite;
-          animation-play-state: running;
+          animation: hamsterSleepBreath 2.8s ease-in-out infinite !important;
           transition: transform 0.8s ease;
         }
 
@@ -368,7 +436,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         /* 仓鼠头部 */
         .kantner-hamster-wheel .hamster__head {
           animation: hamsterHeadAnim var(--dur) ease-in-out infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           background: hsl(30,90%,55%);
           border-radius: 70% 30% 0 100% / 40% 25% 25% 60%;
           box-shadow: 0 -0.25em 0 hsl(30,90%,80%) inset,
@@ -378,20 +446,26 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           width: 2.75em;
           height: 2.5em;
           transform-origin: 100% 50%;
-          transition: transform 0.8s ease;
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
+        .kantner-hamster-wheel.is-stopped .hamster__head {
+          transform: rotate(2deg) translateY(0);
+          transition: transform 0.5s ease-out;
+        }
         .kantner-hamster-wheel.is-settling .hamster__head {
-          transform: rotate(2deg) translateY(0.12em);
+          transform: rotate(1deg) translateY(0.12em);
+          transition: transform 0.8s ease;
         }
         .kantner-hamster-wheel.is-sleeping .hamster__head {
           transform: rotate(0deg) translateY(0.18em);
+          transition: transform 0.8s ease;
         }
 
         /* 耳朵 */
         .kantner-hamster-wheel .hamster__ear {
           animation: hamsterEarAnim var(--dur) ease-in-out infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           background: hsl(0,90%,85%);
           border-radius: 50%;
           box-shadow: -0.25em 0 hsl(30,90%,55%) inset;
@@ -400,12 +474,13 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           width: 0.75em;
           height: 0.75em;
           transform-origin: 50% 75%;
+          transition: transform 0.6s ease;
         }
 
         /* 眼睛 (清醒睁眼 -> 慢慢半眯 -> 闭目熟睡) */
         .kantner-hamster-wheel .hamster__eye {
           animation: hamsterEyeAnim var(--dur) linear infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           background-color: hsl(0,0%,0%);
           border-radius: 50%;
           top: 0.375em;
@@ -415,20 +490,31 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
+        /* 停下站定：双目圆睁专注 */
+        .kantner-hamster-wheel.is-stopped .hamster__eye {
+          height: 0.55em;
+          border-radius: 50%;
+          transform: none;
+          background-color: hsl(0,0%,0%);
+          transition: all 0.5s ease-out;
+        }
+
         /* 慢慢趴下：眼睛半闭，眼神柔和放松 */
         .kantner-hamster-wheel.is-settling .hamster__eye {
-          height: 0.26em;
-          border-radius: 0.15em;
+          height: 0.24em;
+          border-radius: 0.12em;
           background-color: hsl(30,80%,25%);
           transform: translateY(0.12em);
+          transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         /* 睡着：眼皮完全闭合 */
         .kantner-hamster-wheel.is-sleeping .hamster__eye {
-          height: 0.14em;
-          border-radius: 0.08em;
+          height: 0.12em;
+          border-radius: 0.06em;
           background-color: hsl(30,90%,30%);
           transform: translateY(0.2em);
+          transition: all 0.6s ease;
         }
 
         /* 鼻子 */
@@ -444,7 +530,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         /* 躯干 */
         .kantner-hamster-wheel .hamster__body {
           animation: hamsterBodyAnim var(--dur) ease-in-out infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           background: hsl(30,90%,90%);
           border-radius: 50% 30% 50% 30% / 15% 60% 40% 40%;
           box-shadow: 0.1em 0.75em 0 hsl(30,90%,55%) inset,
@@ -455,6 +541,17 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           height: 3em;
           transform-origin: 17% 50%;
           transform-style: preserve-3d;
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .kantner-hamster-wheel.is-stopped .hamster__body {
+          transform: rotate(0deg);
+        }
+        .kantner-hamster-wheel.is-settling .hamster__body {
+          transform: rotate(0deg);
+        }
+        .kantner-hamster-wheel.is-sleeping .hamster__body {
+          transform: rotate(0deg);
         }
 
         /* 前肢 (FR / FL) */
@@ -466,31 +563,41 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           width: 1em;
           height: 1.5em;
           transform-origin: 50% 0;
-          transition: transform 0.8s ease;
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         .kantner-hamster-wheel .hamster__limb--fr {
           animation: hamsterFRLimbAnim var(--dur) linear infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           background: linear-gradient(hsl(30,90%,80%) 80%,hsl(0,90%,75%) 80%);
           transform: rotate(15deg) translateZ(-1px);
         }
 
         .kantner-hamster-wheel .hamster__limb--fl {
           animation: hamsterFLLimbAnim var(--dur) linear infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           background: linear-gradient(hsl(30,90%,90%) 80%,hsl(0,90%,85%) 80%);
           transform: rotate(15deg);
         }
 
-        .kantner-hamster-wheel.is-settling .hamster__limb--fr,
-        .kantner-hamster-wheel.is-settling .hamster__limb--fl {
-          transform: rotate(5deg) translateY(0.12em);
+        /* 停下站定：双前肢微屈端正落于底轨 */
+        .kantner-hamster-wheel.is-stopped .hamster__limb--fr {
+          transform: rotate(8deg) translateY(0.02em);
+        }
+        .kantner-hamster-wheel.is-stopped .hamster__limb--fl {
+          transform: rotate(6deg) translateY(0.02em);
         }
 
+        /* 慢慢趴下收爪 */
+        .kantner-hamster-wheel.is-settling .hamster__limb--fr,
+        .kantner-hamster-wheel.is-settling .hamster__limb--fl {
+          transform: rotate(4deg) translateY(0.16em) scaleY(0.85);
+        }
+
+        /* 睡眠时四肢收缩进腹下 */
         .kantner-hamster-wheel.is-sleeping .hamster__limb--fr,
         .kantner-hamster-wheel.is-sleeping .hamster__limb--fl {
-          transform: rotate(2deg) translateY(0.22em);
+          transform: rotate(2deg) translateY(0.22em) scaleY(0.68);
         }
 
         /* 后肢 (BR / BL) */
@@ -503,48 +610,47 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           width: 1.5em;
           height: 2.5em;
           transform-origin: 50% 30%;
+          transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         .kantner-hamster-wheel .hamster__limb--br {
           animation: hamsterBRLimbAnim var(--dur) linear infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           background: linear-gradient(hsl(30,90%,80%) 90%,hsl(0,90%,75%) 90%);
           transform: rotate(-25deg) translateZ(-1px);
-          transition: transform 0.8s ease;
         }
 
         .kantner-hamster-wheel .hamster__limb--bl {
           animation: hamsterBLLimbAnim var(--dur) linear infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           background: linear-gradient(hsl(30,90%,90%) 90%,hsl(0,90%,85%) 90%);
           transform: rotate(-25deg);
-          transition: transform 0.8s ease;
+        }
+
+        /* 停下站定：双后肢平稳支撑底轨 */
+        .kantner-hamster-wheel.is-stopped .hamster__limb--br {
+          transform: rotate(-12deg) translateY(0.02em);
+        }
+        .kantner-hamster-wheel.is-stopped .hamster__limb--bl {
+          transform: rotate(-10deg) translateY(0.02em);
         }
 
         /* 慢慢趴下收爪 */
-        .kantner-hamster-wheel.is-settling .hamster__limb--fr,
-        .kantner-hamster-wheel.is-settling .hamster__limb--fl {
-          transform: rotate(5deg) scaleY(0.85);
-        }
         .kantner-hamster-wheel.is-settling .hamster__limb--br,
         .kantner-hamster-wheel.is-settling .hamster__limb--bl {
-          transform: rotate(-15deg) scaleY(0.85);
+          transform: rotate(-10deg) translateY(0.12em) scaleY(0.85);
         }
 
         /* 睡眠时四肢收缩进腹下 */
-        .kantner-hamster-wheel.is-sleeping .hamster__limb--fr,
-        .kantner-hamster-wheel.is-sleeping .hamster__limb--fl {
-          transform: rotate(0deg) scaleY(0.65);
-        }
         .kantner-hamster-wheel.is-sleeping .hamster__limb--br,
         .kantner-hamster-wheel.is-sleeping .hamster__limb--bl {
-          transform: rotate(-10deg) scaleY(0.65);
+          transform: rotate(-8deg) translateY(0.18em) scaleY(0.68);
         }
 
         /* 尾巴 */
         .kantner-hamster-wheel .hamster__tail {
           animation: hamsterTailAnim var(--dur) linear infinite;
-          animation-play-state: ${(isSleeping || isSettling) ? 'paused' : 'running'};
+          animation-play-state: ${isStationary ? 'paused' : 'running'};
           background: hsl(0,90%,85%);
           border-radius: 0.25em 50% 50% 0.25em;
           box-shadow: 0 -0.2em 0 hsl(0,90%,75%) inset;
@@ -554,6 +660,17 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           height: 0.5em;
           transform: rotate(30deg) translateZ(-1px);
           transform-origin: 0.25em 0.25em;
+          transition: transform 0.6s ease;
+        }
+
+        .kantner-hamster-wheel.is-stopped .hamster__tail {
+          transform: rotate(24deg);
+        }
+        .kantner-hamster-wheel.is-settling .hamster__tail {
+          transform: rotate(16deg);
+        }
+        .kantner-hamster-wheel.is-sleeping .hamster__tail {
+          transform: rotate(12deg);
         }
 
         @keyframes hamsterAnim {
@@ -790,8 +907,8 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           </div>
         )}
 
-        {/* Jon Kantner 经典纯 CSS 跑轮仓鼠容器 (支持奔跑、漫步、趴下、熟睡) */}
-        <div className={`kantner-hamster-wheel ${isSleeping ? 'is-sleeping' : isSettling ? 'is-settling' : ''}`}>
+        {/* Jon Kantner 经典纯 CSS 跑轮仓鼠容器 (支持冲刺、慢步、线性减速、站定、趴下、熟睡) */}
+        <div className={`kantner-hamster-wheel ${isStationary ? 'is-stationary' : ''} ${isSleeping ? 'is-sleeping' : isSettling ? 'is-settling' : isStopped ? 'is-stopped' : ''}`}>
           {/* 1. 原版平滑跑轮外轨 */}
           <div className="wheel-track"></div>
 
