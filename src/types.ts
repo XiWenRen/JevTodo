@@ -60,6 +60,7 @@ export interface JevDecision {
   category: TaskCategory;
   urgencyScore: number;
   tags: string[];
+  cleanTitle?: string;
   dueDate?: string;
   dueDateIso?: string;
   dueTimestamp?: number;

@@ -332,6 +332,14 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                   <span className="bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] px-1.5 py-0.5 rounded text-[10px] font-medium">
                     {preview.category}
                   </span>
+                  {preview.decision?.cleanTitle && preview.decision.cleanTitle !== inputText.trim() && (
+                    <span 
+                      className="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 px-1.5 py-0.5 rounded text-[10px] font-medium max-w-[200px] truncate"
+                      title={`Jev 提炼任务名称: ${preview.decision.cleanTitle}`}
+                    >
+                      <span>🎯 {preview.decision.cleanTitle}</span>
+                    </span>
+                  )}
                   {preview.dueDate && (
                     <span 
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors ${

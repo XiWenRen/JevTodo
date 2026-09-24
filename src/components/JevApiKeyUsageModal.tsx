@@ -519,6 +519,11 @@ export const JevApiKeyUsageModal: React.FC<JevApiKeyUsageModalProps> = ({
                     {/* Decision Snapshot Pills (if available) */}
                     {result && (
                       <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        {result.cleanTitle && (
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                            提炼标题: <strong>{result.cleanTitle}</strong>
+                          </span>
+                        )}
                         {result.category && (
                           <span className="px-2 py-0.5 rounded bg-[var(--chip-bg)] text-[var(--text-main)] border border-[var(--border-subtle)]">
                             分类: <strong className="text-emerald-400">{result.category}</strong>

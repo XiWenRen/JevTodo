@@ -1,6 +1,6 @@
 import { writeJevLogEntry } from '../../server/jevFileLogger.js';
 import { resolveJevDateTime } from '../../server/jevTimeHelper.js';
-import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria } from '../../server/jevScheduleHelper.js';
+import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria, buildDynamicTitleCriteria } from '../../server/jevScheduleHelper.js';
 
 export default async function handler(req: any, res: any) {
   const startTime = Date.now();
@@ -38,12 +38,20 @@ export default async function handler(req: any, res: any) {
     // 2. Build schedule-aware context and dynamic target_hour criteria with conflict badges
     const { enrichedState, targetHourCriteria, freeWindowSummary } = buildScheduleContextAndHourCriteria(existingSchedule, text);
 
+    // 3. Build dynamic clean title criteria and candidates
+    const { criteria: titleCriteria, defaultTitle } = buildDynamicTitleCriteria(text);
+
     if (activeApiKey) {
       try {
         payload = {
           model: 'jev-latest',
           state: enrichedState,
           questions: {
+            task_title: {
+              type: 'choice',
+              instructions: '请从以下候选名称中挑选出最适合作待办卡片名称的标题（核心语义完整、精简准确、去除时间、标签与口语修饰）：',
+              criteria: titleCriteria
+            },
             category: {
               type: 'choice',
               instructions: '该待办事项应该属于哪个执行时机分类？',
@@ -118,6 +126,10 @@ export default async function handler(req: any, res: any) {
           const data = await jevRes.json();
           const answers = data.answers || {};
 
+          // 0. Clean Title directly powered by Jev
+          const chosenTitle = answers.task_title?.choice || answers.task_title?.value;
+          const cleanTitle = (chosenTitle && titleCriteria[chosenTitle]) ? chosenTitle : defaultTitle;
+
           const category = answers.category?.choice || answers.category?.value || answers.category || '即刻完成';
 
           let urgencyScore = 0.8;
@@ -175,6 +187,7 @@ export default async function handler(req: any, res: any) {
             durationMs,
             requestPayload: payload,
             result: {
+              cleanTitle,
               category,
               urgencyScore,
               tags: jevTags,
@@ -186,6 +199,7 @@ export default async function handler(req: any, res: any) {
           });
 
           return res.status(200).json({
+            cleanTitle,
             category,
             urgencyScore,
             tags: jevTags,
@@ -260,11 +274,12 @@ export default async function handler(req: any, res: any) {
       status: 'FALLBACK (Cherry Local Engine)',
       durationMs,
       requestPayload: payload,
-      result: { category, urgencyScore, source: 'cherry-calibrated-local' },
+      result: { cleanTitle: defaultTitle, category, urgencyScore, source: 'cherry-calibrated-local' },
       error: lastError || 'Fallback to calibrated engine'
     });
 
     return res.status(200).json({
+      cleanTitle: defaultTitle,
       category,
       urgencyScore,
       tags: ['日常待办'],

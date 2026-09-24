@@ -563,9 +563,13 @@ export default function App() {
         return;
       }
 
+      const taskTitle = (decision.cleanTitle && decision.cleanTitle.trim().length > 0)
+        ? decision.cleanTitle.trim()
+        : rawInput.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim();
+
       const newTask: TaskItem = {
         id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        title: rawInput.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim(),
+        title: taskTitle,
         rawInput,
         category: decision.category,
         urgencyScore: decision.urgencyScore,
@@ -691,9 +695,13 @@ export default function App() {
         existingSchedule
       });
 
+      const taskTitle = (decision.cleanTitle && decision.cleanTitle.trim().length > 0)
+        ? decision.cleanTitle.trim()
+        : rawInput.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim();
+
       const newTask: TaskItem = {
         id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-        title: rawInput.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim(),
+        title: taskTitle,
         rawInput,
         category: decision.category,
         urgencyScore: decision.urgencyScore,

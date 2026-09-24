@@ -21,7 +21,7 @@ import {
 import { signToken, verifyToken, extractUserIdFromReq } from "./server/auth.js";
 import { writeJevLogEntry, readJevLogFile, clearJevLogFile, parseJevLogFile } from "./server/jevFileLogger.js";
 import { resolveJevDateTime } from "./server/jevTimeHelper.js";
-import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria } from "./server/jevScheduleHelper.js";
+import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria, buildDynamicTitleCriteria } from "./server/jevScheduleHelper.js";
 
 dotenv.config();
 
@@ -515,6 +515,9 @@ async function startServer() {
       // 2. Build schedule-aware context and dynamic target_hour criteria with conflict badges
       const { enrichedState, targetHourCriteria, freeWindowSummary } = buildScheduleContextAndHourCriteria(existingSchedule, text);
 
+      // 3. Build dynamic clean title criteria and candidate extraction
+      const { criteria: titleCriteria, defaultTitle } = buildDynamicTitleCriteria(text);
+
       // If key is available, call the remote Jev System One endpoint
       if (activeApiKey) {
         try {
@@ -522,6 +525,11 @@ async function startServer() {
             model: "jev-latest",
             state: enrichedState,
             questions: {
+              task_title: {
+                type: "choice",
+                instructions: "请从以下候选名称中挑选出最适合作待办卡片名称的标题（核心语义完整、精简准确、去除时间、标签与口语修饰）：",
+                criteria: titleCriteria
+              },
               category: {
                 type: "choice",
                 instructions: "该待办事项应该属于哪个执行时机分类？",
@@ -599,6 +607,10 @@ async function startServer() {
             const data = await jevRes.json();
             const answers = data.answers || {};
 
+            // 0. Clean Title directly powered by Jev
+            const chosenTitle = answers.task_title?.choice || answers.task_title?.value;
+            const cleanTitle = (chosenTitle && titleCriteria[chosenTitle]) ? chosenTitle : defaultTitle;
+
             const category = answers.category?.choice || answers.category?.value || answers.category || "即刻完成";
             
             let urgencyScore = 0.8;
@@ -644,7 +656,7 @@ async function startServer() {
             const { dueDate, dueDateIso, dueTimestamp } = resolveJevDateTime(timeScope, timeSlot, targetHour, text);
 
             console.log(`✅ [TypeSafe Jev 响应]: HTTP 200 OK (${gatewayDuration}ms)`);
-            console.log(`🎯 [决策结果]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(jevTags)}, 时间=${dueDate || '未设定'}`);
+            console.log(`🎯 [决策结果]: 提取标题=${cleanTitle}, 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(jevTags)}, 时间=${dueDate || '未设定'}`);
             console.log(`======================================================\n`);
 
             writeJevLogEntry({
@@ -657,6 +669,7 @@ async function startServer() {
               durationMs: gatewayDuration,
               requestPayload: payload,
               result: {
+                cleanTitle,
                 category,
                 urgencyScore,
                 tags: jevTags,
@@ -666,6 +679,7 @@ async function startServer() {
             });
 
             return res.json({
+              cleanTitle,
               category,
               urgencyScore,
               tags: jevTags,
@@ -760,11 +774,12 @@ async function startServer() {
         status: "FALLBACK (Cherry Local Engine)",
         durationMs: totalElapsed,
         requestPayload: sentPayload,
-        result: { category, urgencyScore, tags: specificTags, source: "cherry-calibrated-local" },
+        result: { cleanTitle: defaultTitle, category, urgencyScore, tags: specificTags, source: "cherry-calibrated-local" },
         error: lastGatewayError || "Fallback to Cherry local engine"
       });
 
       return res.json({
+        cleanTitle: defaultTitle,
         category,
         urgencyScore,
         tags: specificTags,

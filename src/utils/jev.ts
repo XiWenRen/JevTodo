@@ -769,6 +769,7 @@ export async function evaluateWithJev(
             category: data.category,
             urgencyScore: data.urgencyScore ?? 0.8,
             tags: data.tags && data.tags.length > 0 ? data.tags : ['常规待办'],
+            cleanTitle: data.cleanTitle,
             dueDate: data.dueDate,
             dueDateIso: data.dueDateIso,
             dueTimestamp: data.dueTimestamp,
@@ -786,6 +787,7 @@ export async function evaluateWithJev(
             'color: #06b6d4; font-weight: bold;'
           );
           console.log('📌 输入文本:', rawInput);
+          console.log('🎯 提炼任务名称:', finalDecision.cleanTitle || '(未指定)');
           console.log('🔑 使用 Key:', maskedKey);
           console.log('🌐 决策来源:', finalDecision.source);
           console.log('🎯 分类结果:', finalDecision.category);
@@ -858,6 +860,7 @@ export async function evaluateWithJev(
     category,
     urgencyScore,
     tags,
+    cleanTitle: cleanTitle || undefined,
     dueDate: dueDate || (category === '即刻完成' ? '今天 18:00' : undefined),
     dueDateIso: dueDateIso || defaultIso,
     dueTimestamp: dueTimestamp || defaultDueMs,

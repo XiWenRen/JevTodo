@@ -248,3 +248,111 @@ export function buildScheduleContextAndHourCriteria(
     freeWindowSummary
   };
 }
+
+/**
+ * Extract clean task title candidates from raw input text by stripping tags,
+ * temporal expressions, and conversational filler prefixes.
+ * Returns criteria for Jev choice primitive and a high-confidence defaultTitle.
+ */
+export function buildDynamicTitleCriteria(rawText: string): {
+  criteria: Record<string, string>;
+  defaultTitle: string;
+} {
+  if (!rawText || !rawText.trim()) {
+    return {
+      criteria: { '待办事项': '默认常规待办事项' },
+      defaultTitle: '待办事项'
+    };
+  }
+
+  // 1. Remove hashtags
+  let clean = rawText.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim();
+
+  // 2. Remove standard date and time stamps
+  clean = clean
+    // Calendar dates e.g. 2026-09-24, 2026年9月24日, 9/24, 9月24日
+    .replace(/(?:\d{4}[-/年.])?\d{1,2}[-/月.]\d{1,2}(?:日|号)?/g, '')
+    // Relative day words
+    .replace(/(?:大前天|前天|昨天|昨日|昨晚|昨早|今天|今日|今晚|今早|明天|明日|明早|明晚|后天|大后天)/g, '')
+    // Weeks e.g. 这周五, 下周一, 周末, 礼拜天, 星期三
+    .replace(/(?:这|本|下|上|这个|下个|上个)?(?:周|星期|礼拜)[一二三四五六日天1-7]/g, '')
+    .replace(/(?:这周|本周|下周|上周|这星期|下星期|上星期|周末|工作日|平时|随时)/g, '')
+    // Month/Year intervals
+    .replace(/(?:下个月|下半年|今年|明年|年底|年初|月初|月底|未来|长期)/g, '')
+    // Clock times e.g. 15:30, 3点半, 8点, 晚上8点, 下午3点45分
+    .replace(/(?:上午|早晨|早上|清晨|中午|下午|傍晚|晚上|夜里|半夜|凌晨)?\s*(?:\d{1,2}|十一|十二|[一二两三四五六七八九十])\s*(?:点|:|：)\s*(?:\d{1,2}|半|一刻|三刻)?(?:分)?/g, '')
+    .replace(/(?:上午|早晨|早上|清晨|中午|下午|傍晚|晚上|夜里|半夜|凌晨)/g, '')
+    .replace(/\b\d{1,2}[:：]\d{2}\b/g, '')
+    // Temporal prepositions / suffixes e.g. 之前, 之前要, 左右, 截至, 截止, 开始
+    .replace(/(?:之前|前|之后|后|左右|截至|截止|开始|前要|后要)/g, '')
+    // English temporal phrases
+    .replace(/\b(?:today|tomorrow|yesterday|tonight|next week|this week|at \d{1,2}(?::\d{2})?\s*(?:am|pm)?|before \d{1,2}(?::\d{2})?)\b/gi, '')
+    .trim();
+
+  // 3. Iteratively remove conversational filler prefixes, punctuation and reminder boilerplates
+  let prevClean = '';
+  while (prevClean !== clean) {
+    prevClean = clean;
+    clean = clean
+      .replace(/^(?:随时|记得要|记得|别忘了|别忘记|请记得|一定要|务必|必须|提醒我|提醒一下|提醒|帮我|请帮我|麻烦|请|想要|想去|打算|准备要|计划|需要|快去|帮|去)\s*/, '')
+      .replace(/^[，,。：:\s\-_/、]+|[，,。：:\s\-_/、]+$/g, '')
+      .trim();
+  }
+
+  // If cleaning resulted in empty string, fallback to original stripped of tags
+  const fallback = rawText.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim() || '待办事项';
+  const primaryTitle = clean.length >= 2 ? clean : fallback;
+
+  const candidates: string[] = [primaryTitle];
+
+  // 4. Generate intelligent concise variants
+  // Variant A: If contains location clause e.g. "在[某地]开会" -> generate variant without location
+  const locMatch = primaryTitle.match(/^(.*?)(?:在[\u4e00-\u9fa5\w]{2,8}(?:咖啡厅|会议室|办公室|公司|食堂|家|店|馆|场|室|处|中心|楼))+(.*)$/);
+  if (locMatch && locMatch[1] !== undefined && locMatch[2] !== undefined) {
+    const withoutLoc = `${locMatch[1]}${locMatch[2]}`.replace(/[，,。：:\s\-_/、]+/g, ' ').trim();
+    if (withoutLoc.length >= 2 && !candidates.includes(withoutLoc)) {
+      candidates.push(withoutLoc);
+    }
+  }
+
+  // Variant B: If contains "把/将...发给/同步给..." -> generate concise action variant e.g. "发送502排查报告给李经理"
+  const sendMatch = primaryTitle.match(/^(?:把|将)(.+?)(?:发给|同步给|提交给|抄送给|发送给|递交给|给)(.+)$/);
+  if (sendMatch && sendMatch[1].trim() && sendMatch[2].trim()) {
+    const sendVariant = `发送${sendMatch[1].trim()}给${sendMatch[2].trim()}`;
+    if (!candidates.includes(sendVariant)) {
+      candidates.push(sendVariant);
+    }
+  }
+
+  // Variant C: If action verb + topic is present e.g. "开会讨论Q4预算" vs "讨论Q4预算"
+  const topicMatch = primaryTitle.match(/(?:开会|沟通|交流|同步|探讨|汇报)(?:讨论|评审|确定|确认|推进)?([\u4e00-\u9fa5\w-]{3,12})/);
+  if (topicMatch && topicMatch[0] && topicMatch[0].length >= 4 && !candidates.includes(topicMatch[0])) {
+    candidates.push(topicMatch[0]);
+  }
+
+  // Variant D: Fallback original stripped of hashtags if distinct
+  if (fallback !== primaryTitle && !candidates.includes(fallback) && candidates.length < 4) {
+    candidates.push(fallback);
+  }
+
+  // Build criteria map for Jev
+  const criteria: Record<string, string> = {};
+  for (let i = 0; i < candidates.length; i++) {
+    const c = candidates[i];
+    if (i === 0) {
+      criteria[c] = `推荐核心标题：准确完整表达核心动作、参与人与目标事项`;
+    } else if (i === 1) {
+      criteria[c] = `凝练标题：精简修饰词与冗余环境信息，聚焦核心任务事件`;
+    } else if (i === 2) {
+      criteria[c] = `聚焦行动：突出核心议题或执行目标`;
+    } else {
+      criteria[c] = `备用标题：保留更多上下文信息的备选事项名称`;
+    }
+  }
+
+  return {
+    criteria,
+    defaultTitle: primaryTitle
+  };
+}
+
