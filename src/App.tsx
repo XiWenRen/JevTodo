@@ -141,11 +141,6 @@ export default function App() {
     return INITIAL_TASKS;
   });
 
-  const currentStorageKey = useMemo(() => {
-    const user = getStoredUser();
-    return user ? `jev_tasks_user_${user.id}_v1` : STORAGE_KEY_GUEST_TASKS;
-  }, []);
-
   // Auth Session & Cloud Sync
   const {
     currentUser,
@@ -157,7 +152,11 @@ export default function App() {
     refreshTasksFromCloud,
     handleAuthSuccess,
     handleLogout: rawHandleLogout
-  } = useAuthSession(tasks, setTasks, currentStorageKey);
+  } = useAuthSession(tasks, setTasks);
+
+  const currentStorageKey = useMemo(() => {
+    return currentUser ? `jev_tasks_user_${currentUser.id}_v1` : STORAGE_KEY_GUEST_TASKS;
+  }, [currentUser]);
 
   const handleLogout = useCallback(() => {
     rawHandleLogout(INITIAL_TASKS);
@@ -1054,44 +1053,28 @@ export default function App() {
               <Menu className="w-4 h-4 stroke-[2.2]" />
             </button>
 
-            {/* View Switcher: Task List vs Trajectory View */}
-            <div className="flex items-center p-0.5 rounded-lg bg-[var(--chip-bg)] border border-[var(--chip-border)] shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeView === '轨迹') {
-                    setActiveView(lastTaskCategory || '即刻完成');
-                  }
-                }}
-                className={`h-7 px-2.5 rounded-md flex items-center gap-1.5 transition-all text-xs font-medium cursor-pointer ${
-                  activeView !== '轨迹'
-                    ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs border border-[var(--border-medium)]'
-                    : 'text-[var(--text-sub)] hover:text-[var(--text-main)] border border-transparent'
-                }`}
-                title="切换至任务列表视图"
-              >
-                <ListTodo className="w-3.5 h-3.5 text-amber-500" />
-                <span>任务列表</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeView !== '轨迹') {
-                    setLastTaskCategory(activeView);
-                    setActiveView('轨迹');
-                  }
-                }}
-                className={`h-7 px-2.5 rounded-md flex items-center gap-1.5 transition-all text-xs font-medium cursor-pointer ${
-                  activeView === '轨迹'
-                    ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs border border-[var(--border-medium)]'
-                    : 'text-[var(--text-sub)] hover:text-[var(--text-main)] border border-transparent'
-                }`}
-                title="切换至轨迹页面（日历与热点图）"
-              >
-                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
-                <span>轨迹页面</span>
-              </button>
-            </div>
+            {/* Single Icon View Switcher with Flip Effect */}
+            <button
+              type="button"
+              onClick={() => {
+                if (activeView === '轨迹') {
+                  setActiveView(lastTaskCategory || '即刻完成');
+                } else {
+                  setLastTaskCategory(activeView);
+                  setActiveView('轨迹');
+                }
+              }}
+              className="w-7 h-7 rounded-lg bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--chip-border)] flex items-center justify-center transition-colors shrink-0 shadow-xs cursor-pointer group"
+              title={activeView === '轨迹' ? '切换至任务列表' : '切换至轨迹页面（日历与热点）'}
+            >
+              <div className={`transition-transform duration-300 transform ${activeView === '轨迹' ? 'rotate-180' : 'rotate-0'}`}>
+                {activeView === '轨迹' ? (
+                  <ListTodo className="w-4 h-4 text-amber-500" />
+                ) : (
+                  <Calendar className="w-4 h-4 text-indigo-400" />
+                )}
+              </div>
+            </button>
           </div>
 
           {/* Right: User Quick Info and Theme Switcher Buttons */}
@@ -1212,9 +1195,9 @@ export default function App() {
 
         {/* Main Body */}
         <main className="acrylic-panel rounded-b-2xl p-3.5 sm:p-4 pt-3 pb-24 shadow-2xl min-h-[540px] relative overflow-hidden">
-          {/* Task Category Switcher Tags (Only in Task List mode) */}
+          {/* Task Category Switcher Tags (Only in Task List mode, compact 4-column grid fitting in 1 screen) */}
           {activeView !== '轨迹' && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-2.5 scrollbar-none no-scrollbar select-none">
+            <div className="grid grid-cols-4 gap-1.5 mb-2.5 select-none">
               {taskCategoryTabs.map((tab) => {
                 const isActive = activeView === tab.view;
                 return (
@@ -1225,16 +1208,16 @@ export default function App() {
                       setActiveView(tab.view);
                       setLastTaskCategory(tab.view);
                     }}
-                    className={`h-7 px-2.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                    title={`${tab.label} (${tab.count}项待办)`}
+                    className={`h-7 px-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       isActive
                         ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs border border-[var(--border-medium)]'
                         : 'bg-[var(--chip-bg)] text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)]'
                     }`}
                   >
                     <span className="shrink-0">{tab.icon}</span>
-                    <span>{tab.label}</span>
                     <span
-                      className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                      className={`text-[10px] font-mono px-1 py-0.2 rounded-full ${
                         isActive
                           ? 'bg-[var(--accent-bg)] text-[var(--accent-fg)] font-semibold'
                           : 'bg-[var(--chip-bg)] text-[var(--text-faint)]'
@@ -1336,8 +1319,6 @@ export default function App() {
       <CategoryDrawer
         isOpen={isDrawerOpen}
         onClose={() => setIsDrawerOpen(false)}
-        activeView={activeView}
-        onSelectView={setActiveView}
         tasks={tasks}
         allTags={allTags}
         filterTag={filterTag}

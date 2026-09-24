@@ -2,10 +2,6 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, 
-  Zap, 
-  CalendarDays, 
-  Compass, 
-  Layers, 
   Sparkles, 
   Command, 
   RotateCcw,
@@ -18,8 +14,7 @@ import {
   Smartphone,
   Palette,
   ListPlus,
-  ScrollText,
-  Calendar
+  ScrollText
 } from 'lucide-react';
 import { ActiveView, TaskItem, AppTheme } from '../types';
 import { AuthUser } from '../utils/auth';
@@ -28,8 +23,6 @@ import { CherryIcon } from './CherryIcon';
 interface CategoryDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  activeView: ActiveView;
-  onSelectView: (view: ActiveView) => void;
   tasks: TaskItem[];
   allTags: string[];
   filterTag: string | null;
@@ -59,8 +52,6 @@ const THEMES: { id: AppTheme; label: string; icon: string }[] = [
 export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
   isOpen,
   onClose,
-  activeView,
-  onSelectView,
   tasks,
   allTags,
   filterTag,
@@ -79,53 +70,6 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
   onResetSampleData,
   staleCount
 }) => {
-  // Counts by category
-  const counts = {
-    '即刻完成': tasks.filter(t => t.category === '即刻完成' && !t.completed).length,
-    '近期完成': tasks.filter(t => t.category === '近期完成' && !t.completed).length,
-    '规划待办': tasks.filter(t => t.category === '规划待办' && !t.completed).length,
-    '全部事项': tasks.filter(t => !t.completed).length,
-    '已完成': tasks.filter(t => t.completed).length,
-    '轨迹': tasks.length,
-  };
-
-  const navItems: { view: ActiveView; label: string; sub: string; icon: React.ReactNode; color: string }[] = [
-    {
-      view: '即刻完成',
-      label: '即刻完成',
-      sub: '今日核心 · 专注执行',
-      icon: <Zap className="w-4 h-4" />,
-      color: 'text-amber-500'
-    },
-    {
-      view: '近期完成',
-      label: '近期完成',
-      sub: '这几天 · 本周推进',
-      icon: <CalendarDays className="w-4 h-4" />,
-      color: 'text-blue-500'
-    },
-    {
-      view: '规划待办',
-      label: '规划待办',
-      sub: '长期规划 · 沉淀灵感',
-      icon: <Compass className="w-4 h-4" />,
-      color: 'text-purple-500'
-    },
-    {
-      view: '全部事项',
-      label: '全部事项',
-      sub: '全局清单 · 完整视图',
-      icon: <Layers className="w-4 h-4" />,
-      color: 'text-emerald-500'
-    },
-    {
-      view: '轨迹',
-      label: '轨迹',
-      sub: '日历视图 · 热点图 · 日报周报',
-      icon: <Calendar className="w-4 h-4" />,
-      color: 'text-indigo-400'
-    }
-  ];
 
   return (
     <AnimatePresence>
@@ -226,55 +170,6 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
                     {currentUser ? '账号' : '登录'} →
                   </span>
                 </button>
-              </div>
-
-              {/* Category Views Navigation */}
-              <div className="space-y-1 mb-4">
-                <div className="px-2 pb-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-faint)]">
-                  任务分类视图
-                </div>
-                {navItems.map(item => {
-                  const isActive = activeView === item.view;
-                  const count = counts[item.view];
-
-                  return (
-                    <button
-                      key={item.view}
-                      type="button"
-                      onClick={() => {
-                        onSelectView(item.view);
-                        onClose();
-                      }}
-                      className={`w-full px-3 py-2 rounded-xl flex items-center justify-between text-left transition-all ${
-                        isActive
-                          ? 'bg-[var(--accent-bg)] text-[var(--accent-fg)] font-medium shadow-sm'
-                          : 'hover:bg-[var(--chip-hover)] text-[var(--text-main)]'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <span className={isActive ? 'text-[var(--accent-fg)]' : item.color}>
-                          {item.icon}
-                        </span>
-                        <div>
-                          <div className="text-xs">{item.label}</div>
-                          <div className={`text-[10px] ${isActive ? 'opacity-85' : 'text-[var(--text-faint)]'}`}>
-                            {item.sub}
-                          </div>
-                        </div>
-                      </div>
-
-                      <span
-                        className={`text-xs font-mono px-2 py-0.5 rounded-full ${
-                          isActive
-                            ? 'bg-black/20 text-[var(--accent-fg)]'
-                            : 'bg-[var(--chip-bg)] text-[var(--text-sub)] border border-[var(--chip-border)]'
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                })}
               </div>
 
               {/* Theme Selector */}
@@ -441,7 +336,7 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
             {/* Bottom Section */}
             <div className="pt-3 border-t border-[var(--border-subtle)] text-[11px] text-[var(--text-faint)]">
               <div className="flex items-center justify-between">
-                <span>共 {tasks.length} 项事项 ({counts['已完成']} 已完成)</span>
+                <span>共 {tasks.length} 项事项</span>
                 <button
                   type="button"
                   onClick={() => {

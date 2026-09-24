@@ -10,11 +10,11 @@ export async function handleAuthRequest(req: any, res: any) {
     return res.status(200).end();
   }
 
-  const action = req.query?.action || (req.body && req.body.action) || 'me';
+  const action = req.query?.action || (req.body && req.body.action) || (req.method === 'POST' ? 'login' : 'me');
 
   try {
-    // 1. Current user profile info
-    if (req.method === 'GET' || action === 'me') {
+    // 1. Current user profile info (GET or explicit me action)
+    if (req.method === 'GET' || (req.method !== 'POST' && action === 'me')) {
       const authHeader = req.headers?.authorization || req.headers?.Authorization;
       if (!authHeader) {
         return res.status(401).json({ authenticated: false, error: '未提供身份凭证' });
@@ -51,8 +51,10 @@ export async function handleAuthRequest(req: any, res: any) {
           return res.status(400).json({ error: '密码长度至少为 6 位' });
         }
 
+        const cleanUsername = username.trim().toLowerCase();
+
         if (!isCloudDBConfigured()) {
-          const mockUser = { id: `local_${Date.now()}`, username: username.trim().toLowerCase() };
+          const mockUser = { id: `local_${cleanUsername}`, username: cleanUsername };
           const token = signToken(mockUser);
           return res.status(200).json({
             success: true,
@@ -82,8 +84,10 @@ export async function handleAuthRequest(req: any, res: any) {
           return res.status(400).json({ error: '请输入用户名和密码' });
         }
 
+        const cleanUsername = typeof username === 'string' ? username.trim().toLowerCase() : '';
+
         if (!isCloudDBConfigured()) {
-          const mockUser = { id: `local_${username.trim().toLowerCase()}`, username: username.trim().toLowerCase() };
+          const mockUser = { id: `local_${cleanUsername}`, username: cleanUsername };
           const token = signToken(mockUser);
           return res.status(200).json({
             success: true,

@@ -14,7 +14,7 @@ export interface CloudStatus {
 export function useAuthSession(
   tasks: TaskItem[],
   setTasks: React.Dispatch<React.SetStateAction<TaskItem[]>>,
-  currentStorageKey: string
+  optionalStorageKey?: string
 ) {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredUser());
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -42,7 +42,8 @@ export function useAuthSession(
       if (res.tasks.length > 0) {
         setTasks(res.tasks);
       } else {
-        const userSaved = localStorage.getItem(currentStorageKey);
+        const storageKey = currentUser ? `jev_tasks_user_${currentUser.id}_v1` : (optionalStorageKey || 'jev_minimal_todo_guest_tasks_v2');
+        const userSaved = localStorage.getItem(storageKey);
         if (userSaved) {
           const parsed = JSON.parse(userSaved);
           if (Array.isArray(parsed) && parsed.length > 0) {
@@ -52,7 +53,7 @@ export function useAuthSession(
         }
       }
     }
-  }, [currentStorageKey, setTasks]);
+  }, [currentUser, optionalStorageKey, setTasks]);
 
   // Verify auth session on mount & fetch user tasks
   useEffect(() => {
@@ -75,10 +76,23 @@ export function useAuthSession(
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) setTasks(parsed);
-      } catch {}
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTasks(parsed);
+        } else if (tasks.length > 0) {
+          localStorage.setItem(userStorageKey, JSON.stringify(tasks));
+        }
+      } catch {
+        if (tasks.length > 0) {
+          localStorage.setItem(userStorageKey, JSON.stringify(tasks));
+        }
+      }
     } else {
-      setTasks([]);
+      // Migrate current tasks to user's isolated storage so items are not lost
+      if (tasks.length > 0) {
+        try {
+          localStorage.setItem(userStorageKey, JSON.stringify(tasks));
+        } catch {}
+      }
     }
     await refreshTasksFromCloud();
     // Warm up user's cloud operation logs into local cache
@@ -87,7 +101,7 @@ export function useAuthSession(
         saveOperationLogs(res.logs, user.id);
       }
     }).catch(() => {});
-  }, [refreshTasksFromCloud, setTasks]);
+  }, [refreshTasksFromCloud, setTasks, tasks]);
 
   const handleLogout = useCallback((initialTasks: TaskItem[]) => {
     clearStoredAuth();

@@ -31,6 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onLogout
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -72,6 +73,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
         setSuccessMessage('登录成功，已切换至您的专属数据空间');
         setTimeout(() => {
+          setIsSwitchingAccount(false);
           onAuthSuccess(res.user!);
           onClose();
         }, 500);
@@ -83,6 +85,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         }
         setSuccessMessage('注册成功，专属个人云存储空间已就绪');
         setTimeout(() => {
+          setIsSwitchingAccount(false);
           onAuthSuccess(res.user!);
           onClose();
         }, 500);
@@ -110,7 +113,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </span>
             <div>
               <h3 className="text-sm font-semibold text-[var(--text-main)]">
-                {currentUser ? '用户账号管理' : (mode === 'login' ? '登录个人账号' : '注册专属账号')}
+                {currentUser && !isSwitchingAccount ? '用户账号管理' : (mode === 'login' ? '登录个人账号' : '注册专属账号')}
               </h3>
               <p className="text-[10px] text-[var(--text-faint)]">
                 专属个人空间 · 私密安全存储
@@ -126,8 +129,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           </button>
         </div>
 
-        {/* If already logged in */}
-        {currentUser ? (
+        {/* If already logged in and not explicitly switching accounts */}
+        {currentUser && !isSwitchingAccount ? (
           <div className="py-5 space-y-4 text-xs">
             <div className="p-3.5 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-2">
               <div className="flex items-center gap-2 text-[var(--text-main)] font-semibold text-sm">
@@ -135,34 +138,63 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <span>当前登录: {currentUser.username}</span>
               </div>
               <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
-                您的待办事项已绑定至此账号，受专属加密保护，仅您本人可查看与编辑。
+                您的待办事项已绑定至此账号，受专属隔离保护，仅您本人可查看与编辑。
               </p>
             </div>
 
-            <div className="pt-2 flex items-center gap-2">
+            <div className="pt-2 flex flex-col gap-2">
               <button
                 type="button"
                 onClick={() => {
-                  onLogout();
-                  onClose();
+                  setIsSwitchingAccount(true);
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
                 }}
-                className="flex-1 py-2 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                className="w-full py-2 px-3 rounded-lg bg-[var(--accent-bg)] text-[var(--accent-fg)] hover:opacity-90 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm"
               >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>退出当前账号</span>
+                <LogIn className="w-3.5 h-3.5" />
+                <span>切换其他账号 / 重新登录</span>
               </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="py-2 px-4 rounded-lg bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--border-subtle)] text-xs font-medium transition-colors"
-              >
-                返回
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onLogout();
+                    setIsSwitchingAccount(true);
+                  }}
+                  className="flex-1 py-2 px-3 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/30 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>退出当前账号</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="py-2 px-4 rounded-lg bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--border-subtle)] text-xs font-medium transition-colors"
+                >
+                  返回
+                </button>
+              </div>
             </div>
           </div>
         ) : (
           /* Login / Register Form */
           <form onSubmit={handleSubmit} className="py-3.5 space-y-3.5 text-xs">
+            {currentUser && isSwitchingAccount && (
+              <div className="px-2.5 py-1.5 rounded-lg bg-[var(--chip-bg)] border border-[var(--chip-border)] flex items-center justify-between text-[11px]">
+                <span className="text-[var(--text-sub)] truncate">
+                  当前: <strong>{currentUser.username}</strong> (切换中)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsSwitchingAccount(false)}
+                  className="text-[var(--text-main)] hover:underline shrink-0 ml-2 font-medium"
+                >
+                  取消切换
+                </button>
+              </div>
+            )}
+
             {/* Mode Switcher Tabs */}
             <div className="flex p-0.5 rounded-lg bg-[var(--bg-input)] border border-[var(--border-subtle)]">
               <button
