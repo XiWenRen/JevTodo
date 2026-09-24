@@ -97,8 +97,9 @@ export const OperationLogModal: React.FC<OperationLogModalProps> = ({
   const getLogIcon = (type: OperationType) => {
     switch (type) {
       case 'jev_auto_organize':
+      case 'jev_daily_evolve':
         return (
-          <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white shadow-sm shadow-amber-500/20 shrink-0">
+          <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-sm shadow-cyan-500/20 shrink-0">
             <Sparkles className="w-3.5 h-3.5" />
           </div>
         );

@@ -25,7 +25,16 @@ import {
 import { TaskItem, TaskCategory, ActiveView, AppSettings, AppTheme } from './types';
 import { TaskSnapshot } from './types/operationLog';
 import { recordOperation, taskToSnapshot, fetchOperationLogsFromCloud, saveOperationLogs } from './utils/operationLog';
-import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev, extractDateTime, JevDecision } from './utils/jev';
+import { 
+  evaluateWithJev, 
+  analyzeTasksWithJev, 
+  splitTasksWithJev, 
+  detectDuplicateWithJev, 
+  extractDateTime, 
+  JevDecision,
+  isTaskEligibleForJevEvolution,
+  batchEvolveTasksWithJev
+} from './utils/jev';
 import { 
   checkAndFetchCloudTasks, 
   syncTaskToCloud, 
@@ -61,6 +70,7 @@ import { CherrySubtask } from './types';
 const STORAGE_KEY_GUEST_TASKS_OLD = 'jev_minimal_todo_guest_tasks_v1';
 const STORAGE_KEY_GUEST_TASKS = 'jev_minimal_todo_guest_tasks_v2';
 const STORAGE_KEY_SETTINGS = 'jev_minimal_todo_settings_v1';
+const STORAGE_KEY_LAST_JEV_DAILY_REVIEW = 'jev_minimal_todo_last_daily_review_date';
 
 const INITIAL_TASKS: TaskItem[] = getOnboardingTasks();
 
@@ -410,6 +420,94 @@ export default function App() {
   const analysis = useMemo(() => {
     return analyzeTasksWithJev(tasks);
   }, [tasks]);
+
+  // Candidates eligible for Jev daily evolution / roll-forward
+  const rollForwardCandidates = useMemo(() => {
+    return tasks.filter(isTaskEligibleForJevEvolution);
+  }, [tasks]);
+
+  const [isEvolvingTasks, setIsEvolvingTasks] = useState(false);
+
+  // Execute Jev evolution to promote matured tasks to '即刻完成'
+  const handleExecuteJevEvolution = useCallback(async (candidateList?: TaskItem[]) => {
+    const targets = candidateList || tasks.filter(isTaskEligibleForJevEvolution);
+    if (targets.length === 0) return 0;
+
+    setIsEvolvingTasks(true);
+    try {
+      const { updatedTasks, evolvedCount } = await batchEvolveTasksWithJev(targets, {
+        apiKey: settings.jevApiKey,
+        endpoint: settings.jevEndpoint,
+        allowFallback: settings.allowFallback ?? false
+      });
+
+      if (evolvedCount > 0) {
+        const updatedMap = new Map(updatedTasks.map(t => [t.id, t]));
+        const affectedSnapshots: TaskSnapshot[] = [];
+
+        setTasks(prev => {
+          const next = prev.map(t => {
+            const up = updatedMap.get(t.id);
+            if (up) {
+              affectedSnapshots.push(taskToSnapshot(up, 'Jev日程流转至即刻'));
+              if (cloudStatus.isConfigured && currentUser) {
+                syncTaskToCloud(up);
+              }
+              return up;
+            }
+            return t;
+          });
+          return next;
+        });
+
+        recordOperation(
+          'jev_daily_evolve',
+          'Jev 智能日程流转',
+          `Jev 智能流转：已将 ${evolvedCount} 项到期待办提升至「即刻完成」`,
+          affectedSnapshots
+        );
+
+        showToast(
+          `🌅 Jev 日程演进：已将 ${evolvedCount} 项到期待办智能流转至「即刻完成」`,
+          '查看即刻',
+          () => setActiveView('即刻完成'),
+          5000
+        );
+      }
+      return evolvedCount;
+    } catch (err) {
+      console.warn('[Jev Evolution Error]:', err);
+      showToast('Jev 日程演化评估异常，请检查网络或配置');
+      return 0;
+    } finally {
+      setIsEvolvingTasks(false);
+    }
+  }, [tasks, settings.jevApiKey, settings.jevEndpoint, settings.allowFallback, cloudStatus.isConfigured, currentUser, showToast]);
+
+  // Trigger 1: Daily First-Visit Auto-Trigger for Jev task evolution
+  const hasCheckedDailyReview = useRef(false);
+  useEffect(() => {
+    if (hasCheckedDailyReview.current || tasks.length === 0) return;
+    hasCheckedDailyReview.current = true;
+
+    try {
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const lastReview = localStorage.getItem(STORAGE_KEY_LAST_JEV_DAILY_REVIEW);
+
+      if (lastReview !== todayStr) {
+        localStorage.setItem(STORAGE_KEY_LAST_JEV_DAILY_REVIEW, todayStr);
+        const candidates = tasks.filter(isTaskEligibleForJevEvolution);
+        if (candidates.length > 0) {
+          // Perform automatic morning standup roll-forward with Jev
+          handleExecuteJevEvolution(candidates);
+        }
+      }
+    } catch (e) {
+      console.warn('Daily Jev review check error:', e);
+    }
+  }, [tasks, handleExecuteJevEvolution]);
 
   // Add Task with Jev Decision
   const handleAddTask = async (rawInput: string, precomputedDecision?: JevDecision) => {
@@ -806,7 +904,18 @@ export default function App() {
   };
 
   // Execute Jev Auto-Organize after secondary confirmation
-  const handleExecuteAutoOrganize = (options: OrganizeOptions) => {
+  const handleExecuteAutoOrganize = async (options: OrganizeOptions) => {
+    // If only roll-forward was selected (dedicated action)
+    if (options.rollForwardDueTasks && !options.reorderTasks && !options.deferOverdue && !options.archiveStale) {
+      await handleExecuteJevEvolution();
+      return;
+    }
+
+    // If roll-forward is part of overall organize
+    if (options.rollForwardDueTasks) {
+      await handleExecuteJevEvolution();
+    }
+
     const now = Date.now();
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -1401,6 +1510,7 @@ export default function App() {
         adviceSummary={analysis.adviceSummary}
         overdueCount={analysis.overdueCount}
         staleCount={analysis.cleanupList.length}
+        rollForwardCount={rollForwardCandidates.length}
         isCompactMode={isCompactMode}
         onOpenConfirmModal={() => setIsOrganizeConfirmOpen(true)}
       />
@@ -1487,6 +1597,7 @@ export default function App() {
         adviceSummary={analysis.adviceSummary}
         overdueCount={analysis.overdueCount}
         staleCount={analysis.cleanupList.length}
+        rollForwardCount={rollForwardCandidates.length}
       />
 
       {/* Global Operation Log History Modal */}

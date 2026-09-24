@@ -7,6 +7,7 @@ interface FloatingProgressWidgetProps {
   adviceSummary: string;
   overdueCount: number;
   staleCount?: number;
+  rollForwardCount?: number;
   isCompactMode?: boolean;
   onOpenConfirmModal: () => void;
 }
@@ -16,6 +17,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
   adviceSummary,
   overdueCount,
   staleCount = 0,
+  rollForwardCount = 0,
   isCompactMode = false,
   onOpenConfirmModal
 }) => {
@@ -201,12 +203,17 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         </div>
 
         {/* Overdue Alert Dot (Micro beacon) */}
-        {overdueCount > 0 && (
+        {overdueCount > 0 ? (
           <div 
             className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-rose-500 border border-[var(--bg-app)] shadow-sm animate-pulse"
             title={`${overdueCount} 项任务逾期`}
           />
-        )}
+        ) : rollForwardCount > 0 ? (
+          <div 
+            className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-[var(--bg-app)] shadow-sm animate-pulse"
+            title={`${rollForwardCount} 项待办已到期，点击由 Jev 智能流转`}
+          />
+        ) : null}
       </motion.button>
     </div>
   );

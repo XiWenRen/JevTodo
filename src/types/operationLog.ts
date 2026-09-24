@@ -2,6 +2,7 @@ import { TaskCategory } from '../types';
 
 export type OperationType =
   | 'jev_auto_organize'   // Jev 智能自动整理（多任务聚合）
+  | 'jev_daily_evolve'    // Jev 每日日程智能演变流转
   | 'task_create'         // 创建待办
   | 'task_complete'       // 标记完成
   | 'task_uncomplete'     // 取消完成

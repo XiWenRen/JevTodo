@@ -1250,3 +1250,114 @@ export function detectDuplicateWithJev(
     reason: matchReason
   };
 }
+
+/**
+ * Check if an uncompleted task in '近期完成' or '规划待办' has entered the current day's execution window
+ * and is eligible for Jev re-evaluation and roll-forward into '即刻完成'.
+ */
+export function isTaskEligibleForJevEvolution(task: TaskItem): boolean {
+  if (task.completed) return false;
+  if (task.category === '即刻完成') return false;
+
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const endOfTodayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999).getTime();
+  const startOfTodayMs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).getTime();
+
+  // 1. Concrete due timestamp is today or earlier
+  if (task.dueTimestamp && task.dueTimestamp <= endOfTodayMs) {
+    return true;
+  }
+
+  // 2. ISO date is today or earlier
+  if (task.dueDateIso) {
+    const isoDatePart = task.dueDateIso.slice(0, 10);
+    if (isoDatePart <= todayStr) {
+      return true;
+    }
+  }
+
+  // 3. Due date text indicates today / overdue / past relative date
+  if (task.dueDate) {
+    if (task.dueDate.includes('今天') || task.dueDate.includes('已逾期') || task.dueDate.includes('昨天')) {
+      return true;
+    }
+    // If it mentions "明天" but the task was created or updated BEFORE today (i.e. yesterday's tomorrow has arrived)
+    if (task.dueDate.includes('明天') && (task.createdAt < startOfTodayMs || task.updatedAt < startOfTodayMs)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Re-evaluates a matured task using Jev AI System One, transitioning it into '即刻完成'
+ * with freshly calibrated urgencyScore, updated natural due date strings and tags.
+ */
+export async function evolveTaskWithJev(
+  task: TaskItem,
+  options?: { apiKey?: string; endpoint?: string; allowFallback?: boolean }
+): Promise<{ updatedTask: TaskItem; changed: boolean }> {
+  // Strip obsolete relative day prefixes like "明天", "明早", "后天"
+  const cleanTitle = task.title.replace(/^(明天|明早|明晚|后天|今天)\s*/, '');
+  const prompt = `【日程演化审查】当前实际时间是：今天。待办事项：「${cleanTitle}」，原定安排时间为：${task.dueDate || '今天'}。该事项今天已进入执行窗口，请判定其在今天的执行分类、时间与紧迫度。`;
+
+  const decision = await evaluateWithJev(prompt, {
+    apiKey: options?.apiKey,
+    endpoint: options?.endpoint,
+    triggerType: 'manual',
+    allowFallback: options?.allowFallback
+  });
+
+  const nextCategory = decision.category || '即刻完成';
+  const updatedTask: TaskItem = {
+    ...task,
+    category: nextCategory,
+    urgencyScore: decision.urgencyScore ?? 0.88,
+    tags: Array.from(new Set([...task.tags, ...(decision.tags || [])])),
+    dueDate: decision.dueDate || (nextCategory === '即刻完成' ? '今天' : task.dueDate),
+    dueDateIso: decision.dueDateIso || task.dueDateIso,
+    dueTimestamp: decision.dueTimestamp || task.dueTimestamp,
+    updatedAt: Date.now()
+  };
+
+  const changed = updatedTask.category !== task.category || updatedTask.dueDate !== task.dueDate;
+  return { updatedTask, changed };
+}
+
+/**
+ * Batch-evaluates eligible candidate tasks using Jev AI in parallel.
+ */
+export async function batchEvolveTasksWithJev(
+  tasksToEvolve: TaskItem[],
+  options?: { apiKey?: string; endpoint?: string; allowFallback?: boolean }
+): Promise<{ updatedTasks: TaskItem[]; evolvedCount: number }> {
+  if (tasksToEvolve.length === 0) {
+    return { updatedTasks: [], evolvedCount: 0 };
+  }
+
+  const results = await Promise.allSettled(
+    tasksToEvolve.map(t => evolveTaskWithJev(t, options))
+  );
+
+  const updatedTasks: TaskItem[] = [];
+  let evolvedCount = 0;
+
+  for (let i = 0; i < tasksToEvolve.length; i++) {
+    const res = results[i];
+    if (res.status === 'fulfilled') {
+      updatedTasks.push(res.value.updatedTask);
+      if (res.value.changed) {
+        evolvedCount++;
+      }
+    } else {
+      console.warn(`[Jev Evolution] Failed to evolve task ${tasksToEvolve[i].id}:`, res.reason);
+      updatedTasks.push(tasksToEvolve[i]);
+    }
+  }
+
+  return { updatedTasks, evolvedCount };
+}
+
