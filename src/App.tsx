@@ -102,6 +102,7 @@ export default function App() {
   const [gestureData, setGestureData] = useState<GestureData | null>(null);
   const [animalActiveTarget, setAnimalActiveTarget] = useState<GestureActionType>('none');
   const [animalChompingTarget, setAnimalChompingTarget] = useState<GestureActionType | null>(null);
+  const [animalJumpingTarget, setAnimalJumpingTarget] = useState<GestureActionType | null>(null);
 
   // Derive local storage key based on active user to isolate browser cache
   const currentStorageKey = useMemo(() => {
@@ -1471,6 +1472,7 @@ export default function App() {
             isVisible={!!gestureData}
             activeTarget={animalActiveTarget}
             chompingAnimal={animalChompingTarget}
+            jumpingAnimal={animalJumpingTarget}
           />
         </main>
       </div>
@@ -1500,10 +1502,12 @@ export default function App() {
         onClose={() => {
           setGestureData(null);
           setAnimalActiveTarget('none');
+          setAnimalJumpingTarget(null);
         }}
         onAction={handleGestureAction}
         onTargetChange={setAnimalActiveTarget}
         onChompChange={setAnimalChompingTarget}
+        onJumpChange={setAnimalJumpingTarget}
       />
 
       {/* Left Slide-out Category Drawer */}
@@ -1542,7 +1546,7 @@ export default function App() {
         staleCount={analysis.cleanupList.length}
         rollForwardCount={rollForwardCandidates.length}
         isCompactMode={isCompactMode}
-        onOpenConfirmModal={() => setIsOrganizeConfirmOpen(true)}
+        onConfirmOrganize={handleExecuteAutoOrganize}
       />
 
       {/* Jev Duplicate Detection Resolution Modal */}
