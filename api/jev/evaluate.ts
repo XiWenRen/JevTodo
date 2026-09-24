@@ -21,7 +21,10 @@ export default async function handler(req: any, res: any) {
     }
 
     const activeApiKey = apiKey || process.env.JEV_API_KEY || process.env.VERCEL_AI_GATEWAY_KEY;
-    const targetEndpoint = endpoint || 'https://ai-gateway.vercel.sh/typesafe/v1/systemone';
+    let targetEndpoint = endpoint || 'https://api.typesafe.ai/v1/systemone';
+    if (targetEndpoint.includes('ai-gateway.vercel.sh')) {
+      targetEndpoint = 'https://api.typesafe.ai/v1/systemone';
+    }
     const maskedKey = activeApiKey ? `${activeApiKey.slice(0, 10)}...${activeApiKey.slice(-6)} (长${activeApiKey.length})` : '(未提供)';
 
     let lastError: string | null = null;
@@ -30,11 +33,12 @@ export default async function handler(req: any, res: any) {
     if (activeApiKey) {
       try {
         payload = {
-          model: 'typesafe-ai/jev',
+          model: 'jev-latest',
           state: text,
           questions: {
             category: {
               type: 'choice',
+              instructions: '该待办事项应该属于哪个执行时机分类？',
               criteria: {
                 '即刻完成': '今天内需做完、紧急重要事项',
                 '近期完成': '本周或几天内需处理推进的事项',
@@ -43,6 +47,7 @@ export default async function handler(req: any, res: any) {
             },
             urgency_score: {
               type: 'score',
+              instructions: '该任务的紧迫程度评分（0为极低缓，4为极度紧迫）',
               criteria: [
                 '极低缓，随时可做',
                 '低缓，非紧急',
@@ -53,8 +58,7 @@ export default async function handler(req: any, res: any) {
             },
             needs_cleanup: {
               type: 'noul',
-              instructions: '该任务是否属于无实质意义的过期或冗余任务，建议清理或归档？',
-              statement: '该任务属于无实质意义的过期或冗余任务，建议清理或归档'
+              instructions: '该任务是否属于无实质意义的过期或冗余任务，建议清理或归档？重要辨析准则：不同时间段或不同日期的同类任务属于不同时段的独立日程安排，绝非冗余或重复任务。'
             }
           }
         };
@@ -72,21 +76,21 @@ export default async function handler(req: any, res: any) {
           const data = await jevRes.json();
           const answers = data.answers || {};
 
-          const category = answers.category?.value || answers.category || '即刻完成';
+          const category = answers.category?.choice || answers.category?.value || answers.category || '即刻完成';
 
           let urgencyScore = 0.8;
           const scoreVal = typeof answers.urgency_score === 'number'
             ? answers.urgency_score
-            : (answers.urgency_score?.value ?? answers.urgency_score?.score);
+            : (answers.urgency_score?.score ?? answers.urgency_score?.value);
           if (typeof scoreVal === 'number') {
-            urgencyScore = scoreVal > 1 ? Math.min(1, Math.max(0, (scoreVal - 1) / 4)) : scoreVal;
+            urgencyScore = scoreVal > 1 ? Math.min(1, Math.max(0, scoreVal / 4)) : scoreVal;
           }
 
           const cleanupProb = typeof answers.needs_cleanup === 'number'
             ? answers.needs_cleanup
-            : (answers.needs_cleanup?.value ?? answers.needs_cleanup?.probability ?? 0);
+            : (answers.needs_cleanup?.noul ?? answers.needs_cleanup?.value ?? answers.needs_cleanup?.probability ?? 0);
 
-          const confidence = answers.category?.confidence ?? data.confidence ?? 0.95;
+          const confidence = answers.category?.confidence ?? answers.urgency_score?.confidence ?? data.confidence ?? 0.95;
           const durationMs = Date.now() - startTime;
 
           // Write to Jev log file (and Vercel stdout)
@@ -99,7 +103,7 @@ export default async function handler(req: any, res: any) {
             statusCode: 200,
             durationMs,
             requestPayload: payload,
-            result: { category, urgencyScore, cleanupProb, confidence, source: 'vercel-ai-gateway-jev' }
+            result: { category, urgencyScore, cleanupProb, confidence, source: 'typesafe-jev-systemone' }
           });
 
           return res.status(200).json({
@@ -108,7 +112,7 @@ export default async function handler(req: any, res: any) {
             needsCleanup: cleanupProb > 0.6,
             confidence,
             rawJevAnswers: answers,
-            source: 'vercel-ai-gateway-jev',
+            source: 'typesafe-jev-systemone',
             durationMs
           });
         } else {

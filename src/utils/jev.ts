@@ -722,7 +722,10 @@ export async function evaluateWithJev(
     (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_JEV_API_KEY as string)) ||
     '';
   const triggerType = options?.triggerType || 'preview';
-  const targetEndpoint = options?.endpoint || 'https://ai-gateway.vercel.sh/typesafe/v1/systemone';
+  let targetEndpoint = options?.endpoint || 'https://api.typesafe.ai/v1/systemone';
+  if (targetEndpoint.includes('ai-gateway.vercel.sh')) {
+    targetEndpoint = 'https://api.typesafe.ai/v1/systemone';
+  }
   const maskedKey = maskApiKey(effectiveApiKey);
 
   // If user provided an API key or env var is present, call the backend /api/jev/evaluate endpoint
@@ -734,7 +737,7 @@ export async function evaluateWithJev(
         body: JSON.stringify({
           text: rawInput,
           apiKey: effectiveApiKey,
-          endpoint: options?.endpoint,
+          endpoint: targetEndpoint,
           triggerType
         })
       });
@@ -756,7 +759,7 @@ export async function evaluateWithJev(
             source: data.source || 'jev-api'
           };
 
-          const isRemote = data.source === 'vercel-ai-gateway-jev';
+          const isRemote = data.source === 'typesafe-jev-systemone' || data.source === 'vercel-ai-gateway-jev';
           console.groupCollapsed(
             `%c[Jev AI]%c ${triggerType === 'preview' ? '⚡ 1s实时预测' : '🚀 任务创建评估'}: "${rawInput}" %c(${durationMs}ms) [${isRemote ? '云端模型' : '本地校准'}]`,
             `background: ${isRemote ? '#10b981' : '#f59e0b'}; color: white; padding: 1px 6px; border-radius: 3px; font-weight: bold;`,

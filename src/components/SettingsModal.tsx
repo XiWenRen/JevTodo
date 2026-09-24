@@ -46,7 +46,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenAuth
 }) => {
   const [apiKey, setApiKey] = useState(settings.jevApiKey || '');
-  const [endpoint, setEndpoint] = useState(settings.jevEndpoint || 'https://ai-gateway.vercel.sh/typesafe/v1/systemone');
+  const initialEndpoint = (!settings.jevEndpoint || settings.jevEndpoint.includes('ai-gateway.vercel.sh'))
+    ? 'https://api.typesafe.ai/v1/systemone'
+    : settings.jevEndpoint;
+  const [endpoint, setEndpoint] = useState(initialEndpoint);
   const [selectedTheme, setSelectedTheme] = useState<AppTheme>(settings.theme || 'obsidian');
   const [cherryDuration, setCherryDuration] = useState<number>(settings.cherryDurationMinutes || 25);
   const [cherrySound, setCherrySound] = useState<boolean>(settings.cherrySoundEnabled ?? true);
@@ -119,9 +122,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         return;
       }
 
-      if (data.source === 'vercel-ai-gateway-jev') {
+      if (data.source && data.source !== 'jev-calibrated-local') {
         setTestStatus('success');
-        setTestMessage(`通信正常！Cherry 智能决策响应正常: [${data.category}]`);
+        setTestMessage(`通信正常！TypeSafe Jev 模型响应成功: [${data.category}]`);
       } else {
         setTestStatus('success');
         setTestMessage(`智能决策引擎运行正常: [${data.category}]`);
@@ -454,7 +457,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="text"
                 value={endpoint}
                 onChange={(e) => setEndpoint(e.target.value)}
-                placeholder="https://ai-gateway.vercel.sh/typesafe/v1/systemone"
+                placeholder="https://api.typesafe.ai/v1/systemone"
                 className="w-full bg-[var(--bg-input)] border border-[var(--border-medium)] rounded-lg px-3 py-2 text-[var(--text-main)] placeholder:text-[var(--text-faint)] outline-none focus:border-[var(--accent-bg)] font-mono text-xs"
               />
             </div>

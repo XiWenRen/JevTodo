@@ -4,7 +4,7 @@
 
 <div align="center">
 
-[![Jev Decision Model](https://img.shields.io/badge/Decision_Model-Jev_v1.0-06b6d4?logo=sparkles&logoColor=white)](https://ai-gateway.vercel.sh/)
+[![Jev Decision Model](https://img.shields.io/badge/Decision_Model-Jev_System_One-06b6d4?logo=sparkles&logoColor=white)](https://docs.typesafe.ai/)
 [![Auto Classification](https://img.shields.io/badge/Auto_Categorize-Instant%20%7C%20Upcoming%20%7C%20Plan-6366f1)](https://github.com/)
 [![React](https://img.shields.io/badge/React-19.0-61dafb?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)

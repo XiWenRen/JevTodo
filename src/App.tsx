@@ -133,9 +133,13 @@ export default function App() {
       const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
       if (saved) {
         const parsed = JSON.parse(saved);
+        const endpoint = (!parsed.jevEndpoint || parsed.jevEndpoint.includes('ai-gateway.vercel.sh'))
+          ? 'https://api.typesafe.ai/v1/systemone'
+          : parsed.jevEndpoint;
         return {
           theme: 'obsidian',
           ...parsed,
+          jevEndpoint: endpoint,
           jevApiKey: parsed.jevApiKey || (import.meta.env.VITE_JEV_API_KEY as string) || ''
         };
       }
@@ -144,7 +148,7 @@ export default function App() {
     }
     return {
       jevApiKey: (import.meta.env.VITE_JEV_API_KEY as string) || '',
-      jevEndpoint: 'https://ai-gateway.vercel.sh/typesafe/v1/systemone',
+      jevEndpoint: 'https://api.typesafe.ai/v1/systemone',
       autoCleanupEnabled: true,
       autoCleanupDays: 5,
       widgetWidth: 'compact',
