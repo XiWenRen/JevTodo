@@ -13,53 +13,8 @@ interface CherryClockModalProps {
   onComplete: (taskId: string, durationMinutes: number) => void;
 }
 
-interface AnimalConfig {
-  id: 'hamster' | 'dino' | 'sloth';
-  name: string;
-  image: string;
-  // Precise cherry center coordinates relative to 256x256 animal box
-  cherryCenter: {
-    left: string;
-    top: string;
-  };
-  biteDirection: 'left' | 'right' | 'top';
-}
-
-const ANIMALS: AnimalConfig[] = [
-  {
-    id: 'hamster',
-    name: '小仓鼠',
-    image: '/assets/animals/hamster.webp',
-    // 松鼠/仓鼠：嘴巴在左上角，樱桃向左上更多一点
-    cherryCenter: {
-      left: '20%',
-      top: '16%'
-    },
-    biteDirection: 'left'
-  },
-  {
-    id: 'dino',
-    name: '小恐龙',
-    image: '/assets/animals/dino.webp',
-    // 恐龙：嘴巴在上部张开，樱桃再向上一点，咬痕朝向左侧嘴内
-    cherryCenter: {
-      left: '60%',
-      top: '20%'
-    },
-    biteDirection: 'left'
-  },
-  {
-    id: 'sloth',
-    name: '树懒',
-    image: '/assets/animals/sloth.webp',
-    // 树懒：嘴巴在左上方，樱桃向左上一点
-    cherryCenter: {
-      left: '35%',
-      top: '18%'
-    },
-    biteDirection: 'left'
-  }
-];
+import { useActiveSkin } from '../plugins/skins/SkinRegistry';
+import { FocusPetConfig } from '../plugins/skins/types';
 
 export function playCherryCompletionChime() {
   try {
@@ -236,8 +191,21 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
   const [isFinished, setIsFinished] = useState<boolean>(false);
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
 
-  // Randomly select 1 of 3 animals upon each session
-  const [currentAnimal, setCurrentAnimal] = useState<AnimalConfig>(ANIMALS[0]);
+  const { activeSkin } = useActiveSkin();
+  const pets = activeSkin.focusPets && activeSkin.focusPets.length > 0 
+    ? activeSkin.focusPets 
+    : [
+        {
+          id: 'hamster',
+          name: '小仓鼠',
+          image: '/assets/animals/hamster.webp',
+          cherryCenter: { left: '20%', top: '16%' },
+          biteDirection: 'left' as const
+        }
+      ];
+
+  // Randomly select 1 pet from active skin upon each session
+  const [currentAnimal, setCurrentAnimal] = useState<FocusPetConfig>(pets[0]);
 
   // Progressive Cherry Bite Stages:
   // 0: Whole fresh cherry
@@ -250,11 +218,11 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Initialize session & random animal
+  // Initialize session & random animal from active skin
   useEffect(() => {
     if (isOpen) {
-      const randomIndex = Math.floor(Math.random() * ANIMALS.length);
-      setCurrentAnimal(ANIMALS[randomIndex]);
+      const randomIndex = Math.floor(Math.random() * pets.length);
+      setCurrentAnimal(pets[randomIndex] || pets[0]);
       setSecondsLeft(totalSeconds);
       setIsRunning(true);
       setIsFinished(false);
@@ -263,7 +231,7 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
-  }, [isOpen, totalSeconds]);
+  }, [isOpen, totalSeconds, pets]);
 
   // Main countdown interval
   useEffect(() => {

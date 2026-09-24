@@ -67,27 +67,28 @@ import { getOnboardingTasks } from './data/onboardingTasks';
 import { CalendarReportsView } from './components/CalendarReportsView';
 import { CherryClockModal } from './components/CherryClockModal';
 import { CherrySubtask } from './types';
+import { useAppSettings, THEMES } from './hooks/useAppSettings';
+import { useAuthSession } from './hooks/useAuthSession';
+import { useCherryFocus } from './hooks/useCherryFocus';
 
 const STORAGE_KEY_GUEST_TASKS_OLD = 'jev_minimal_todo_guest_tasks_v1';
 const STORAGE_KEY_GUEST_TASKS = 'jev_minimal_todo_guest_tasks_v2';
-const STORAGE_KEY_SETTINGS = 'jev_minimal_todo_settings_v1';
 const STORAGE_KEY_LAST_JEV_DAILY_REVIEW = 'jev_minimal_todo_last_daily_review_date';
 
 const INITIAL_TASKS: TaskItem[] = getOnboardingTasks();
 
-const THEMES: { id: AppTheme; label: string; icon: string }[] = [
-  { id: 'obsidian', label: '墨黑', icon: '🌙' },
-  { id: 'paper', label: '素白', icon: '☀️' },
-  { id: 'sand', label: '暖杏', icon: '🌾' },
-  { id: 'mist', label: '月灰', icon: '🌫️' }
-];
-
 export default function App() {
-  // Current logged in user
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredUser());
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  // App Settings & Theme
+  const {
+    settings,
+    setSettings,
+    isSettingsModalOpen,
+    setIsSettingsModalOpen,
+    handleSaveSettings,
+    handleNextTheme
+  } = useAppSettings();
 
-  // Active Category View state (replaced waterfall cascade with clean drawer-based view switching)
+  // Active Category View state
   const [activeView, setActiveView] = useState<ActiveView>('即刻完成');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
@@ -104,11 +105,6 @@ export default function App() {
   const [animalChompingTarget, setAnimalChompingTarget] = useState<GestureActionType | null>(null);
 
   // Derive local storage key based on active user to isolate browser cache
-  const currentStorageKey = useMemo(() => {
-    return currentUser ? `jev_tasks_user_${currentUser.id}_v1` : STORAGE_KEY_GUEST_TASKS;
-  }, [currentUser]);
-
-  // Tasks state
   const [tasks, setTasks] = useState<TaskItem[]>(() => {
     try {
       const user = getStoredUser();
@@ -124,7 +120,6 @@ export default function App() {
         if (oldSaved) {
           const oldParsed = JSON.parse(oldSaved);
           if (Array.isArray(oldParsed) && oldParsed.length > 0) {
-            // Check if oldParsed is just the old PM demo dataset
             const isOldPmDemo = oldParsed.some((t: any) => t.id === 'pm-ops-urgent' || t.id === 'pm-task-1');
             if (!isOldPmDemo) {
               localStorage.setItem(STORAGE_KEY_GUEST_TASKS, JSON.stringify(oldParsed));
@@ -139,49 +134,36 @@ export default function App() {
     return INITIAL_TASKS;
   });
 
-  const [settings, setSettings] = useState<AppSettings>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const endpoint = (!parsed.jevEndpoint || parsed.jevEndpoint.includes('ai-gateway.vercel.sh'))
-          ? 'https://api.typesafe.ai/v1/systemone'
-          : parsed.jevEndpoint;
-        return {
-          theme: 'obsidian',
-          ...parsed,
-          jevEndpoint: endpoint,
-          jevApiKey: parsed.jevApiKey || (import.meta.env.VITE_JEV_API_KEY as string) || '',
-          allowFallback: parsed.allowFallback ?? false
-        };
-      }
-    } catch (e) {
-      console.warn('Error reading settings from storage:', e);
-    }
-    return {
-      jevApiKey: (import.meta.env.VITE_JEV_API_KEY as string) || '',
-      jevEndpoint: 'https://api.typesafe.ai/v1/systemone',
-      autoCleanupEnabled: true,
-      autoCleanupDays: 5,
-      widgetWidth: 'compact',
-      showCompleted: true,
-      theme: 'obsidian',
-      allowFallback: false
-    };
-  });
+  const currentStorageKey = useMemo(() => {
+    const user = getStoredUser();
+    return user ? `jev_tasks_user_${user.id}_v1` : STORAGE_KEY_GUEST_TASKS;
+  }, []);
 
-  // Cloud persistence status
-  const [cloudStatus, setCloudStatus] = useState<{
-    isConfigured: boolean;
-    source: string;
-    isSyncing: boolean;
-    isAuthenticated: boolean;
-  }>({
-    isConfigured: false,
-    source: 'local_storage',
-    isSyncing: false,
-    isAuthenticated: false
-  });
+  // Auth Session & Cloud Sync
+  const {
+    currentUser,
+    setCurrentUser,
+    isAuthModalOpen,
+    setIsAuthModalOpen,
+    cloudStatus,
+    setCloudStatus,
+    refreshTasksFromCloud,
+    handleAuthSuccess,
+    handleLogout: rawHandleLogout
+  } = useAuthSession(tasks, setTasks, currentStorageKey);
+
+  const handleLogout = useCallback(() => {
+    rawHandleLogout(INITIAL_TASKS);
+  }, [rawHandleLogout]);
+
+  // Cherry Focus Modal
+  const {
+    cherryActiveTask,
+    isCherryModalOpen,
+    handleStartCherryClock,
+    handleCloseCherryModal
+  } = useCherryFocus();
+
 
   // UI Modals & Menus
   const [isOrganizeConfirmOpen, setIsOrganizeConfirmOpen] = useState(false);
@@ -195,7 +177,6 @@ export default function App() {
   } | null>(null);
 
   const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isApiKeyUsageModalOpen, setIsApiKeyUsageModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
@@ -216,15 +197,6 @@ export default function App() {
   // Jev Batch Input & Auto-Split Modal State
   const [isBatchSplitModalOpen, setIsBatchSplitModalOpen] = useState(false);
   const [batchSplitInitialText, setBatchSplitInitialText] = useState('');
-
-  // Cherry Clock Modal State & Handlers
-  const [cherryActiveTask, setCherryActiveTask] = useState<TaskItem | null>(null);
-  const [isCherryModalOpen, setIsCherryModalOpen] = useState(false);
-
-  const handleStartCherryClock = useCallback((task: TaskItem) => {
-    setCherryActiveTask(task);
-    setIsCherryModalOpen(true);
-  }, []);
 
   const handleCherryClockComplete = useCallback((taskId: string, durationMinutes: number) => {
     const now = Date.now();
@@ -308,47 +280,6 @@ export default function App() {
     };
   }, []);
 
-  // Load cloud tasks for current authenticated user
-  const refreshTasksFromCloud = useCallback(async () => {
-    setCloudStatus(prev => ({ ...prev, isSyncing: true }));
-    const res = await checkAndFetchCloudTasks();
-
-    setCloudStatus({
-      isConfigured: res.configured,
-      source: res.source,
-      isSyncing: false,
-      isAuthenticated: res.authenticated
-    });
-
-    if (res.configured && res.authenticated) {
-      if (res.tasks.length > 0) {
-        setTasks(res.tasks);
-      } else {
-        const userSaved = localStorage.getItem(currentStorageKey);
-        if (userSaved) {
-          const parsed = JSON.parse(userSaved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setTasks(parsed);
-            await batchSyncTasksToCloud(parsed);
-          }
-        }
-      }
-    }
-  }, [currentStorageKey]);
-
-  // Verify auth session on mount & fetch user tasks
-  useEffect(() => {
-    let isMounted = true;
-    checkCurrentUser().then(user => {
-      if (!isMounted) return;
-      setCurrentUser(user);
-      refreshTasksFromCloud();
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, [refreshTasksFromCloud]);
-
   // Save tasks to user-specific localStorage cache
   useEffect(() => {
     try {
@@ -357,55 +288,6 @@ export default function App() {
       console.warn('Error saving tasks:', e);
     }
   }, [tasks, currentStorageKey]);
-
-  // Save settings to localStorage
-  const handleSaveSettings = (newSettings: AppSettings) => {
-    setSettings(newSettings);
-    try {
-      localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(newSettings));
-    } catch (e) {
-      console.warn('Error saving settings:', e);
-    }
-  };
-
-  // User Auth Handlers
-  const handleAuthSuccess = async (user: AuthUser) => {
-    setCurrentUser(user);
-    const userStorageKey = `jev_tasks_user_${user.id}_v1`;
-    const cached = localStorage.getItem(userStorageKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) setTasks(parsed);
-      } catch {}
-    } else {
-      setTasks([]);
-    }
-    await refreshTasksFromCloud();
-    // Warm up user's cloud operation logs into local cache
-    fetchOperationLogsFromCloud().then(res => {
-      if (res.configured && res.authenticated && res.logs.length > 0) {
-        saveOperationLogs(res.logs, user.id);
-      }
-    }).catch(() => {});
-  };
-
-  const handleLogout = () => {
-    clearStoredAuth();
-    setCurrentUser(null);
-    setTasks(INITIAL_TASKS);
-    setCloudStatus(prev => ({ ...prev, isAuthenticated: false }));
-  };
-
-  // Quick theme cycle
-  const handleNextTheme = () => {
-    const currentIndex = THEMES.findIndex(t => t.id === settings.theme);
-    const nextTheme = THEMES[(currentIndex + 1) % THEMES.length].id;
-    handleSaveSettings({
-      ...settings,
-      theme: nextTheme
-    });
-  };
 
   // Handle URL query parameters for desktop shortcut auto-add
   useEffect(() => {
@@ -1687,10 +1569,7 @@ export default function App() {
         durationMinutes={settings.cherryDurationMinutes || 25}
         soundEnabled={settings.cherrySoundEnabled ?? true}
         theme={settings.theme}
-        onClose={() => {
-          setIsCherryModalOpen(false);
-          setCherryActiveTask(null);
-        }}
+        onClose={handleCloseCherryModal}
         onComplete={handleCherryClockComplete}
       />
     </div>

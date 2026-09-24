@@ -16,13 +16,15 @@ import {
   KeyRound,
   ChevronRight,
   Activity,
-  Sparkles
+  Sparkles,
+  Palette
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { AuthUser } from '../utils/auth';
 import { playCherryCompletionChime } from './CherryClockModal';
+import { useActiveSkin } from '../plugins/skins/SkinRegistry';
 
-type SettingsTab = 'ai' | 'clock' | 'sync';
+type SettingsTab = 'ai' | 'clock' | 'skin' | 'sync';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -61,6 +63,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [testMessage, setTestMessage] = useState<string>('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  const { activeSkinId, allSkins, setSkin } = useActiveSkin();
 
   if (!isOpen) return null;
 
@@ -199,6 +203,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             >
               <Clock className="w-3.5 h-3.5 text-rose-400" />
               <span>专注时钟</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('skin')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                activeTab === 'skin'
+                  ? 'bg-[var(--chip-bg)] text-[var(--text-main)] shadow-sm border border-[var(--border-subtle)]'
+                  : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'
+              }`}
+            >
+              <Palette className="w-3.5 h-3.5 text-purple-400" />
+              <span>皮肤与动物</span>
             </button>
             <button
               type="button"
@@ -475,7 +491,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: 数据与多端同步 */}
+          {/* TAB 3: 皮肤与微件插件 */}
+          {activeTab === 'skin' && (
+            <div className="space-y-3.5">
+              <div className="p-3 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-main)]">
+                    <Palette className="w-4 h-4 text-purple-400" />
+                    <span>皮肤与小动物插件 (Skin Plugins)</span>
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-medium">
+                    架构解耦
+                  </span>
+                </div>
+                <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
+                  显示表现层与核心业务完全解耦。切换不同皮肤包可无缝热重载底部动作坞、悬浮陪伴小仓鼠和专注时钟萌宠。
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2.5">
+                {allSkins.map((skin) => {
+                  const isSelected = activeSkinId === skin.id;
+                  return (
+                    <div
+                      key={skin.id}
+                      onClick={() => setSkin(skin.id)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
+                        isSelected
+                          ? 'bg-purple-500/10 border-purple-500/40 shadow-sm'
+                          : 'bg-[var(--chip-bg)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
+                      }`}
+                    >
+                      <div className="text-2xl p-2 rounded-xl bg-[var(--bg-main)] border border-[var(--border-subtle)] shrink-0 flex items-center justify-center">
+                        {skin.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-[var(--text-main)] flex items-center gap-1.5">
+                            {skin.name}
+                            {isSelected && (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-purple-500 fill-purple-500/20" />
+                            )}
+                          </span>
+                          <span className="text-[10px] text-[var(--text-faint)] font-mono">
+                            {skin.author}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[var(--text-sub)] mt-1 line-clamp-2">
+                          {skin.description}
+                        </p>
+                        {skin.focusPets && skin.focusPets.length > 0 && (
+                          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-[var(--text-faint)]">
+                            <span>内置形象:</span>
+                            <div className="flex items-center gap-1">
+                              {skin.focusPets.map(p => (
+                                <span key={p.id} className="px-1.5 py-0.5 rounded bg-[var(--bg-main)] text-[var(--text-main)] border border-[var(--border-subtle)]">
+                                  {p.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: 数据与多端同步 */}
           {activeTab === 'sync' && (
             <div className="space-y-3.5">
               <div className="p-3 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-2">

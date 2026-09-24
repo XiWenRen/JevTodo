@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { TaskItem } from '../types';
+import { useActiveSkin } from '../plugins/skins/SkinRegistry';
 
 interface FloatingProgressWidgetProps {
   tasks: TaskItem[];
@@ -21,6 +22,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
   isCompactMode = false,
   onOpenConfirmModal
 }) => {
+  const { activeSkin } = useActiveSkin();
   // Blinking micro-expression state
   const [isBlinking, setIsBlinking] = useState(false);
 
@@ -133,74 +135,13 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           </defs>
         </svg>
 
-        {/* Petite Mascot Orb / Core */}
-        <div 
-          className="absolute inset-[3.5px] rounded-full flex items-center justify-center overflow-hidden border transition-all duration-200"
-          style={{
-            backgroundColor: 'color-mix(in srgb, var(--bg-drawer) 96%, transparent)',
-            backdropFilter: 'blur(16px)',
-            borderColor: 'var(--border-medium)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.25), inset 0 1px 1px rgba(255,255,255,0.18)'
-          }}
-        >
-          {/* Sleek Mascot SVG Artwork */}
-          <svg className="w-5 h-5 pointer-events-none" viewBox="0 0 24 24" fill="none">
-            {/* Robot/Cat Helmet Ears */}
-            <path
-              d="M6 7.5L8.5 4.5L10 6.5M18 7.5L15.5 4.5L14 6.5"
-              stroke="var(--text-sub)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="opacity-70"
-            />
-            {/* Head Contour */}
-            <rect
-              x="4"
-              y="6"
-              width="16"
-              height="13"
-              rx="6"
-              fill="currentColor"
-              className="text-zinc-900 dark:text-zinc-950"
-            />
-            {/* Glossy Visor Screen */}
-            <rect
-              x="5.5"
-              y="7.5"
-              width="13"
-              height="10"
-              rx="4"
-              fill="#09090b"
-              stroke="rgba(255,255,255,0.12)"
-              strokeWidth="0.8"
-            />
-
-            {/* Expressive LED Matrix Optics */}
-            {isBlinking ? (
-              // Blink line
-              <>
-                <line x1="8" y1="12.5" x2="10.5" y2="12.5" stroke="#38bdf8" strokeWidth="1.2" strokeLinecap="round" />
-                <line x1="13.5" y1="12.5" x2="16" y2="12.5" stroke="#38bdf8" strokeWidth="1.2" strokeLinecap="round" />
-              </>
-            ) : isAllCompleted ? (
-              // Happy curve
-              <>
-                <path d="M8 13.5C8.5 12 10 12 10.5 13.5" stroke="#34d399" strokeWidth="1.4" strokeLinecap="round" />
-                <path d="M13.5 13.5C14 12 15.5 12 16 13.5" stroke="#34d399" strokeWidth="1.4" strokeLinecap="round" />
-              </>
-            ) : (
-              // Normal cyan glowing optics
-              <>
-                <circle cx="9" cy="12.5" r="1.3" fill="#38bdf8" className="shadow-xs" />
-                <circle cx="15" cy="12.5" r="1.3" fill="#38bdf8" className="shadow-xs" />
-                {/* Subtle blush */}
-                <ellipse cx="7.5" cy="14" rx="0.8" ry="0.4" fill="rgba(244,114,182,0.4)" />
-                <ellipse cx="16.5" cy="14" rx="0.8" ry="0.4" fill="rgba(244,114,182,0.4)" />
-              </>
-            )}
-          </svg>
-        </div>
+        {/* Dynamic Companion Mascot rendered via Active Skin Plugin */}
+        <activeSkin.CompanionWidget 
+          progressPercent={progressPercent}
+          isAllCompleted={isAllCompleted}
+          isBlinking={isBlinking}
+          size={size}
+        />
 
         {/* Overdue Alert Dot (Micro beacon) */}
         {overdueCount > 0 ? (
