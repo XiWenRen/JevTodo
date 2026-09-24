@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ScrollText, 
@@ -11,11 +11,18 @@ import {
   Clock, 
   ChevronRight, 
   Layers, 
-  RotateCcw,
-  Sparkle
+  Database,
+  Cloud,
+  Loader2
 } from 'lucide-react';
 import { OperationLogItem, OperationType } from '../types/operationLog';
-import { getOperationLogs, clearOperationLogs } from '../utils/operationLog';
+import { 
+  getOperationLogs, 
+  saveOperationLogs,
+  clearOperationLogs, 
+  fetchOperationLogsFromCloud,
+  batchSyncOperationLogsToCloud
+} from '../utils/operationLog';
 import { TaskSnapshotModal } from './TaskSnapshotModal';
 
 interface OperationLogModalProps {
@@ -29,18 +36,49 @@ export const OperationLogModal: React.FC<OperationLogModalProps> = ({
 }) => {
   const [logs, setLogs] = useState<OperationLogItem[]>([]);
   const [selectedLog, setSelectedLog] = useState<OperationLogItem | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [storageMode, setStorageMode] = useState<'cloud' | 'local'>('local');
 
-  // Load logs on open
+  // Load logs on open and fetch from cloud DB if available
+  const loadLogs = useCallback(async () => {
+    // 1. Instant render from local cache
+    const localLogs = getOperationLogs();
+    setLogs(localLogs);
+
+    // 2. Fetch latest from database
+    setIsSyncing(true);
+    try {
+      const res = await fetchOperationLogsFromCloud();
+      if (res.configured && res.authenticated) {
+        setStorageMode('cloud');
+        if (res.logs && res.logs.length > 0) {
+          setLogs(res.logs);
+          saveOperationLogs(res.logs);
+        } else if (localLogs.length > 0) {
+          // Cloud empty but local has items -> sync local to cloud
+          await batchSyncOperationLogsToCloud(localLogs);
+        }
+      } else {
+        setStorageMode('local');
+      }
+    } catch (e) {
+      console.warn('Failed to load cloud logs:', e);
+      setStorageMode('local');
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
-      setLogs(getOperationLogs());
+      loadLogs();
     }
-  }, [isOpen]);
+  }, [isOpen, loadLogs]);
 
   if (!isOpen) return null;
 
-  const handleClear = () => {
-    if (window.confirm('确定要清空所有历史操作记录吗？')) {
+  const handleClear = async () => {
+    if (window.confirm('确定要清空所有历史操作记录吗？该操作将同步清理云端数据库中的对应记录。')) {
       clearOperationLogs();
       setLogs([]);
     }
@@ -138,11 +176,26 @@ export const OperationLogModal: React.FC<OperationLogModalProps> = ({
                   <ScrollText className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-[var(--text-main)]">
-                    操作记录与决策日志
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-[var(--text-main)]">
+                      操作记录与决策日志
+                    </h3>
+                    {storageMode === 'cloud' ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                        <Database className="w-2.5 h-2.5" />
+                        数据库存储
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 font-mono">
+                        本地缓存
+                      </span>
+                    )}
+                    {isSyncing && (
+                      <Loader2 className="w-3 h-3 text-blue-400 animate-spin" />
+                    )}
+                  </div>
                   <p className="text-[11px] text-[var(--text-sub)]">
-                    记录全部手动操作与 Cherry 智能优化结果 · 单击查看对应任务清单
+                    按用户维度安全存储 · 记录全部手动操作与 Cherry 智能决策
                   </p>
                 </div>
               </div>
@@ -176,7 +229,7 @@ export const OperationLogModal: React.FC<OperationLogModalProps> = ({
                 <div className="text-center py-12 text-xs text-[var(--text-faint)] space-y-2">
                   <ScrollText className="w-8 h-8 mx-auto opacity-30 stroke-[1.5]" />
                   <div>暂无操作历史记录</div>
-                  <div className="text-[11px]">您的待办操作和 Cherry 自动整理结果将自动保存在这里</div>
+                  <div className="text-[11px]">您的待办操作和 Cherry 自动整理结果将自动按用户维度保存至数据库</div>
                 </div>
               ) : (
                 logs.map(log => (
