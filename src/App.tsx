@@ -1195,9 +1195,9 @@ export default function App() {
 
         {/* Main Body */}
         <main className="acrylic-panel rounded-b-2xl p-3.5 sm:p-4 pt-3 pb-24 shadow-2xl min-h-[540px] relative overflow-hidden">
-          {/* Task Category Switcher Tabs (Combined segmented control pill bar fitting in one screen with compact labels) */}
+          {/* Task Category Switcher Tabs (Combined segmented control pill bar fitting in one screen with full labels) */}
           {activeView !== '轨迹' && (
-            <div className="flex items-center p-1 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] mb-2.5 select-none w-full gap-1 shadow-xs">
+            <div className="flex items-center p-0.5 sm:p-1 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] mb-2.5 select-none w-full gap-0.5 sm:gap-1 shadow-xs">
               {taskCategoryTabs.map((tab) => {
                 const isActive = activeView === tab.view;
                 return (
@@ -1209,16 +1209,16 @@ export default function App() {
                       setLastTaskCategory(tab.view);
                     }}
                     title={`${tab.label} (${tab.count}项待办)`}
-                    className={`flex-1 min-w-0 h-7 px-1.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    className={`flex-1 min-w-0 h-7 px-0.5 sm:px-1 rounded-lg text-[10px] sm:text-[11px] font-medium flex items-center justify-center gap-0.5 sm:gap-1 transition-all cursor-pointer ${
                       isActive
                         ? 'bg-[var(--bg-card)] text-[var(--text-main)] font-semibold shadow-xs border border-[var(--border-medium)]'
                         : 'text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)]/60 border border-transparent'
                     }`}
                   >
-                    <span className="shrink-0">{tab.icon}</span>
-                    <span className="truncate tracking-tight">{tab.label}</span>
+                    <span className="shrink-0 scale-85 sm:scale-95">{tab.icon}</span>
+                    <span className="whitespace-nowrap tracking-tight">{tab.label}</span>
                     <span
-                      className={`text-[9.5px] font-mono px-1 py-0.2 rounded-full shrink-0 ${
+                      className={`text-[9px] font-mono px-1 py-0 rounded-full shrink-0 ${
                         isActive
                           ? 'bg-[var(--accent-bg)] text-[var(--accent-fg)] font-semibold'
                           : 'bg-[var(--chip-hover)] text-[var(--text-faint)]'

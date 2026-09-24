@@ -50,7 +50,7 @@ const AnimalCompanionWidget: React.FC<CompanionRenderProps> = ({
           position: relative;
           width: 12em;
           height: 12em;
-          font-size: 3.35px;
+          font-size: 3.65px;
           pointer-events: none;
         }
 
@@ -161,11 +161,11 @@ const AnimalCompanionWidget: React.FC<CompanionRenderProps> = ({
           to { transform: rotate(360deg); }
         }
 
-        /* 3. 仓鼠朝向右侧奔跑容器 (水平镜像朝右，顺时针驱动跑轮) */
+        /* 3. 仓鼠朝向右侧奔跑容器 (放大仓鼠形象，水平镜像朝右，顺时针驱动跑轮) */
         .kantner-hamster-wheel .hamster-facing-right {
           inset: 0;
-          transform: scaleX(-1);
-          transform-origin: 50% 50%;
+          transform: scaleX(-1.26) scaleY(1.26);
+          transform-origin: 50% 60%;
           z-index: 3;
         }
 

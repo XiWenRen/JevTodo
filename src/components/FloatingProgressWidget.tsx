@@ -205,19 +205,6 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     setIsPopoverOpen(prev => !prev);
   };
 
-  // 执行整理确认
-  const handleExecute = () => {
-    onConfirmOrganize({
-      reorderTasks: true,
-      deferOverdue: overdueCount > 0,
-      archiveStale: staleCount > 0,
-      rollForwardDueTasks: rollForwardCount > 0
-    });
-    setIsPopoverOpen(false);
-  };
-
-  const [isBtnHovered, setIsBtnHovered] = useState<boolean>(false);
-
   // 仅执行流转
   const handleRollForwardOnly = () => {
     onConfirmOrganize({
@@ -234,10 +221,107 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
   const isSleeping = activityState === 'sleeping';
   const isStationary = isStopped || isSettling || isSleeping;
 
-  // 定位于主卡片右边缘外部浮动
-  const leftPosCalc = isCompactMode
-    ? 'calc(min(calc(100vw - 8px), calc(50% + 210px)) - 48px)'
-    : 'calc(min(calc(100vw - 8px), calc(50% + 288px)) - 48px)';
+  // -------------------------------------------------------------
+  // 可拖拽悬浮球坐标管理与本地持久化 (localStorage)
+  // -------------------------------------------------------------
+  const STORAGE_KEY = 'cherry_floating_widget_coords_v2';
+
+  const getDefaultPos = () => {
+    if (typeof window === 'undefined') return { x: 300, y: 300 };
+    const widgetWidth = isCompactMode ? 420 : 576;
+    const rightEdge = Math.min(window.innerWidth - 8, (window.innerWidth / 2) + (widgetWidth / 2));
+    const x = Math.max(10, Math.min(window.innerWidth - 58, rightEdge - 48));
+    const y = Math.max(10, Math.min(window.innerHeight - 58, (window.innerHeight / 2) - 24));
+    return { x, y };
+  };
+
+  const [coords, setCoords] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          return parsed;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  // 窗口 resize 时安全钳制坐标在视口内
+  useEffect(() => {
+    const handleResize = () => {
+      setCoords(prev => {
+        if (!prev) return getDefaultPos();
+        const clampedX = Math.max(8, Math.min(window.innerWidth - 56, prev.x));
+        const clampedY = Math.max(8, Math.min(window.innerHeight - 56, prev.y));
+        return { x: clampedX, y: clampedY };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isCompactMode]);
+
+  const currentCoords = coords || getDefaultPos();
+  const isRightSide = currentCoords.x > (typeof window !== 'undefined' ? window.innerWidth / 2 : 300);
+
+  // 指针拖拽跟踪
+  const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number } | null>(null);
+  const hasDraggedRef = useRef<boolean>(false);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // 捕获指针以持续跟踪移动
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: currentCoords.x,
+      initY: currentCoords.y
+    };
+    hasDraggedRef.current = false;
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!dragStartRef.current) return;
+    const dx = e.clientX - dragStartRef.current.startX;
+    const dy = e.clientY - dragStartRef.current.startY;
+
+    if (!hasDraggedRef.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      hasDraggedRef.current = true;
+      setIsPopoverOpen(false); // 拖拽时收起气泡
+    }
+
+    if (hasDraggedRef.current) {
+      const nextX = Math.max(8, Math.min(window.innerWidth - 56, dragStartRef.current.initX + dx));
+      const nextY = Math.max(8, Math.min(window.innerHeight - 56, dragStartRef.current.initY + dy));
+      setCoords({ x: nextX, y: nextY });
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!dragStartRef.current) return;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+
+    if (hasDraggedRef.current) {
+      // 保存拖拽后的终点位置到本地存储
+      const finalX = Math.max(8, Math.min(window.innerWidth - 56, currentCoords.x));
+      const finalY = Math.max(8, Math.min(window.innerHeight - 56, currentCoords.y));
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ x: finalX, y: finalY }));
+      } catch {}
+    } else {
+      // 纯点击触发切换气泡
+      handleClick();
+    }
+
+    dragStartRef.current = null;
+    hasDraggedRef.current = false;
+  };
 
   const companionProps: CompanionRenderProps = {
     progressPercent,
@@ -266,11 +350,11 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
 
   return (
     <div
-      className="fixed z-40 top-[50%] -translate-y-1/2 transition-all duration-300 select-none"
-      style={{ left: leftPosCalc }}
+      className="fixed z-40 select-none touch-none transition-none"
+      style={{ left: `${currentCoords.x}px`, top: `${currentCoords.y}px` }}
     >
       {/* ========================================================= */}
-      {/* 从悬浮球向左丝滑展开的椭圆形气泡弹窗 (周围边框表示进度) */}
+      {/* 极简圆润椭圆形气泡：仅保留一个高对比度流转按钮，外圈进度边框 */}
       {/* ========================================================= */}
       <AnimatePresence>
         {isPopoverOpen && (
@@ -283,112 +367,76 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
 
             <motion.div
               ref={popoverRef}
-              initial={{ opacity: 0, scale: 0.9, x: 14 }}
+              initial={{ opacity: 0, scale: 0.9, x: isRightSide ? 10 : -10 }}
               animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.9, x: 10 }}
-              transition={{ type: 'spring', stiffness: 480, damping: 30 }}
-              className="absolute right-[56px] top-1/2 -translate-y-1/2 w-[220px] rounded-2xl p-3 z-[130] select-none text-left shadow-2xl transition-all"
+              exit={{ opacity: 0, scale: 0.9, x: isRightSide ? 8 : -8 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+              className={`absolute top-1/2 -translate-y-1/2 ${
+                isRightSide ? 'right-[54px]' : 'left-[54px]'
+              } rounded-full p-1.5 z-[130] select-none shadow-2xl flex items-center shrink-0`}
               style={{
-                transformOrigin: 'right center',
                 backgroundColor: 'color-mix(in srgb, var(--bg-drawer) 97%, transparent)',
                 backdropFilter: 'blur(32px) saturate(190%)',
                 WebkitBackdropFilter: 'blur(32px) saturate(190%)',
                 border: `2px solid color-mix(in srgb, #10b981 ${progressPercent}%, #f59e0b)`,
-                color: 'var(--text-main)',
-                boxShadow: '0 16px 40px rgba(0,0,0,0.32), 0 2px 8px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.15)'
+                boxShadow: '0 12px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.15)'
               }}
             >
-              {/* 向右指向悬浮球的气泡小尖角 */}
-              <div 
-                className="absolute -right-2 top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] pointer-events-none"
-                style={{ borderLeftColor: `color-mix(in srgb, #10b981 ${progressPercent}%, #f59e0b)` }}
-              />
-              <div 
-                className="absolute -right-[6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[5px] border-y-transparent border-l-[6px] pointer-events-none"
-                style={{ borderLeftColor: 'color-mix(in srgb, var(--bg-drawer) 98%, transparent)' }}
-              />
+              {/* 指向悬浮球的气泡小尖角 (根据靠左/靠右自适应朝向) */}
+              {isRightSide ? (
+                <>
+                  <div 
+                    className="absolute -right-2 top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] pointer-events-none"
+                    style={{ borderLeftColor: `color-mix(in srgb, #10b981 ${progressPercent}%, #f59e0b)` }}
+                  />
+                  <div 
+                    className="absolute -right-[6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[5px] border-y-transparent border-l-[6px] pointer-events-none"
+                    style={{ borderLeftColor: 'color-mix(in srgb, var(--bg-drawer) 98%, transparent)' }}
+                  />
+                </>
+              ) : (
+                <>
+                  <div 
+                    className="absolute -left-2 top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-r-[8px] pointer-events-none"
+                    style={{ borderRightColor: `color-mix(in srgb, #10b981 ${progressPercent}%, #f59e0b)` }}
+                  />
+                  <div 
+                    className="absolute -left-[6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[5px] border-y-transparent border-r-[6px] pointer-events-none"
+                    style={{ borderRightColor: 'color-mix(in srgb, var(--bg-drawer) 98%, transparent)' }}
+                  />
+                </>
+              )}
 
-              {/* 头部：流转标题、完成进度与关闭 */}
-              <div className="flex items-center justify-between pb-1.5 mb-2.5 border-b border-[var(--border-subtle)]">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                  <span className="text-[12px] font-semibold text-[var(--text-main)]">
-                    智能流转
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono text-emerald-400 font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                    {progressPercent}%
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsPopoverOpen(false)}
-                    className="p-0.5 rounded text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] transition-colors cursor-pointer"
-                    title="关闭"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
-
-              {/* 唯一定义的整理/流转按钮 */}
-              <div className="flex flex-col gap-1.5">
-                <button
-                  type="button"
-                  onClick={handleRollForwardOnly}
-                  onMouseEnter={() => setIsBtnHovered(true)}
-                  onMouseLeave={() => setIsBtnHovered(false)}
-                  className="w-full h-8 rounded-xl font-medium text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm border border-cyan-500/35 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 active:scale-[0.98]"
-                >
-                  <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>{rollForwardCount > 0 ? `仅流转 (${rollForwardCount}项)` : '仅流转'}</span>
-                </button>
-
-                {/* 鼠标 hover 到整理按钮时的效果提示 */}
-                <div className="min-h-[28px] flex items-center justify-center text-[10.5px] leading-tight text-center px-1">
-                  <AnimatePresence mode="wait">
-                    {isBtnHovered ? (
-                      <motion.span
-                        key="hover-hint"
-                        initial={{ opacity: 0, y: 2 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -2 }}
-                        className="text-cyan-300 font-medium"
-                      >
-                        ✨ 自动将到达今日执行窗口的事项智能流转至「即刻完成」
-                      </motion.span>
-                    ) : (
-                      <motion.span
-                        key="default-hint"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="text-[var(--text-faint)]"
-                      >
-                        鼠标悬停查看流转效果
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
+              {/* 唯一定义的单按钮：清晰高对比度仅流转待办 */}
+              <button
+                type="button"
+                onClick={handleRollForwardOnly}
+                className="h-8 px-4 rounded-full font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white active:scale-95 whitespace-nowrap tracking-wide"
+              >
+                <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>{rollForwardCount > 0 ? `仅流转待办 (${rollForwardCount})` : '仅流转待办'}</span>
+              </button>
             </motion.div>
           </>
         )}
       </AnimatePresence>
 
       {/* ========================================================= */}
-      {/* 跑轮伴侣主按钮 (周围环绕 SVG 进度边框圆环，直观指示完成率) */}
+      {/* 跑轮伴侣主按钮 (支持拖拽移动，周围环绕 SVG 进度边框圆环) */}
       {/* ========================================================= */}
       <motion.button
         type="button"
-        onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         whileHover={{ scale: 1.08 }}
-        whileTap={{ scale: 0.93 }}
-        className="relative w-[48px] h-[48px] rounded-full flex items-center justify-center cursor-pointer outline-none focus:outline-none group z-10 overflow-visible"
+        whileTap={{ scale: 0.94 }}
+        className="relative w-[48px] h-[48px] rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing outline-none focus:outline-none select-none group z-10 overflow-visible touch-none"
         style={buttonStyle}
-        title={`${activeSkin.name} · 今日完成率 ${progressPercent}% (点击展开智能整理气泡)`}
+        title={`${activeSkin.name} · 今日完成率 ${progressPercent}% (可按住拖拽定位，点击展开流转气泡)`}
       >
         {/* 周围一圈动态指示进度的边框圆环 */}
         <svg className="absolute -inset-1 w-[56px] h-[56px] pointer-events-none -rotate-90">
