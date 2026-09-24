@@ -20,7 +20,8 @@ import {
   LogIn,
   ScrollText,
   ChevronRight,
-  Calendar
+  Calendar,
+  ListTodo
 } from 'lucide-react';
 import { TaskItem, TaskCategory, ActiveView, AppSettings, AppTheme } from './types';
 import { TaskSnapshot } from './types/operationLog';
@@ -90,13 +91,18 @@ export default function App() {
 
   // Active Category View state
   const [activeView, setActiveView] = useState<ActiveView>('即刻完成');
+  const [lastTaskCategory, setLastTaskCategory] = useState<ActiveView>('即刻完成');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Top header dropdown menus state & refs
-  const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
-  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  // Sync last active task category whenever current view is not '轨迹'
+  useEffect(() => {
+    if (activeView !== '轨迹') {
+      setLastTaskCategory(activeView);
+    }
+  }, [activeView]);
 
-  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+  // Top header user menu state & ref
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
   // Active Long-Press Cherry Feeding Gesture state
@@ -254,13 +260,10 @@ export default function App() {
     document.body.setAttribute('data-theme', currentTheme);
   }, [settings.theme]);
 
-  // Close dropdowns on outside click or Escape key
+  // Close user dropdown on outside click or Escape key
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
-      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(target)) {
-        setIsCategoryDropdownOpen(false);
-      }
       if (userDropdownRef.current && !userDropdownRef.current.contains(target)) {
         setIsUserDropdownOpen(false);
       }
@@ -268,7 +271,6 @@ export default function App() {
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsCategoryDropdownOpen(false);
         setIsUserDropdownOpen(false);
       }
     };
@@ -999,83 +1001,31 @@ export default function App() {
   const isCompactMode = settings.widgetWidth === 'compact';
   const currentThemeObj = THEMES.find(t => t.id === settings.theme) || THEMES[0];
 
-  // Category visual icons & helpers
-  const categoryMeta: Record<ActiveView, { label: string; icon: React.ReactNode; color: string }> = {
-    '即刻完成': {
-      label: '即刻完成',
-      icon: <Zap className="w-3.5 h-3.5 text-amber-500" />,
-      color: 'text-amber-500'
-    },
-    '近期完成': {
-      label: '近期完成',
-      icon: <CalendarDays className="w-3.5 h-3.5 text-blue-500" />,
-      color: 'text-blue-500'
-    },
-    '规划待办': {
-      label: '规划待办',
-      icon: <Compass className="w-3.5 h-3.5 text-purple-500" />,
-      color: 'text-purple-500'
-    },
-    '全部事项': {
-      label: '全部事项',
-      icon: <Layers className="w-3.5 h-3.5 text-emerald-500" />,
-      color: 'text-emerald-500'
-    },
-    '轨迹': {
-      label: '轨迹',
-      icon: <Calendar className="w-3.5 h-3.5 text-indigo-400" />,
-      color: 'text-indigo-400'
-    }
-  };
-
-  const activeMeta = categoryMeta[activeView];
-  const pendingCountInView = activeView === '轨迹'
-    ? tasks.length
-    : currentViewTasks.filter(t => !t.completed).length;
-
-  // Category options for dropdown switcher
-  const categoryOptions = useMemo<
-    { view: ActiveView; label: string; desc: string; icon: React.ReactNode; color: string; count: number }[]
-  >(() => [
+  // Task category tabs for main task section
+  const taskCategoryTabs = useMemo(() => [
     {
-      view: '即刻完成',
+      view: '即刻完成' as ActiveView,
       label: '即刻完成',
-      desc: '今日核心 · 专注执行',
       icon: <Zap className="w-3.5 h-3.5 text-amber-500" />,
-      color: 'text-amber-500',
       count: tasks.filter(t => t.category === '即刻完成' && !t.completed).length
     },
     {
-      view: '近期完成',
+      view: '近期完成' as ActiveView,
       label: '近期完成',
-      desc: '2~3天内 · 明确交付',
       icon: <CalendarDays className="w-3.5 h-3.5 text-blue-500" />,
-      color: 'text-blue-500',
       count: tasks.filter(t => t.category === '近期完成' && !t.completed).length
     },
     {
-      view: '规划待办',
+      view: '规划待办' as ActiveView,
       label: '规划待办',
-      desc: '远期规划 · 稍后推进',
       icon: <Compass className="w-3.5 h-3.5 text-purple-500" />,
-      color: 'text-purple-500',
       count: tasks.filter(t => t.category === '规划待办' && !t.completed).length
     },
     {
-      view: '全部事项',
+      view: '全部事项' as ActiveView,
       label: '全部事项',
-      desc: '聚合视图 · 全景概览',
       icon: <Layers className="w-3.5 h-3.5 text-emerald-500" />,
-      color: 'text-emerald-500',
       count: tasks.filter(t => !t.completed).length
-    },
-    {
-      view: '轨迹',
-      label: '轨迹',
-      desc: '日历 · 热点图 · 日报周报',
-      icon: <Calendar className="w-3.5 h-3.5 text-indigo-400" />,
-      color: 'text-indigo-400',
-      count: tasks.length
     }
   ], [tasks]);
 
@@ -1104,96 +1054,43 @@ export default function App() {
               <Menu className="w-4 h-4 stroke-[2.2]" />
             </button>
 
-            {/* Direct Category Dropdown Switcher (Does NOT call drawer) */}
-            <div ref={categoryDropdownRef} className="relative">
+            {/* View Switcher: Task List vs Trajectory View */}
+            <div className="flex items-center p-0.5 rounded-lg bg-[var(--chip-bg)] border border-[var(--chip-border)] shrink-0">
               <button
                 type="button"
                 onClick={() => {
-                  setIsCategoryDropdownOpen(prev => !prev);
-                  setIsUserDropdownOpen(false);
+                  if (activeView === '轨迹') {
+                    setActiveView(lastTaskCategory || '即刻完成');
+                  }
                 }}
-                className={`h-7 px-2.5 rounded-lg border flex items-center gap-1.5 transition-colors group min-w-0 ${
-                  isCategoryDropdownOpen
-                    ? 'bg-[var(--chip-hover)] border-[var(--border-medium)]'
-                    : 'bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] border-[var(--chip-border)]'
+                className={`h-7 px-2.5 rounded-md flex items-center gap-1.5 transition-all text-xs font-medium cursor-pointer ${
+                  activeView !== '轨迹'
+                    ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs border border-[var(--border-medium)]'
+                    : 'text-[var(--text-sub)] hover:text-[var(--text-main)] border border-transparent'
                 }`}
-                title="点击下拉直接切换任务大类"
+                title="切换至任务列表视图"
               >
-                <span className="shrink-0">{activeMeta.icon}</span>
-                <span className="text-xs font-semibold text-[var(--text-main)] truncate">
-                  {activeMeta.label}
-                </span>
-                <span className="text-[10px] font-mono px-1 py-0.2 rounded-full bg-[var(--chip-hover)] text-[var(--text-sub)]">
-                  {pendingCountInView}
-                </span>
-                <ChevronDown className={`w-3 h-3 text-[var(--text-faint)] group-hover:text-[var(--text-sub)] shrink-0 transition-transform duration-200 ${
-                  isCategoryDropdownOpen ? 'rotate-180 text-[var(--text-main)]' : ''
-                }`} />
+                <ListTodo className="w-3.5 h-3.5 text-amber-500" />
+                <span>任务列表</span>
               </button>
-
-              {/* Soft background scrim to eliminate background text interference */}
-              {isCategoryDropdownOpen && (
-                <div
-                  className="fixed inset-0 z-40 bg-black/10 dark:bg-black/25 backdrop-blur-[1.5px] transition-opacity"
-                  onClick={() => setIsCategoryDropdownOpen(false)}
-                />
-              )}
-
-              {/* Direct Category Dropdown Menu with High-Density Frosted Glass Acrylic */}
-              {isCategoryDropdownOpen && (
-                <div 
-                  className="absolute left-0 top-full mt-1.5 w-60 rounded-xl border border-[var(--border-medium)] p-1.5 z-50 animate-in fade-in zoom-in-95"
-                  style={{
-                    backgroundColor: 'color-mix(in srgb, var(--bg-drawer) 97%, transparent)',
-                    backdropFilter: 'blur(40px) saturate(200%) contrast(105%)',
-                    WebkitBackdropFilter: 'blur(40px) saturate(200%) contrast(105%)',
-                    boxShadow: '0 24px 60px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.12)'
-                  }}
-                >
-                  <div className="px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-faint)] border-b border-[var(--border-subtle)] mb-1 flex items-center justify-between">
-                    <span>切换大类视图</span>
-                    <span>待办数</span>
-                  </div>
-                  <div className="space-y-0.5">
-                    {categoryOptions.map((opt) => {
-                      const isActive = activeView === opt.view;
-                      return (
-                        <button
-                          key={opt.view}
-                          type="button"
-                          onClick={() => {
-                            setActiveView(opt.view);
-                            setIsCategoryDropdownOpen(false);
-                          }}
-                          className={`w-full px-2.5 py-1.5 rounded-lg flex items-center justify-between text-left text-xs transition-colors ${
-                            isActive
-                              ? 'bg-[var(--chip-hover)] font-medium text-[var(--text-main)]'
-                              : 'text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-bg)]'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="shrink-0">{opt.icon}</span>
-                            <div className="truncate">
-                              <div className="text-xs leading-snug">{opt.label}</div>
-                              <div className="text-[10px] text-[var(--text-faint)] leading-none mt-0.5">{opt.desc}</div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${
-                              isActive 
-                                ? 'bg-[var(--accent-bg)] text-[var(--accent-fg)] font-semibold' 
-                                : 'bg-[var(--chip-bg)] text-[var(--text-faint)]'
-                            }`}>
-                              {opt.count}
-                            </span>
-                            {isActive && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (activeView !== '轨迹') {
+                    setLastTaskCategory(activeView);
+                    setActiveView('轨迹');
+                  }
+                }}
+                className={`h-7 px-2.5 rounded-md flex items-center gap-1.5 transition-all text-xs font-medium cursor-pointer ${
+                  activeView === '轨迹'
+                    ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs border border-[var(--border-medium)]'
+                    : 'text-[var(--text-sub)] hover:text-[var(--text-main)] border border-transparent'
+                }`}
+                title="切换至轨迹页面（日历与热点图）"
+              >
+                <Calendar className="w-3.5 h-3.5 text-indigo-400" />
+                <span>轨迹页面</span>
+              </button>
             </div>
           </div>
 
@@ -1217,7 +1114,6 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       setIsUserDropdownOpen(prev => !prev);
-                      setIsCategoryDropdownOpen(false);
                     }}
                     className={`h-7 px-2 rounded-lg border flex items-center gap-1.5 transition-colors text-xs shrink-0 ${
                       isUserDropdownOpen
@@ -1316,6 +1212,42 @@ export default function App() {
 
         {/* Main Body */}
         <main className="acrylic-panel rounded-b-2xl p-3.5 sm:p-4 pt-3 pb-24 shadow-2xl min-h-[540px] relative overflow-hidden">
+          {/* Task Category Switcher Tags (Only in Task List mode) */}
+          {activeView !== '轨迹' && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 mb-2.5 scrollbar-none no-scrollbar select-none">
+              {taskCategoryTabs.map((tab) => {
+                const isActive = activeView === tab.view;
+                return (
+                  <button
+                    key={tab.view}
+                    type="button"
+                    onClick={() => {
+                      setActiveView(tab.view);
+                      setLastTaskCategory(tab.view);
+                    }}
+                    className={`h-7 px-2.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all shrink-0 cursor-pointer ${
+                      isActive
+                        ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs border border-[var(--border-medium)]'
+                        : 'bg-[var(--chip-bg)] text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)]'
+                    }`}
+                  >
+                    <span className="shrink-0">{tab.icon}</span>
+                    <span>{tab.label}</span>
+                    <span
+                      className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                        isActive
+                          ? 'bg-[var(--accent-bg)] text-[var(--accent-fg)] font-semibold'
+                          : 'bg-[var(--chip-bg)] text-[var(--text-faint)]'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Active Tag Filter Indicator */}
           {filterTag && (
             <div className="mb-3 px-2 py-1 rounded-lg bg-[var(--chip-bg)] border border-[var(--chip-border)] flex items-center justify-between text-xs">

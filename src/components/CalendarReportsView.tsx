@@ -69,8 +69,9 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
   theme: _theme,
   onSelectCategory: _onSelectCategory
 }) => {
-  // Main Sub-Tab: 'calendar' | 'heatmap' | 'reports'
-  const [activeTab, setActiveTab] = useState<'calendar' | 'heatmap' | 'reports'>('calendar');
+  // Main Sub-Tab: 'calendar' | 'heatmap' (Reports moved to modal inside calendar view)
+  const [activeTab, setActiveTab] = useState<'calendar' | 'heatmap'>('calendar');
+  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
 
   const today = useMemo(() => new Date(), []);
   const todayStr = useMemo(() => toDateStr(today), [today]);
@@ -109,6 +110,17 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
       setSelectedTags(allUniqueTags);
     }
   }, [allUniqueTags]);
+
+  // Close report modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isReportModalOpen) {
+        setIsReportModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isReportModalOpen]);
 
   const handleToggleTag = (tag: string) => {
     setSelectedTags(prev => {
@@ -606,17 +618,6 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
           >
             热点
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('reports')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
-              activeTab === 'reports'
-                ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs'
-                : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'
-            }`}
-          >
-            报告
-          </button>
         </div>
 
         {/* Universal Status Filter (shared across Calendar, Heatmap, Reports) */}
@@ -793,7 +794,7 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
         <div className="absolute px-3 py-0.5 rounded-full text-[10px] font-medium tracking-wider text-[var(--text-sub)] bg-[var(--bg-panel)] border border-[var(--chip-border)] shadow-xs flex items-center gap-1.5">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
           <span>
-            {activeTab === 'calendar' ? '日历视图' : activeTab === 'heatmap' ? '活跃热度' : '效能报告'}
+            {activeTab === 'calendar' ? '日历视图' : '活跃热度'}
           </span>
           <span className="text-[9px] text-[var(--text-faint)]">
             ({statusFilter === 'all' ? '全部' : statusFilter === 'pending' ? '待办' : '完成'} · {universalFilteredTasks.length}项)
@@ -838,35 +839,48 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
               </span>
             </div>
 
-            {/* Mode: 月 / 周 / 日程 */}
-            <div className="flex items-center bg-[var(--chip-bg)] p-0.5 rounded-lg border border-[var(--chip-border)]">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Report Modal Trigger Button in Calendar View */}
               <button
                 type="button"
-                onClick={() => setCalendarMode('month')}
-                className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap ${
-                  calendarMode === 'month' ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-medium' : 'text-[var(--text-faint)]'
-                }`}
+                onClick={() => setIsReportModalOpen(true)}
+                className="h-6 px-2.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-600 dark:text-purple-300 border border-purple-500/30 flex items-center gap-1 text-[11px] font-medium transition-all shadow-xs cursor-pointer active:scale-95"
+                title="打开任务效能与工作报告弹窗"
               >
-                月
+                <Sparkles className="w-3 h-3 text-purple-500 dark:text-purple-400" />
+                <span>生成报告</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setCalendarMode('week')}
-                className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap ${
-                  calendarMode === 'week' ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-medium' : 'text-[var(--text-faint)]'
-                }`}
-              >
-                周
-              </button>
-              <button
-                type="button"
-                onClick={() => setCalendarMode('agenda')}
-                className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap ${
-                  calendarMode === 'agenda' ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-medium' : 'text-[var(--text-faint)]'
-                }`}
-              >
-                日程
-              </button>
+
+              {/* Mode: 月 / 周 / 日程 */}
+              <div className="flex items-center bg-[var(--chip-bg)] p-0.5 rounded-lg border border-[var(--chip-border)]">
+                <button
+                  type="button"
+                  onClick={() => setCalendarMode('month')}
+                  className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap ${
+                    calendarMode === 'month' ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-medium' : 'text-[var(--text-faint)]'
+                  }`}
+                >
+                  月
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarMode('week')}
+                  className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap ${
+                    calendarMode === 'week' ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-medium' : 'text-[var(--text-faint)]'
+                  }`}
+                >
+                  周
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarMode('agenda')}
+                  className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap ${
+                    calendarMode === 'agenda' ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-medium' : 'text-[var(--text-faint)]'
+                  }`}
+                >
+                  日程
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1201,217 +1215,254 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
       )}
 
       {/* ====================================================================== */}
-      {/* Tab 3: Reports (Arbitrary Date Range Selection - Requirement 1)         */}
+      {/* Report Modal Dialog (Requirement 3: 从日历视窗唤起报告弹窗)               */}
       {/* ====================================================================== */}
-      {activeTab === 'reports' && (
-        <div className="space-y-2.5">
-          {/* Toolbar */}
-          <div className="p-2 sm:p-2.5 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-2">
-            {/* Row 1: Mode Switcher & Actions */}
-            <div className="flex items-center justify-between gap-1.5">
-              <div className="flex items-center gap-0.5 bg-[var(--chip-bg)] p-0.5 rounded-lg border border-[var(--chip-border)]">
-                <button
-                  type="button"
-                  onClick={() => setReportType('daily')}
-                  className={`px-2.5 py-1 rounded text-xs whitespace-nowrap transition-colors ${
-                    reportType === 'daily'
-                      ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs'
-                      : 'text-[var(--text-faint)] hover:text-[var(--text-main)]'
-                  }`}
-                >
-                  日报
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setReportType('weekly')}
-                  className={`px-2.5 py-1 rounded text-xs whitespace-nowrap transition-colors ${
-                    reportType === 'weekly'
-                      ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs'
-                      : 'text-[var(--text-faint)] hover:text-[var(--text-main)]'
-                  }`}
-                >
-                  周期报表
-                </button>
+      {isReportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div 
+            className="w-full max-w-xl max-h-[85vh] flex flex-col rounded-2xl border border-[var(--border-medium)] shadow-2xl overflow-hidden text-left"
+            style={{
+              backgroundColor: 'color-mix(in srgb, var(--bg-drawer) 97%, transparent)',
+              backdropFilter: 'blur(36px) saturate(190%)',
+              WebkitBackdropFilter: 'blur(36px) saturate(190%)',
+            }}
+          >
+            {/* Modal Header */}
+            <div className="px-4 py-3 border-b border-[var(--border-subtle)] flex items-center justify-between shrink-0 bg-[var(--chip-bg)]/40">
+              <div className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-400 flex items-center justify-center shadow-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                </span>
+                <div>
+                  <h3 className="text-xs font-semibold text-[var(--text-main)]">
+                    任务效能与工作报告
+                  </h3>
+                  <p className="text-[10px] text-[var(--text-faint)]">
+                    日报总结、周期报表导出与 AI 智能润色
+                  </p>
+                </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleGenerateAiSummary}
-                  disabled={isGeneratingAi}
-                  className="px-2 py-1 rounded text-xs bg-purple-500/15 text-purple-300 hover:bg-purple-500/25 border border-purple-500/30 whitespace-nowrap flex items-center gap-1"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>{isGeneratingAi ? '...' : 'AI总结'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleCopyReport}
-                  className="px-2.5 py-1 rounded text-xs bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--border-medium)] flex items-center gap-1 whitespace-nowrap"
-                >
-                  {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{isCopied ? '已复制' : '复制'}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleExportMarkdown}
-                  className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)]"
-                  title="导出 .md"
-                >
-                  <Download className="w-3 h-3" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="p-1 rounded-lg text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-bg)] transition-colors cursor-pointer"
+                title="关闭"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            {/* Row 2: Date Selector (Daily date vs Arbitrary Time Range) */}
-            <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-[var(--border-subtle)] text-xs">
-              {reportType === 'daily' ? (
-                <>
-                  <div className="flex items-center gap-1 shrink-0">
+            {/* Modal Body: Scrollable Report Content */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
+              {/* Toolbar */}
+              <div className="p-2 sm:p-2.5 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-2">
+                {/* Row 1: Mode Switcher & Actions */}
+                <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-0.5 bg-[var(--chip-bg)] p-0.5 rounded-lg border border-[var(--chip-border)]">
                     <button
                       type="button"
-                      onClick={() => setReportDate(todayStr)}
-                      className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap ${
-                        reportDate === todayStr
-                          ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold'
-                          : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'
-                      } border border-[var(--chip-border)]`}
+                      onClick={() => setReportType('daily')}
+                      className={`px-2.5 py-1 rounded text-xs whitespace-nowrap transition-colors cursor-pointer ${
+                        reportType === 'daily'
+                          ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs'
+                          : 'text-[var(--text-faint)] hover:text-[var(--text-main)]'
+                      }`}
                     >
-                      今天
+                      日报
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        const y = new Date();
-                        y.setDate(y.getDate() - 1);
-                        setReportDate(toDateStr(y));
-                      }}
-                      className="px-2 py-0.5 rounded text-[11px] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] whitespace-nowrap"
+                      onClick={() => setReportType('weekly')}
+                      className={`px-2.5 py-1 rounded text-xs whitespace-nowrap transition-colors cursor-pointer ${
+                        reportType === 'weekly'
+                          ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs'
+                          : 'text-[var(--text-faint)] hover:text-[var(--text-main)]'
+                      }`}
                     >
-                      昨天
-                    </button>
-                  </div>
-                  <input
-                    aria-label="选择日报日期"
-                    type="date"
-                    value={reportDate}
-                    onChange={e => setReportDate(e.target.value)}
-                    className="h-6 px-1.5 text-xs font-mono rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] outline-none"
-                  />
-                </>
-              ) : (
-                /* Requirement 1: Arbitrary date range components */
-                <div className="w-full flex items-center justify-between gap-1 flex-wrap">
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      type="button"
-                      onClick={setRangeThisWeek}
-                      className="px-1.5 py-0.5 rounded text-[11px] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] whitespace-nowrap"
-                    >
-                      本周
-                    </button>
-                    <button
-                      type="button"
-                      onClick={setRangeLastWeek}
-                      className="px-1.5 py-0.5 rounded text-[11px] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] whitespace-nowrap"
-                    >
-                      上周
-                    </button>
-                    <button
-                      type="button"
-                      onClick={setRangeLast7Days}
-                      className="px-1.5 py-0.5 rounded text-[11px] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] whitespace-nowrap"
-                    >
-                      近7天
+                      周期报表
                     </button>
                   </div>
 
+                  {/* Action Buttons */}
                   <div className="flex items-center gap-1 shrink-0">
-                    <input
-                      aria-label="选择起始日期"
-                      type="date"
-                      value={rangeStartDate}
-                      onChange={e => setRangeStartDate(e.target.value)}
-                      className="h-6 px-1 text-[11px] font-mono rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] outline-none"
-                    />
-                    <span className="text-[var(--text-faint)] font-mono">~</span>
-                    <input
-                      aria-label="选择结束日期"
-                      type="date"
-                      value={rangeEndDate}
-                      onChange={e => setRangeEndDate(e.target.value)}
-                      className="h-6 px-1 text-[11px] font-mono rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] outline-none"
-                    />
+                    <button
+                      type="button"
+                      onClick={handleGenerateAiSummary}
+                      disabled={isGeneratingAi}
+                      className="px-2 py-1 rounded text-xs bg-purple-500/15 text-purple-300 hover:bg-purple-500/25 border border-purple-500/30 whitespace-nowrap flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-3 h-3" />
+                      <span>{isGeneratingAi ? '...' : 'AI总结'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyReport}
+                      className="px-2.5 py-1 rounded text-xs bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--border-medium)] flex items-center gap-1 whitespace-nowrap cursor-pointer"
+                    >
+                      {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{isCopied ? '已复制' : '复制'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleExportMarkdown}
+                      className="w-6 h-6 rounded flex items-center justify-center text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] cursor-pointer"
+                      title="导出 .md"
+                    >
+                      <Download className="w-3 h-3" />
+                    </button>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Formatted Report */}
-          <div className="p-3 sm:p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] space-y-3 text-xs">
-            <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2">
-              <span className="font-semibold text-sm text-[var(--text-main)] truncate">{reportData.title}</span>
-              <span className="text-[11px] text-[var(--text-faint)] font-mono shrink-0 ml-1">{reportData.period}</span>
-            </div>
+                {/* Row 2: Date Selector (Daily date vs Arbitrary Time Range) */}
+                <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-[var(--border-subtle)] text-xs">
+                  {reportType === 'daily' ? (
+                    <>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setReportDate(todayStr)}
+                          className={`px-2 py-0.5 rounded text-[11px] whitespace-nowrap cursor-pointer ${
+                            reportDate === todayStr
+                              ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold'
+                              : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'
+                          } border border-[var(--chip-border)]`}
+                        >
+                          今天
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const y = new Date();
+                            y.setDate(y.getDate() - 1);
+                            setReportDate(toDateStr(y));
+                          }}
+                          className="px-2 py-0.5 rounded text-[11px] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] whitespace-nowrap cursor-pointer"
+                        >
+                          昨天
+                        </button>
+                      </div>
+                      <input
+                        aria-label="选择日报日期"
+                        type="date"
+                        value={reportDate}
+                        onChange={e => setReportDate(e.target.value)}
+                        className="h-6 px-1.5 text-xs font-mono rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] outline-none"
+                      />
+                    </>
+                  ) : (
+                    /* Requirement 1: Arbitrary date range components */
+                    <div className="w-full flex items-center justify-between gap-1 flex-wrap">
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={setRangeThisWeek}
+                          className="px-1.5 py-0.5 rounded text-[11px] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] whitespace-nowrap cursor-pointer"
+                        >
+                          本周
+                        </button>
+                        <button
+                          type="button"
+                          onClick={setRangeLastWeek}
+                          className="px-1.5 py-0.5 rounded text-[11px] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] whitespace-nowrap cursor-pointer"
+                        >
+                          上周
+                        </button>
+                        <button
+                          type="button"
+                          onClick={setRangeLast7Days}
+                          className="px-1.5 py-0.5 rounded text-[11px] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--chip-border)] whitespace-nowrap cursor-pointer"
+                        >
+                          近7天
+                        </button>
+                      </div>
 
-            {aiPolishSummary && (
-              <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-200 text-xs">
-                💡 {aiPolishSummary}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <input
+                          aria-label="选择起始日期"
+                          type="date"
+                          value={rangeStartDate}
+                          onChange={e => setRangeStartDate(e.target.value)}
+                          className="h-6 px-1 text-[11px] font-mono rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] outline-none"
+                        />
+                        <span className="text-[var(--text-faint)] font-mono">~</span>
+                        <input
+                          aria-label="选择结束日期"
+                          type="date"
+                          value={rangeEndDate}
+                          onChange={e => setRangeEndDate(e.target.value)}
+                          className="h-6 px-1 text-[11px] font-mono rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            )}
 
-            {/* Done */}
-            <div className="space-y-1">
-              <div className="font-semibold text-[var(--text-main)]">已完成 ({reportData.completedList.length})</div>
-              {reportData.completedList.length === 0 ? (
-                <div className="text-[var(--text-faint)] pl-2">无</div>
-              ) : (
-                <div className="space-y-1 pl-2">
-                  {reportData.completedList.map(t => (
-                    <div key={t.id} className="flex items-center justify-between text-[11px]">
-                      <span className="truncate">• {t.title}</span>
-                      <span className="text-[var(--text-faint)] shrink-0 ml-1">{t.category}</span>
-                    </div>
-                  ))}
+              {/* Formatted Report */}
+              <div className="p-3 sm:p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] space-y-3 text-xs">
+                <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-2">
+                  <span className="font-semibold text-sm text-[var(--text-main)] truncate">{reportData.title}</span>
+                  <span className="text-[11px] text-[var(--text-faint)] font-mono shrink-0 ml-1">{reportData.period}</span>
                 </div>
-              )}
-            </div>
 
-            {/* Pending */}
-            <div className="space-y-1">
-              <div className="font-semibold text-[var(--text-main)]">进行中 ({reportData.inProgressList.length})</div>
-              {reportData.inProgressList.length === 0 ? (
-                <div className="text-[var(--text-faint)] pl-2">无</div>
-              ) : (
-                <div className="space-y-1 pl-2">
-                  {reportData.inProgressList.map(t => (
-                    <div key={t.id} className="flex items-center justify-between text-[11px]">
-                      <span className="truncate">• {t.title}</span>
-                      <span className="text-[var(--text-faint)] shrink-0 ml-1">{t.dueDate || t.category}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                {aiPolishSummary && (
+                  <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-200 text-xs">
+                    💡 {aiPolishSummary}
+                  </div>
+                )}
 
-            {/* Planning */}
-            <div className="space-y-1">
-              <div className="font-semibold text-[var(--text-main)]">规划 ({reportData.upcomingList.length})</div>
-              {reportData.upcomingList.length === 0 ? (
-                <div className="text-[var(--text-faint)] pl-2">无</div>
-              ) : (
-                <div className="space-y-1 pl-2">
-                  {reportData.upcomingList.map(t => (
-                    <div key={t.id} className="text-[11px] truncate">
-                      • {t.title}
+                {/* Done */}
+                <div className="space-y-1">
+                  <div className="font-semibold text-[var(--text-main)]">已完成 ({reportData.completedList.length})</div>
+                  {reportData.completedList.length === 0 ? (
+                    <div className="text-[var(--text-faint)] pl-2">无</div>
+                  ) : (
+                    <div className="space-y-1 pl-2">
+                      {reportData.completedList.map(t => (
+                        <div key={t.id} className="flex items-center justify-between text-[11px]">
+                          <span className="truncate">• {t.title}</span>
+                          <span className="text-[var(--text-faint)] shrink-0 ml-1">{t.category}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
+
+                {/* Pending */}
+                <div className="space-y-1">
+                  <div className="font-semibold text-[var(--text-main)]">进行中 ({reportData.inProgressList.length})</div>
+                  {reportData.inProgressList.length === 0 ? (
+                    <div className="text-[var(--text-faint)] pl-2">无</div>
+                  ) : (
+                    <div className="space-y-1 pl-2">
+                      {reportData.inProgressList.map(t => (
+                        <div key={t.id} className="flex items-center justify-between text-[11px]">
+                          <span className="truncate">• {t.title}</span>
+                          <span className="text-[var(--text-faint)] shrink-0 ml-1">{t.dueDate || t.category}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Planning */}
+                <div className="space-y-1">
+                  <div className="font-semibold text-[var(--text-main)]">规划 ({reportData.upcomingList.length})</div>
+                  {reportData.upcomingList.length === 0 ? (
+                    <div className="text-[var(--text-faint)] pl-2">无</div>
+                  ) : (
+                    <div className="space-y-1 pl-2">
+                      {reportData.upcomingList.map(t => (
+                        <div key={t.id} className="text-[11px] truncate">
+                          • {t.title}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
