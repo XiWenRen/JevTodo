@@ -146,6 +146,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('input')) return;
 
+    // Clear any accidental text selection on touch
+    if (typeof window !== 'undefined' && window.getSelection) {
+      window.getSelection()?.removeAllRanges();
+    }
+
     // Record pointer position and card bounding box
     pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
     const rect = e.currentTarget.getBoundingClientRect();
@@ -229,7 +234,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       onContextMenu={(e) => {
-        if (isGestureActiveRef.current) {
+        if (!isEditing) {
           e.preventDefault();
         }
       }}
@@ -271,7 +276,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
               <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
                 <span
                   onClick={() => setIsEditing(true)}
-                  className={`text-sm select-text font-normal leading-snug break-words transition-colors ${
+                  className={`text-sm select-none font-normal leading-snug break-words transition-colors ${
                     task.completed
                       ? 'line-through text-[var(--text-faint)]'
                       : 'text-[var(--text-main)] hover:text-cyan-400'

@@ -277,14 +277,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             )}
 
-            {/* Security Isolation Notice */}
-            <div className="p-2.5 rounded-lg bg-[var(--chip-bg)] border border-[var(--chip-border)] flex items-start gap-1.5 text-[10px] text-[var(--text-sub)]">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-              <span>
-                系统已启用<strong>租户级行级隔离（Anti-IDOR）</strong>，所有任务均带专有 User ID 校验，任何用户均无法窥探或修改他人数据。
-              </span>
-            </div>
-
             {/* Error Message */}
             {errorMessage && (
               <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-500 text-[11px] flex items-start gap-1.5">
@@ -306,7 +298,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2 px-3 rounded-lg bg-[var(--accent-bg)] text-[var(--accent-fg)] hover:opacity-90 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm"
+                className="w-full py-2 px-3 rounded-lg bg-[var(--accent-bg)] text-[var(--accent-fg)] hover:opacity-90 font-semibold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer"
               >
                 {isLoading ? (
                   <>
@@ -321,7 +313,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 ) : (
                   <>
                     <UserPlus className="w-3.5 h-3.5" />
-                    <span>创建隔离账号并进入</span>
+                    <span>立即注册</span>
                   </>
                 )}
               </button>

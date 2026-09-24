@@ -237,6 +237,15 @@
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border-subtle);
   transition: all 0.2s ease;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+.acrylic-card input,
+.acrylic-card textarea {
+  -webkit-user-select: text !important;
+  user-select: text !important;
 }
 
 .acrylic-card:hover {

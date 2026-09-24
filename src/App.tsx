@@ -1195,9 +1195,9 @@ export default function App() {
 
         {/* Main Body */}
         <main className="acrylic-panel rounded-b-2xl p-3.5 sm:p-4 pt-3 pb-24 shadow-2xl min-h-[540px] relative overflow-hidden">
-          {/* Task Category Switcher Tags (Only in Task List mode, compact 4-column grid fitting in 1 screen) */}
+          {/* Task Category Switcher Tabs (Combined segmented control pill bar fitting in one screen with compact labels) */}
           {activeView !== '轨迹' && (
-            <div className="grid grid-cols-4 gap-1.5 mb-2.5 select-none">
+            <div className="flex items-center p-1 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] mb-2.5 select-none w-full gap-1 shadow-xs">
               {taskCategoryTabs.map((tab) => {
                 const isActive = activeView === tab.view;
                 return (
@@ -1209,18 +1209,19 @@ export default function App() {
                       setLastTaskCategory(tab.view);
                     }}
                     title={`${tab.label} (${tab.count}项待办)`}
-                    className={`h-7 px-1 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    className={`flex-1 min-w-0 h-7 px-1.5 rounded-lg text-[11px] font-medium flex items-center justify-center gap-1 transition-all cursor-pointer ${
                       isActive
-                        ? 'bg-[var(--chip-hover)] text-[var(--text-main)] font-semibold shadow-xs border border-[var(--border-medium)]'
-                        : 'bg-[var(--chip-bg)] text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] border border-[var(--chip-border)]'
+                        ? 'bg-[var(--bg-card)] text-[var(--text-main)] font-semibold shadow-xs border border-[var(--border-medium)]'
+                        : 'text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)]/60 border border-transparent'
                     }`}
                   >
                     <span className="shrink-0">{tab.icon}</span>
+                    <span className="truncate tracking-tight">{tab.label}</span>
                     <span
-                      className={`text-[10px] font-mono px-1 py-0.2 rounded-full ${
+                      className={`text-[9.5px] font-mono px-1 py-0.2 rounded-full shrink-0 ${
                         isActive
                           ? 'bg-[var(--accent-bg)] text-[var(--accent-fg)] font-semibold'
-                          : 'bg-[var(--chip-bg)] text-[var(--text-faint)]'
+                          : 'bg-[var(--chip-hover)] text-[var(--text-faint)]'
                       }`}
                     >
                       {tab.count}

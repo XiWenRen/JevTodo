@@ -333,24 +333,6 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
               </div>
             </div>
 
-            {/* Bottom Section */}
-            <div className="pt-3 border-t border-[var(--border-subtle)] text-[11px] text-[var(--text-faint)]">
-              <div className="flex items-center justify-between">
-                <span>共 {tasks.length} 项事项</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onClose();
-                    onResetSampleData();
-                  }}
-                  className="hover:text-[var(--text-main)] flex items-center gap-1 transition-colors"
-                  title="清空并重置为初始待办"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>重置</span>
-                </button>
-              </div>
-            </div>
           </motion.div>
         </div>
       )}

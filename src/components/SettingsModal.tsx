@@ -280,6 +280,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     {showKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
+
+                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-1.5 text-[11px] text-emerald-400">
+                  <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                  <span>提示：API Key 仅保存在当前设备本地，只在本地生效，不会同步到服务器。</span>
+                </div>
                 <p className="text-[10px] text-[var(--text-faint)]">
                   * 默认已内置智能服务；输入您的专属 TypeSafe API Key 可享专属资源配额并激活调用审计。
                 </p>

@@ -216,6 +216,8 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     setIsPopoverOpen(false);
   };
 
+  const [isBtnHovered, setIsBtnHovered] = useState<boolean>(false);
+
   // 仅执行流转
   const handleRollForwardOnly = () => {
     onConfirmOrganize({
@@ -254,9 +256,8 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     backgroundColor: `color-mix(in srgb, var(--bg-drawer) ${75 + Math.round(progressRatio * 20)}%, #fef3c7 ${Math.round(progressRatio * 5)}%)`,
     backdropFilter: 'blur(16px)',
     WebkitBackdropFilter: 'blur(16px)',
-    border: `${(1.2 + progressRatio * 0.6).toFixed(1)}px solid color-mix(in srgb, var(--border-medium) ${40 + Math.round(progressRatio * 60)}%, #f59e0b ${Math.round(progressRatio * 55)}%)`,
     boxShadow: `0 ${2 + Math.round(progressRatio * 4)}px ${8 + Math.round(progressRatio * 10)}px rgba(0,0,0,${(0.1 + progressRatio * 0.16).toFixed(2)}), 0 0 ${Math.round(progressRatio * 12)}px rgba(245, 158, 11, ${(progressRatio * 0.28).toFixed(2)}), inset 0 1px 1px rgba(255,255,255,${(0.1 + progressRatio * 0.22).toFixed(2)})`,
-    transition: 'border 0.8s ease, box-shadow 0.8s ease, background-color 0.8s ease'
+    transition: 'box-shadow 0.8s ease, background-color 0.8s ease'
   };
 
   const buttonStyle = activeSkin.getCompanionButtonStyle 
@@ -269,7 +270,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
       style={{ left: leftPosCalc }}
     >
       {/* ========================================================= */}
-      {/* 从悬浮球向左丝滑展开的气泡弹窗 (直接锚定在悬浮球左侧) */}
+      {/* 从悬浮球向左丝滑展开的椭圆形气泡弹窗 (周围边框表示进度) */}
       {/* ========================================================= */}
       <AnimatePresence>
         {isPopoverOpen && (
@@ -286,37 +287,37 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
               animate={{ opacity: 1, scale: 1, x: 0 }}
               exit={{ opacity: 0, scale: 0.9, x: 10 }}
               transition={{ type: 'spring', stiffness: 480, damping: 30 }}
-              className="absolute right-[52px] top-1/2 -translate-y-1/2 w-[226px] rounded-xl border p-3 z-[130] select-none text-left"
+              className="absolute right-[56px] top-1/2 -translate-y-1/2 w-[220px] rounded-2xl p-3 z-[130] select-none text-left shadow-2xl transition-all"
               style={{
                 transformOrigin: 'right center',
                 backgroundColor: 'color-mix(in srgb, var(--bg-drawer) 97%, transparent)',
                 backdropFilter: 'blur(32px) saturate(190%)',
                 WebkitBackdropFilter: 'blur(32px) saturate(190%)',
-                borderColor: 'var(--border-medium)',
+                border: `2px solid color-mix(in srgb, #10b981 ${progressPercent}%, #f59e0b)`,
                 color: 'var(--text-main)',
                 boxShadow: '0 16px 40px rgba(0,0,0,0.32), 0 2px 8px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.15)'
               }}
             >
-              {/* 向右指向小仓鼠悬浮球的气泡小尖角 */}
+              {/* 向右指向悬浮球的气泡小尖角 */}
               <div 
-                className="absolute -right-1.5 top-1/2 -translate-y-1/2 w-0 h-0 border-y-[5px] border-y-transparent border-l-[6px] pointer-events-none"
-                style={{ borderLeftColor: 'var(--border-medium)' }}
+                className="absolute -right-2 top-1/2 -translate-y-1/2 w-0 h-0 border-y-[6px] border-y-transparent border-l-[8px] pointer-events-none"
+                style={{ borderLeftColor: `color-mix(in srgb, #10b981 ${progressPercent}%, #f59e0b)` }}
               />
               <div 
-                className="absolute -right-[5px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[4.5px] border-y-transparent border-l-[5px] pointer-events-none"
+                className="absolute -right-[6px] top-1/2 -translate-y-1/2 w-0 h-0 border-y-[5px] border-y-transparent border-l-[6px] pointer-events-none"
                 style={{ borderLeftColor: 'color-mix(in srgb, var(--bg-drawer) 98%, transparent)' }}
               />
 
-              {/* 头部：标题、进度与关闭 */}
-              <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-[var(--border-subtle)]">
+              {/* 头部：流转标题、完成进度与关闭 */}
+              <div className="flex items-center justify-between pb-1.5 mb-2.5 border-b border-[var(--border-subtle)]">
                 <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                  <span className="text-[11.5px] font-semibold text-[var(--text-main)]">
-                    Jev 智能整理
+                  <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-[12px] font-semibold text-[var(--text-main)]">
+                    智能流转
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[10px] font-mono text-amber-500 font-bold">
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
                     {progressPercent}%
                   </span>
                   <button
@@ -330,60 +331,45 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
                 </div>
               </div>
 
-              {/* 微型进度条 */}
-              <div className="w-full h-1 bg-[var(--border-subtle)] rounded-full overflow-hidden mb-2">
-                <div 
-                  className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 rounded-full transition-all duration-500"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-
-              {/* 核心提示单行化 */}
-              <div className="text-[11px] text-[var(--text-sub)] leading-snug mb-2.5">
-                {overdueCount > 0 ? (
-                  <span>
-                    重排顺序，顺延 <b className="text-amber-500 font-medium">{overdueCount}项逾期</b> 至明日
-                  </span>
-                ) : (
-                  <span>按紧迫度与时间维度智能重排执行顺序</span>
-                )}
-              </div>
-
-              {/* 流转待办极简条目 */}
-              {rollForwardCount > 0 && (
-                <div className="text-[10px] text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-2 py-1 rounded-md mb-2 flex items-center justify-between">
-                  <span>今日待流转:</span>
-                  <span className="font-semibold underline">{rollForwardCount} 项</span>
-                </div>
-              )}
-
-              {/* 精简操作按钮组 */}
-              <div className="flex flex-col gap-1">
+              {/* 唯一定义的整理/流转按钮 */}
+              <div className="flex flex-col gap-1.5">
                 <button
                   type="button"
-                  onClick={handleExecute}
-                  className="w-full h-7 rounded-lg font-medium text-[11px] flex items-center justify-center gap-1 transition-all active:scale-[0.98] cursor-pointer hover:opacity-90 border"
-                  style={{
-                    backgroundColor: 'var(--btn-primary-bg)',
-                    color: 'var(--btn-primary-fg)',
-                    borderColor: 'var(--btn-primary-border)',
-                    boxShadow: 'var(--btn-primary-shadow)'
-                  }}
+                  onClick={handleRollForwardOnly}
+                  onMouseEnter={() => setIsBtnHovered(true)}
+                  onMouseLeave={() => setIsBtnHovered(false)}
+                  className="w-full h-8 rounded-xl font-medium text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm border border-cyan-500/35 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 active:scale-[0.98]"
                 >
-                  <Check className="w-3 h-3" />
-                  <span>{rollForwardCount > 0 ? `整理并流转 (${rollForwardCount})` : '立即整理'}</span>
+                  <ArrowRight className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>{rollForwardCount > 0 ? `仅流转 (${rollForwardCount}项)` : '仅流转'}</span>
                 </button>
 
-                {rollForwardCount > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleRollForwardOnly}
-                    className="w-full h-6 rounded-md font-medium text-[10px] flex items-center justify-center gap-1 transition-all cursor-pointer bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/25"
-                  >
-                    <ArrowRight className="w-2.5 h-2.5 text-cyan-400" />
-                    <span>仅流转 ({rollForwardCount})</span>
-                  </button>
-                )}
+                {/* 鼠标 hover 到整理按钮时的效果提示 */}
+                <div className="min-h-[28px] flex items-center justify-center text-[10.5px] leading-tight text-center px-1">
+                  <AnimatePresence mode="wait">
+                    {isBtnHovered ? (
+                      <motion.span
+                        key="hover-hint"
+                        initial={{ opacity: 0, y: 2 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -2 }}
+                        className="text-cyan-300 font-medium"
+                      >
+                        ✨ 自动将到达今日执行窗口的事项智能流转至「即刻完成」
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="default-hint"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="text-[var(--text-faint)]"
+                      >
+                        鼠标悬停查看流转效果
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
             </motion.div>
           </>
@@ -391,7 +377,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
       </AnimatePresence>
 
       {/* ========================================================= */}
-      {/* 跑轮伴侣主按钮 (皮肤插件渲染伴侣形象与动态光效) */}
+      {/* 跑轮伴侣主按钮 (周围环绕 SVG 进度边框圆环，直观指示完成率) */}
       {/* ========================================================= */}
       <motion.button
         type="button"
@@ -400,10 +386,40 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         onMouseLeave={handleMouseLeave}
         whileHover={{ scale: 1.08 }}
         whileTap={{ scale: 0.93 }}
-        className="relative w-[44px] h-[44px] rounded-full flex items-center justify-center cursor-pointer outline-none focus:outline-none group z-10 overflow-visible"
+        className="relative w-[48px] h-[48px] rounded-full flex items-center justify-center cursor-pointer outline-none focus:outline-none group z-10 overflow-visible"
         style={buttonStyle}
         title={`${activeSkin.name} · 今日完成率 ${progressPercent}% (点击展开智能整理气泡)`}
       >
+        {/* 周围一圈动态指示进度的边框圆环 */}
+        <svg className="absolute -inset-1 w-[56px] h-[56px] pointer-events-none -rotate-90">
+          <circle
+            cx="28"
+            cy="28"
+            r="23"
+            fill="none"
+            stroke="var(--border-subtle)"
+            strokeWidth="2.5"
+          />
+          <circle
+            cx="28"
+            cy="28"
+            r="23"
+            fill="none"
+            stroke="url(#hamster-progress-gradient)"
+            strokeWidth="2.5"
+            strokeDasharray={144.5}
+            strokeDashoffset={144.5 - (144.5 * progressPercent) / 100}
+            strokeLinecap="round"
+            className="transition-all duration-700 ease-out"
+          />
+          <defs>
+            <linearGradient id="hamster-progress-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#10b981" />
+            </linearGradient>
+          </defs>
+        </svg>
+
         <CompanionWidget {...companionProps} />
       </motion.button>
     </div>
