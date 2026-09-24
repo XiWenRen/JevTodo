@@ -25,7 +25,7 @@ import {
 import { TaskItem, TaskCategory, ActiveView, AppSettings, AppTheme } from './types';
 import { TaskSnapshot } from './types/operationLog';
 import { recordOperation, taskToSnapshot } from './utils/operationLog';
-import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev, extractDateTime } from './utils/jev';
+import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev, extractDateTime, JevDecision } from './utils/jev';
 import { 
   checkAndFetchCloudTasks, 
   syncTaskToCloud, 
@@ -360,7 +360,7 @@ export default function App() {
   }, [tasks]);
 
   // Add Task with Jev Decision
-  const handleAddTask = async (rawInput: string) => {
+  const handleAddTask = async (rawInput: string, precomputedDecision?: JevDecision) => {
     if (!rawInput.trim()) return;
 
     // 1. Check if input contains multiple tasks (batch text input)
@@ -374,7 +374,7 @@ export default function App() {
     setIsProcessing(true);
 
     try {
-      const decision = await evaluateWithJev(rawInput, {
+      const decision = precomputedDecision || await evaluateWithJev(rawInput, {
         apiKey: settings.jevApiKey,
         endpoint: settings.jevEndpoint
       });
@@ -1291,6 +1291,8 @@ export default function App() {
               setIsBatchSplitModalOpen(true);
             }}
             isProcessing={isProcessing}
+            apiKey={settings.jevApiKey}
+            endpoint={settings.jevEndpoint}
           />
         </div>
       )}
