@@ -4,8 +4,13 @@
  */
 
 import { TaskCategory, JevDecision, TaskItem, JevCleanupItem, JevDuplicateCheckResult } from '../types';
-import { addJevInteractionLog, maskApiKey } from './jevLog';
 export type { JevDecision };
+
+function maskApiKey(key?: string): string {
+  if (!key) return '(未配置)';
+  if (key.length <= 16) return '******';
+  return `${key.slice(0, 10)}...${key.slice(-6)}`;
+}
 
 const CHINESE_NUM_MAP: Record<string, number> = {
   '零': 0, '〇': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4,
@@ -769,24 +774,6 @@ export async function evaluateWithJev(
           console.log('📦 完整响应:', data);
           console.groupEnd();
 
-          addJevInteractionLog({
-            timestamp: Date.now(),
-            inputText: rawInput,
-            triggerType: triggerType as any,
-            apiKeyMasked: maskedKey,
-            endpoint: targetEndpoint,
-            status: isRemote ? 'success' : 'fallback',
-            statusCode: res.status,
-            durationMs,
-            source: data.source || 'jev-api',
-            category: finalDecision.category,
-            urgencyScore: finalDecision.urgencyScore,
-            tags: finalDecision.tags,
-            requestPayload: data.requestPayload,
-            responseData: data,
-            errorMessage: data.gatewayError
-          });
-
           return finalDecision;
         }
       } else {
@@ -856,20 +843,6 @@ export async function evaluateWithJev(
   console.log('🎯 分类结果:', localDecision.category);
   console.log('🏷️ 细化标签:', localDecision.tags);
   console.groupEnd();
-
-  addJevInteractionLog({
-    timestamp: Date.now(),
-    inputText: rawInput,
-    triggerType: triggerType as any,
-    apiKeyMasked: maskedKey,
-    endpoint: targetEndpoint,
-    status: 'fallback',
-    durationMs,
-    source: 'jev-hybrid-engine',
-    category: localDecision.category,
-    urgencyScore: localDecision.urgencyScore,
-    tags: localDecision.tags
-  });
 
   return localDecision;
 }

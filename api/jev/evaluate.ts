@@ -1,4 +1,7 @@
+import { writeJevLogEntry } from '../../server/jevFileLogger.js';
+
 export default async function handler(req: any, res: any) {
+  const startTime = Date.now();
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -12,17 +15,21 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { text, apiKey, endpoint } = req.body || {};
+    const { text, apiKey, endpoint, triggerType } = req.body || {};
     if (!text || typeof text !== 'string') {
       return res.status(400).json({ error: "Missing or invalid 'text' field" });
     }
 
     const activeApiKey = apiKey || process.env.JEV_API_KEY || process.env.VERCEL_AI_GATEWAY_KEY;
     const targetEndpoint = endpoint || 'https://ai-gateway.vercel.sh/typesafe/v1/systemone';
+    const maskedKey = activeApiKey ? `${activeApiKey.slice(0, 10)}...${activeApiKey.slice(-6)} (长${activeApiKey.length})` : '(未提供)';
+
+    let lastError: string | null = null;
+    let payload: any = null;
 
     if (activeApiKey) {
       try {
-        const payload = {
+        payload = {
           model: 'typesafe-ai/jev',
           state: text,
           questions: {
@@ -80,6 +87,20 @@ export default async function handler(req: any, res: any) {
             : (answers.needs_cleanup?.value ?? answers.needs_cleanup?.probability ?? 0);
 
           const confidence = answers.category?.confidence ?? data.confidence ?? 0.95;
+          const durationMs = Date.now() - startTime;
+
+          // Write to Jev log file (and Vercel stdout)
+          writeJevLogEntry({
+            triggerType: triggerType || 'evaluate',
+            inputText: text,
+            targetEndpoint,
+            apiKeyMasked: maskedKey,
+            status: 'HTTP 200 OK (Vercel Serverless)',
+            statusCode: 200,
+            durationMs,
+            requestPayload: payload,
+            result: { category, urgencyScore, cleanupProb, confidence, source: 'vercel-ai-gateway-jev' }
+          });
 
           return res.status(200).json({
             category,
@@ -87,11 +108,15 @@ export default async function handler(req: any, res: any) {
             needsCleanup: cleanupProb > 0.6,
             confidence,
             rawJevAnswers: answers,
-            source: 'vercel-ai-gateway-jev'
+            source: 'vercel-ai-gateway-jev',
+            durationMs
           });
+        } else {
+          const errBody = await jevRes.text().catch(() => '');
+          lastError = `HTTP ${jevRes.status}: ${errBody}`;
         }
-      } catch (e) {
-        console.warn('Vercel serverless Jev call error:', e);
+      } catch (e: any) {
+        lastError = e?.message || String(e);
       }
     }
 
@@ -114,11 +139,27 @@ export default async function handler(req: any, res: any) {
       urgencyScore = /(采购|预算|评审|用例|例会|周五|周四|本周)/.test(lower) ? 0.72 : 0.65;
     }
 
+    const durationMs = Date.now() - startTime;
+
+    // Write fallback to Jev log file (and Vercel stdout)
+    writeJevLogEntry({
+      triggerType: triggerType || 'evaluate',
+      inputText: text,
+      targetEndpoint,
+      apiKeyMasked: maskedKey,
+      status: 'FALLBACK (Jev Local Engine)',
+      durationMs,
+      requestPayload: payload,
+      result: { category, urgencyScore, source: 'jev-calibrated-local' },
+      error: lastError || 'Fallback to calibrated engine'
+    });
+
     return res.status(200).json({
       category,
       urgencyScore,
       confidence: 0.93,
-      source: 'jev-calibrated-local'
+      source: 'jev-calibrated-local',
+      durationMs
     });
   } catch (err: any) {
     console.error('Serverless evaluate error:', err);

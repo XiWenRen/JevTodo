@@ -15,6 +15,7 @@ import {
   getUserById
 } from "./server/db.js";
 import { signToken, verifyToken, extractUserIdFromReq } from "./server/auth.js";
+import { writeJevLogEntry, readJevLogFile, clearJevLogFile } from "./server/jevFileLogger.js";
 
 dotenv.config();
 
@@ -489,6 +490,18 @@ async function startServer() {
             console.log(`🎯 [决策结果]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(specificTags)}`);
             console.log(`======================================================\n`);
 
+            writeJevLogEntry({
+              triggerType,
+              inputText: text,
+              targetEndpoint,
+              apiKeyMasked: maskedKey,
+              status: "HTTP 200 OK",
+              statusCode: 200,
+              durationMs: gatewayDuration,
+              requestPayload: payload,
+              result: { category, urgencyScore, tags: specificTags, source: "vercel-ai-gateway-jev" }
+            });
+
             return res.json({
               category,
               urgencyScore,
@@ -551,6 +564,18 @@ async function startServer() {
       console.log(`🎯 [本地校准决策]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(specificTags)} (${totalElapsed}ms)`);
       console.log(`======================================================\n`);
 
+      writeJevLogEntry({
+        triggerType,
+        inputText: text,
+        targetEndpoint,
+        apiKeyMasked: maskedKey,
+        status: "FALLBACK (Jev Local Engine)",
+        durationMs: totalElapsed,
+        requestPayload: sentPayload,
+        result: { category, urgencyScore, tags: specificTags, source: "jev-calibrated-local" },
+        error: lastGatewayError || "Fallback to local engine"
+      });
+
       return res.json({
         category,
         urgencyScore,
@@ -565,6 +590,17 @@ async function startServer() {
       console.error("Server evaluate error:", err);
       res.status(500).json({ error: err?.message || "Internal evaluation error" });
     }
+  });
+
+  // Access Jev Log File directly via HTTP (e.g. /api/jev/logs)
+  app.get("/api/jev/logs", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    if (req.query?.clear === "true") {
+      clearJevLogFile();
+      return res.type("text/plain; charset=utf-8").send("Jev log file cleared.\n");
+    }
+    const logs = readJevLogFile();
+    res.type("text/plain; charset=utf-8").send(logs);
   });
 
   // Vite middleware for development vs static in production
