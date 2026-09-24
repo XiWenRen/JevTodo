@@ -23,6 +23,7 @@ export interface TaskSnapshot {
 
 export interface OperationLogItem {
   id: string;
+  userId?: string;        // 关联用户 ID，实现用户维度数据隔离
   timestamp: number;
   type: OperationType;
   title: string;          // 简明标题，如 "Jev 智能决策整理", "创建待办", "手势延后"

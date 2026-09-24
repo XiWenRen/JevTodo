@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { TaskItem, TaskCategory, ActiveView, AppSettings, AppTheme } from './types';
 import { TaskSnapshot } from './types/operationLog';
-import { recordOperation, taskToSnapshot } from './utils/operationLog';
+import { recordOperation, taskToSnapshot, fetchOperationLogsFromCloud, saveOperationLogs } from './utils/operationLog';
 import { evaluateWithJev, analyzeTasksWithJev, splitTasksWithJev, detectDuplicateWithJev, extractDateTime } from './utils/jev';
 import { 
   checkAndFetchCloudTasks, 
@@ -323,6 +323,12 @@ export default function App() {
       setTasks([]);
     }
     await refreshTasksFromCloud();
+    // Warm up user's cloud operation logs into local cache
+    fetchOperationLogsFromCloud().then(res => {
+      if (res.configured && res.authenticated && res.logs.length > 0) {
+        saveOperationLogs(res.logs, user.id);
+      }
+    }).catch(() => {});
   };
 
   const handleLogout = () => {
