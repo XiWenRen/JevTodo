@@ -43,6 +43,7 @@ import { FloatingInputBar } from './components/FloatingInputBar';
 import { FloatingProgressWidget } from './components/FloatingProgressWidget';
 import { JevOrganizeConfirmModal, OrganizeOptions } from './components/JevOrganizeConfirmModal';
 import { OperationLogModal } from './components/OperationLogModal';
+import { JevLogModal } from './components/JevLogModal';
 import { TaskSnapshotModal } from './components/TaskSnapshotModal';
 import { ShortcutPluginModal } from './components/ShortcutPluginModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -167,6 +168,7 @@ export default function App() {
   // UI Modals & Menus
   const [isOrganizeConfirmOpen, setIsOrganizeConfirmOpen] = useState(false);
   const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [isJevLogModalOpen, setIsJevLogModalOpen] = useState(false);
   const [snapshotModalData, setSnapshotModalData] = useState<{
     isOpen: boolean;
     title: string;
@@ -1293,6 +1295,7 @@ export default function App() {
             isProcessing={isProcessing}
             apiKey={settings.jevApiKey}
             endpoint={settings.jevEndpoint}
+            onOpenJevLogs={() => setIsJevLogModalOpen(true)}
           />
         </div>
       )}
@@ -1328,6 +1331,7 @@ export default function App() {
         onToggleCompactMode={() => handleSaveSettings({ ...settings, widgetWidth: isCompactMode ? 'standard' : 'compact' })}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenOperationLogs={() => setIsLogModalOpen(true)}
+        onOpenJevLogs={() => setIsJevLogModalOpen(true)}
         onOpenBatchSplit={() => {
           setBatchSplitInitialText('');
           setIsBatchSplitModalOpen(true);
@@ -1435,6 +1439,13 @@ export default function App() {
       <OperationLogModal
         isOpen={isLogModalOpen}
         onClose={() => setIsLogModalOpen(false)}
+      />
+
+      {/* Jev AI Interaction Log Modal */}
+      <JevLogModal
+        isOpen={isJevLogModalOpen}
+        onClose={() => setIsJevLogModalOpen(false)}
+        apiKey={settings.jevApiKey}
       />
 
       {/* Task Snapshot Drilldown Modal */}

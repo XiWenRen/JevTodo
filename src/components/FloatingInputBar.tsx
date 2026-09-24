@@ -10,6 +10,7 @@ interface FloatingInputBarProps {
   isProcessing?: boolean;
   apiKey?: string;
   endpoint?: string;
+  onOpenJevLogs?: () => void;
 }
 
 export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
@@ -17,7 +18,8 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
   onOpenBatchModal,
   isProcessing = false,
   apiKey,
-  endpoint
+  endpoint,
+  onOpenJevLogs
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -296,25 +298,40 @@ export const FloatingInputBar: React.FC<FloatingInputBarProps> = ({
                   <span className="text-[10px]">Cherry (Jev) 预测中...</span>
                 </div>
               ) : preview ? (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="flex items-center gap-1 text-[var(--text-main)] font-medium">
-                    <Sparkles className="w-3 h-3 text-[var(--cherry-red)]" />
-                    Cherry 预测:
-                  </span>
-                  <span className="bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] px-1.5 py-0.5 rounded text-[10px]">
-                    {preview.category}
-                  </span>
-                  {preview.dueDate && (
-                    <span className="inline-flex items-center gap-0.5 text-[var(--text-sub)] bg-[var(--chip-bg)] border border-[var(--chip-border)] px-1.5 py-0.5 rounded text-[10px]">
-                      <Clock className="w-2.5 h-2.5" />
-                      {preview.dueDate}
+                <div className="flex items-center justify-between w-full gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                    <span className="flex items-center gap-1 text-[var(--text-main)] font-medium">
+                      <Sparkles className="w-3 h-3 text-[var(--cherry-red)]" />
+                      Cherry 预测:
                     </span>
+                    <span className="bg-[var(--chip-bg)] border border-[var(--chip-border)] text-[var(--text-main)] px-1.5 py-0.5 rounded text-[10px]">
+                      {preview.category}
+                    </span>
+                    {preview.dueDate && (
+                      <span className="inline-flex items-center gap-0.5 text-[var(--text-sub)] bg-[var(--chip-bg)] border border-[var(--chip-border)] px-1.5 py-0.5 rounded text-[10px]">
+                        <Clock className="w-2.5 h-2.5" />
+                        {preview.dueDate}
+                      </span>
+                    )}
+                    {preview.tags.map(t => (
+                      <span key={t} className="text-[var(--tag-text)] text-[10px]">
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                  {onOpenJevLogs && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenJevLogs();
+                      }}
+                      className="text-[10px] text-[var(--text-faint)] hover:text-emerald-400 font-mono transition-colors shrink-0 underline underline-offset-2"
+                      title="查看刚才这次预测的 Jev 详细交互报文"
+                    >
+                      查看报文 →
+                    </button>
                   )}
-                  {preview.tags.map(t => (
-                    <span key={t} className="text-[var(--tag-text)] text-[10px]">
-                      #{t}
-                    </span>
-                  ))}
                 </div>
               ) : null}
             </motion.div>

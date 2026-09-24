@@ -397,14 +397,26 @@ async function startServer() {
 
   // Evaluate task using Jev model via Vercel AI Gateway / TypeSafe API
   app.post("/api/jev/evaluate", async (req, res) => {
+    const requestStart = Date.now();
     try {
-      const { text, apiKey, endpoint } = req.body;
+      const { text, apiKey, endpoint, triggerType } = req.body;
       if (!text || typeof text !== "string") {
         return res.status(400).json({ error: "Missing or invalid 'text' field" });
       }
 
       const activeApiKey = apiKey || process.env.JEV_API_KEY || process.env.VERCEL_AI_GATEWAY_KEY;
       const targetEndpoint = endpoint || "https://ai-gateway.vercel.sh/typesafe/v1/systemone";
+      const maskedKey = activeApiKey ? `${activeApiKey.slice(0, 10)}...${activeApiKey.slice(-6)} (长${activeApiKey.length})` : '(未提供)';
+
+      console.log(`\n================== [Jev AI Request] ==================`);
+      console.log(`⏱️ [时间]: ${new Date().toLocaleTimeString()}`);
+      console.log(`🎯 [触发类型]: ${triggerType || 'evaluate'}`);
+      console.log(`📝 [输入文本]: "${text}"`);
+      console.log(`🌐 [目标网关]: ${targetEndpoint}`);
+      console.log(`🔑 [API Key]: ${maskedKey}`);
+
+      let lastGatewayError = null;
+      let sentPayload = null;
 
       // If key is available, call the remote Jev System One endpoint
       if (activeApiKey) {
@@ -438,7 +450,9 @@ async function startServer() {
               }
             }
           };
+          sentPayload = payload;
 
+          const fetchStart = Date.now();
           const jevRes = await fetch(targetEndpoint, {
             method: "POST",
             headers: {
@@ -447,6 +461,7 @@ async function startServer() {
             },
             body: JSON.stringify(payload)
           });
+          const gatewayDuration = Date.now() - fetchStart;
 
           if (jevRes.ok) {
             const data = await jevRes.json();
@@ -470,6 +485,10 @@ async function startServer() {
 
             const specificTags = await generateSpecificMatterTags(text, req.body.geminiApiKey);
 
+            console.log(`✅ [网关响应]: HTTP 200 OK (${gatewayDuration}ms)`);
+            console.log(`🎯 [决策结果]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(specificTags)}`);
+            console.log(`======================================================\n`);
+
             return res.json({
               category,
               urgencyScore,
@@ -477,11 +496,16 @@ async function startServer() {
               needsCleanup: cleanupProb > 0.6,
               confidence,
               rawJevAnswers: answers,
-              source: "vercel-ai-gateway-jev"
+              source: "vercel-ai-gateway-jev",
+              requestPayload: payload,
+              durationMs: gatewayDuration
             });
           } else {
             const errBody = await jevRes.text();
-            console.warn("Vercel AI Gateway Jev response non-200:", jevRes.status, errBody);
+            lastGatewayError = `HTTP ${jevRes.status}: ${errBody}`;
+            console.warn(`⚠️ [网关响应异常]: HTTP ${jevRes.status} (${gatewayDuration}ms) - ${errBody.slice(0, 180)}`);
+            console.log(`🔄 [自动降级]: 切换至 Jev 本地校准引擎进行高精度评估`);
+
             if (req.body.isTest) {
               let msg = errBody;
               try {
@@ -494,8 +518,10 @@ async function startServer() {
               });
             }
           }
-        } catch (fetchErr) {
-          console.warn("Error calling Jev endpoint:", fetchErr);
+        } catch (fetchErr: any) {
+          lastGatewayError = fetchErr?.message || String(fetchErr);
+          console.warn("⚠️ [网关连接异常]:", lastGatewayError);
+          console.log(`🔄 [自动降级]: 切换至 Jev 本地校准引擎进行高精度评估`);
         }
       }
 
@@ -520,13 +546,20 @@ async function startServer() {
       }
 
       const specificTags = await generateSpecificMatterTags(text, req.body.geminiApiKey);
+      const totalElapsed = Date.now() - requestStart;
+
+      console.log(`🎯 [本地校准决策]: 分类=${category}, 紧迫度=${urgencyScore}, 标签=${JSON.stringify(specificTags)} (${totalElapsed}ms)`);
+      console.log(`======================================================\n`);
 
       return res.json({
         category,
         urgencyScore,
         tags: specificTags,
         confidence: 0.93,
-        source: "jev-calibrated-local"
+        source: "jev-calibrated-local",
+        gatewayError: lastGatewayError,
+        requestPayload: sentPayload,
+        durationMs: totalElapsed
       });
     } catch (err: any) {
       console.error("Server evaluate error:", err);

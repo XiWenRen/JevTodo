@@ -42,6 +42,7 @@ interface CategoryDrawerProps {
   onToggleCompactMode: () => void;
   onOpenAuth: () => void;
   onOpenOperationLogs: () => void;
+  onOpenJevLogs?: () => void;
   onOpenBatchSplit?: () => void;
   onOpenShortcuts: () => void;
   onResetSampleData: () => void;
@@ -73,6 +74,7 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
   onToggleCompactMode,
   onOpenAuth,
   onOpenOperationLogs,
+  onOpenJevLogs,
   onOpenBatchSplit,
   onOpenShortcuts,
   onResetSampleData,
@@ -373,6 +375,25 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
                     查看全部
                   </span>
                 </button>
+
+                {onOpenJevLogs && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenJevLogs();
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[var(--chip-hover)] text-[var(--text-main)] flex items-center justify-between text-xs transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Jev 模型交互日志</span>
+                    </span>
+                    <span className="text-[10px] text-[var(--text-faint)] font-mono">
+                      报文详情 →
+                    </span>
+                  </button>
+                )}
 
                 {onOpenBatchSplit && (
                   <button
