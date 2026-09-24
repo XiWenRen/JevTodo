@@ -508,7 +508,7 @@ export function extractSubjectEntities(text: string): string[] {
   if (!text) return [];
   const entities: string[] = [];
 
-  const leadingNoise = /^(在|从|到|把|将|给|对|向|和|跟|与|于|通过|使用|按|按照|优化|修复|排查|升级|更新|核对|配置|处理|推进|搭建|重构|迁移|同步|对接|编写|修改|完善|维护|接入|开发|测试|梳理|评估|设计|部署|上线|发布|管理|监控|查询|导出|录入|提交|复核|调优|巡检)+/g;
+  const leadingNoise = /^(按照|按|通过|使用|优化|修复|排查|升级|更新|核对|配置|处理|推进|搭建|重构|迁移|同步|对接|编写|撰写|检查|巡检|修改|完善|维护|接入|开发|测试|梳理|评估|设计|部署|上线|发布|管理|监控|查询|导出|录入|提交|复核|调优|在|从|到|把|将|给|对|向|和|跟|与|于)+/g;
 
   const addEntity = (candidate: string) => {
     if (!candidate) return;
@@ -584,7 +584,7 @@ export function extractSubjectEntities(text: string): string[] {
   }
 
   // 6. Chinese System / Platform / Center / Middleware Nouns
-  const cnSysRegex = /([\u4e00-\u9fa5]{2,6}(?:系统|平台|中台|服务|中心|模块|引擎|网关|后台|前台|底座|组件|流水线|数据库|数据仓库|应用|客户端|小程序|官网|门户|知识库|开放平台))/g;
+  const cnSysRegex = /([\u4e00-\u9fa5]{2,8}(?:系统|平台|中台|服务|中心|模块|引擎|网关|后台|前台|底座|组件|流水线|数据库|数据仓库|应用|客户端|小程序|官网|门户|知识库|开放平台))/g;
   let cnMatch;
   while ((cnMatch = cnSysRegex.exec(text)) !== null) {
     addEntity(cnMatch[1]);

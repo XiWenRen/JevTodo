@@ -1,6 +1,6 @@
 import { writeJevLogEntry } from '../../server/jevFileLogger.js';
 import { resolveJevDateTime } from '../../server/jevTimeHelper.js';
-import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria, buildDynamicTitleCriteria, extractSubjectEntities, extractDomainKeywords } from '../../server/jevScheduleHelper.js';
+import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria, buildDynamicTitleCriteria, extractSubjectEntities, extractDomainKeywords, globalTagLedger } from '../../server/jevScheduleHelper.js';
 
 export default async function handler(req: any, res: any) {
   const startTime = Date.now();
@@ -195,6 +195,13 @@ export default async function handler(req: any, res: any) {
 
           if (jevTags.length === 0) jevTags.push('常规待办');
 
+          // Record evolved tags in user ledger
+          for (const tag of jevTags) {
+            if (tag !== '常规待办') {
+              globalTagLedger.recordTagUsage(tag, 'jev_minted');
+            }
+          }
+
           // 2. Task Time directly powered by Jev
           const timeScope = answers.time_scope?.choice;
           const timeSlot = answers.time_slot?.choice;
@@ -238,7 +245,8 @@ export default async function handler(req: any, res: any) {
             confidence,
             rawJevAnswers: answers,
             source: 'typesafe-jev-systemone',
-            durationMs
+            durationMs,
+            evolvingLedgerStats: globalTagLedger.getStats()
           });
         } else {
           const errBody = await jevRes.text().catch(() => '');

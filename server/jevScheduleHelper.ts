@@ -20,7 +20,7 @@ export function extractSubjectEntities(text: string): string[] {
   if (!text) return [];
   const entities: string[] = [];
 
-  const leadingNoise = /^(在|从|到|把|将|给|对|向|和|跟|与|于|通过|使用|按|按照|优化|修复|排查|升级|更新|核对|配置|处理|推进|搭建|重构|迁移|同步|对接|编写|修改|完善|维护|接入|开发|测试|梳理|评估|设计|部署|上线|发布|管理|监控|查询|导出|录入|提交|复核|调优|巡检)+/g;
+  const leadingNoise = /^(按照|按|通过|使用|优化|修复|排查|升级|更新|核对|配置|处理|推进|搭建|重构|迁移|同步|对接|编写|撰写|检查|巡检|修改|完善|维护|接入|开发|测试|梳理|评估|设计|部署|上线|发布|管理|监控|查询|导出|录入|提交|复核|调优|在|从|到|把|将|给|对|向|和|跟|与|于)+/g;
 
   const addEntity = (candidate: string) => {
     if (!candidate) return;
@@ -98,7 +98,7 @@ export function extractSubjectEntities(text: string): string[] {
 
   // 6. Chinese System / Platform / Center / Middleware Nouns
   // e.g. 工单系统, 客服系统, 财务系统, 风控系统, 支付系统, 结算系统, 资产管理系统, 用户中心, 业务中台
-  const cnSysRegex = /([\u4e00-\u9fa5]{2,6}(?:系统|平台|中台|服务|中心|模块|引擎|网关|后台|前台|底座|组件|流水线|数据库|数据仓库|应用|客户端|小程序|官网|门户|知识库|开放平台))/g;
+  const cnSysRegex = /([\u4e00-\u9fa5]{2,8}(?:系统|平台|中台|服务|中心|模块|引擎|网关|后台|前台|底座|组件|流水线|数据库|数据仓库|应用|客户端|小程序|官网|门户|知识库|开放平台))/g;
   let cnMatch;
   while ((cnMatch = cnSysRegex.exec(text)) !== null) {
     addEntity(cnMatch[1]);
@@ -149,62 +149,161 @@ export function extractDomainKeywords(text: string): string[] {
   return results.slice(0, 2);
 }
 
+export interface EvolvingTag {
+  name: string;
+  usageCount: number;
+  lastUsedAt: number;
+  origin: 'user_created' | 'jev_minted' | 'seed';
+}
+
 /**
- * Compose dynamic matter_tag criteria merging user custom tags,
- * pre-extracted subject entities, domain keywords, and baseline fallbacks.
+ * Personal Evolving Tag Ledger:
+ * Automatically mints, tracks, ranks, and converges user personal tags over time
+ * without requiring manual configuration or cold-start static dictionaries.
  */
-export function buildDynamicTagCriteria(
-  userTags?: string[],
-  text: string = ''
-): Record<string, string> {
-  const criteria: Record<string, string> = {};
+export class PersonalTagLedger {
+  private tags: Map<string, EvolvingTag> = new Map();
 
-  // 1. Core Subject / System Entities (Highest Priority)
-  const subjectEntities = extractSubjectEntities(text);
-  for (const ent of subjectEntities) {
-    if (!criteria[ent]) {
-      criteria[ent] = `【核心主体系统/实体】涉及「${ent}」相关的系统架构、功能开发、接口对接、数据或日常运维保障事项`;
-    }
-  }
-
-  // 2. User-specific custom tags (up to 12)
-  if (Array.isArray(userTags)) {
-    for (const tag of userTags) {
-      if (typeof tag === 'string') {
-        const clean = tag.trim().replace(/^#/, '');
-        if (clean && clean.length >= 2 && !criteria[clean] && Object.keys(criteria).length < 12) {
-          criteria[clean] = `用户自定义业务分类：与「${clean}」相关的日常工作、交付或生活事项`;
+  constructor(initialTags?: (string | EvolvingTag)[]) {
+    if (Array.isArray(initialTags)) {
+      for (const t of initialTags) {
+        if (typeof t === 'string') {
+          this.recordTagUsage(t, 'seed');
+        } else if (t && t.name) {
+          this.tags.set(t.name, { ...t });
         }
       }
     }
   }
 
-  // 3. Domain Action Keywords extracted from prompt
-  const domainKws = extractDomainKeywords(text);
-  for (const kw of domainKws) {
-    if (!criteria[kw] && Object.keys(criteria).length < 15) {
-      criteria[kw] = `【具体业务事项】与「${kw}」相关的具体业务动作、技术实现或执行事务`;
+  recordTagUsage(name: string, origin: 'user_created' | 'jev_minted' | 'seed' = 'jev_minted'): string {
+    const clean = name.trim().replace(/^#/, '');
+    if (!clean || clean.length < 2 || clean.length > 15 || clean === '常规待办') return clean;
+
+    // Fuzzy deduplication / canonicalization (e.g. CRM vs CRM系统)
+    const targetKey = this.findCanonicalKey(clean) || clean;
+
+    const existing = this.tags.get(targetKey);
+    if (existing) {
+      existing.usageCount += 1;
+      existing.lastUsedAt = Date.now();
+    } else {
+      this.tags.set(targetKey, {
+        name: targetKey,
+        usageCount: 1,
+        lastUsedAt: Date.now(),
+        origin
+      });
+    }
+    return targetKey;
+  }
+
+  private findCanonicalKey(candidate: string): string | null {
+    if (this.tags.has(candidate)) return candidate;
+    for (const key of this.tags.keys()) {
+      if (key === `${candidate}系统` || candidate === `${key}系统`) {
+        return key.length >= candidate.length ? key : candidate;
+      }
+    }
+    return null;
+  }
+
+  getTopCandidates(inputText: string, maxLimit = 8): string[] {
+    const entries = Array.from(this.tags.values());
+    if (entries.length === 0) return [];
+
+    const scored = entries.map(item => {
+      let score = item.usageCount * 10;
+      if (inputText && inputText.includes(item.name)) {
+        score += 1000; // Directly mentioned in current text
+      }
+      return { item, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, maxLimit).map(s => s.item.name);
+  }
+
+  getAllTags(): EvolvingTag[] {
+    return Array.from(this.tags.values()).sort((a, b) => b.usageCount - a.usageCount);
+  }
+
+  getStats(): { totalTags: number; totalUsages: number; topTags: string[] } {
+    const all = this.getAllTags();
+    const totalUsages = all.reduce((sum, t) => sum + t.usageCount, 0);
+    return {
+      totalTags: all.length,
+      totalUsages,
+      topTags: all.slice(0, 8).map(t => `${t.name}(${t.usageCount})`)
+    };
+  }
+
+  clear(): void {
+    this.tags.clear();
+  }
+}
+
+export const globalTagLedger = new PersonalTagLedger();
+
+/**
+ * Compose dynamic matter_tag criteria merging user tag ledger,
+ * pre-extracted subject entities, domain keywords, and baseline fallbacks.
+ */
+export function buildDynamicTagCriteria(
+  userTags?: string[],
+  text: string = '',
+  ledger: PersonalTagLedger = globalTagLedger
+): Record<string, string> {
+  const criteria: Record<string, string> = {};
+
+  // 1. High-frequency / relevant tags from user's evolving ledger (up to 6)
+  const ledgerTop = ledger.getTopCandidates(text, 6);
+  for (const tag of ledgerTop) {
+    if (!criteria[tag]) {
+      criteria[tag] = `【常用业务标签】个人标签库已沉淀业务分类：与「${tag}」相关的日常工作、交付或技术事项`;
     }
   }
 
-  // 4. Baseline high-frequency domain categories
+  // 2. Core Subject / System Entities dynamically mined from current text (Highest Priority)
+  const subjectEntities = extractSubjectEntities(text);
+  for (const ent of subjectEntities) {
+    if (!criteria[ent] && Object.keys(criteria).length < 10) {
+      const isKnown = ledgerTop.includes(ent);
+      criteria[ent] = isKnown
+        ? `【主体系统】已沉淀的核心主体系统「${ent}」相关事项`
+        : `【新立主体候选】识别到文本中的新主体「${ent}」，若具备独立归档与业务价值请优先选取`;
+    }
+  }
+
+  // 3. Explicit user-specific custom tags passed in request
+  if (Array.isArray(userTags)) {
+    for (const tag of userTags) {
+      if (typeof tag === 'string') {
+        const clean = tag.trim().replace(/^#/, '');
+        if (clean && clean.length >= 2 && !criteria[clean] && Object.keys(criteria).length < 12) {
+          criteria[clean] = `【自定义标签】与「${clean}」相关的日常工作或交付事项`;
+        }
+      }
+    }
+  }
+
+  // 4. Domain Action Keywords extracted from current text
+  const domainKws = extractDomainKeywords(text);
+  for (const kw of domainKws) {
+    if (!criteria[kw] && Object.keys(criteria).length < 13) {
+      criteria[kw] = `【业务动作】与「${kw}」相关的具体业务动作、技术实现或执行事务`;
+    }
+  }
+
+  // 5. Minimal general baseline categories (kept lean, max 3)
   const baselineCategories: Record<string, string> = {
     '技术方案': '系统架构设计、技术方案撰写、技术选型与评审',
-    '代码审查': '代码CR、Review、合并卡点处理与分支发布',
-    '网关排查': '502/500/网关/端口/告警排查与服务恢复',
-    '生产排查': '生产环境故障、线上紧急异常排查与止血',
-    '用例评审': '测试用例、冒烟测试、功能评审与质量验收',
-    '灰度发版': '版本发布、灰度上线、发版跟进与监控',
-    '预算申报': '财年IT研发与云资源预算申报、硬件采购比价',
-    '医疗健康': '就医检查、体检、门诊预约、健康管理',
-    '运动健身': '健身房力量训练、跑步打卡、体育锻炼',
     '生活琐事': '日常超市购物、生鲜买菜、生活缴费、家务打理',
-    '学习成长': '外语备考、技术进阶、学习规划与深度阅读',
     '常规待办': '其他未明确归类的常规工作或日常琐碎事项'
   };
 
   for (const [tag, desc] of Object.entries(baselineCategories)) {
-    if (!criteria[tag]) {
+    if (!criteria[tag] && Object.keys(criteria).length < 14) {
       criteria[tag] = desc;
     }
   }
