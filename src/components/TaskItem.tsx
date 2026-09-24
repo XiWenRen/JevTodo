@@ -23,6 +23,7 @@ interface TaskItemProps {
   onDelete: (id: string) => void;
   onMoveToPlanning?: (id: string) => void;
   onStartGesture?: (task: ITaskItem, point: { x: number; y: number }, cardRect: CardRect) => void;
+  onStartCherryClock?: (task: ITaskItem) => void;
 }
 
 export interface DueDateStatus {
@@ -54,7 +55,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   onUpdate,
   onDelete,
   onMoveToPlanning,
-  onStartGesture
+  onStartGesture,
+  onStartCherryClock
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(task.title);
@@ -223,26 +225,43 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           {/* Main Task Information */}
           <div className="flex-1 min-w-0">
             {/* Title Row */}
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span
-                onClick={() => setIsEditing(true)}
-                className={`text-sm select-text font-normal leading-snug transition-colors ${
-                  task.completed
-                    ? 'line-through text-[var(--text-faint)]'
-                    : 'text-[var(--text-main)] hover:text-cyan-400'
-                }`}
-                title="点击快速编辑文本"
-              >
-                {task.title}
-              </span>
-
-              {/* Stale warning */}
-              {task.isStale && !task.completed && (
-                <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-mono">
-                  <AlertCircle className="w-2.5 h-2.5" />
-                  停滞
-                </span>
+            <div className="flex items-start gap-1.5 min-w-0">
+              {/* Ultra-Minimalist Cherry Clock Entry: Single icon on the far left of task title */}
+              {onStartCherryClock && !task.completed && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStartCherryClock(task);
+                  }}
+                  className="mt-[1px] inline-flex items-center justify-center shrink-0 hover:scale-125 active:scale-90 transition-transform cursor-pointer select-none group/cherry-btn"
+                  title="开启樱桃时钟倒计时"
+                >
+                  <span className="text-sm leading-none select-none filter drop-shadow-[0_1px_2px_rgba(244,63,94,0.3)]">🍒</span>
+                </button>
               )}
+
+              <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+                <span
+                  onClick={() => setIsEditing(true)}
+                  className={`text-sm select-text font-normal leading-snug break-words transition-colors ${
+                    task.completed
+                      ? 'line-through text-[var(--text-faint)]'
+                      : 'text-[var(--text-main)] hover:text-cyan-400'
+                  }`}
+                  title="点击快速编辑文本"
+                >
+                  {task.title}
+                </span>
+
+                {/* Stale warning */}
+                {task.isStale && !task.completed && (
+                  <span className="inline-flex items-center gap-0.5 text-[9px] text-amber-500 bg-amber-500/10 px-1 py-0.2 rounded font-mono shrink-0">
+                    <AlertCircle className="w-2.5 h-2.5" />
+                    停滞
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Ultra-Minimalist Meta Row: Tiny clean typography for date and tags */}
@@ -350,6 +369,42 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                     <span className="flex-1 break-words">{note}</span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Cherry Clock Subtasks: strictly read-only, automatically created on timer completion */}
+            {task.cherrySubtasks && task.cherrySubtasks.length > 0 && (
+              <div className="mt-2.5 pt-2 border-t border-[var(--border-subtle)]/40 space-y-1.5">
+                <div className="flex items-center justify-between text-[10px] text-rose-400 font-medium">
+                  <span className="flex items-center gap-1">
+                    <span className="text-xs">🍒</span>
+                    <span>樱桃专注记录 ({task.cherrySubtasks.length}次)</span>
+                  </span>
+                  <span className="text-[9px] text-[var(--text-faint)]">
+                    累计 {task.cherrySubtasks.reduce((sum, c) => sum + (c.durationMinutes || 25), 0)} 分钟
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {task.cherrySubtasks.map((cherry, idx) => (
+                    <div
+                      key={cherry.id || idx}
+                      className="flex items-center justify-between text-[10px] bg-rose-500/5 border border-rose-500/15 rounded-md px-2 py-1 select-none"
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px]">🍒</span>
+                        <span className="font-medium text-[var(--text-main)]">
+                          {cherry.title || `专注完成 (${cherry.durationMinutes}m)`}
+                        </span>
+                        <span className="text-[9px] text-rose-400 font-mono">
+                          {cherry.durationMinutes}分钟
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-[var(--text-faint)] font-mono">
+                        {new Date(cherry.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

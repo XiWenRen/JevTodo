@@ -16,10 +16,13 @@ import {
   Cloud, 
   Database,
   HardDrive,
-  Layers
+  Layers,
+  Clock,
+  Volume2
 } from 'lucide-react';
 import { AppSettings, AppTheme } from '../types';
 import { AuthUser } from '../utils/auth';
+import { playCherryCompletionChime } from './CherryClockModal';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -45,6 +48,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [apiKey, setApiKey] = useState(settings.jevApiKey || '');
   const [endpoint, setEndpoint] = useState(settings.jevEndpoint || 'https://ai-gateway.vercel.sh/typesafe/v1/systemone');
   const [selectedTheme, setSelectedTheme] = useState<AppTheme>(settings.theme || 'obsidian');
+  const [cherryDuration, setCherryDuration] = useState<number>(settings.cherryDurationMinutes || 25);
+  const [cherrySound, setCherrySound] = useState<boolean>(settings.cherrySoundEnabled ?? true);
   const [showKey, setShowKey] = useState(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
   const [testMessage, setTestMessage] = useState<string>('');
@@ -147,7 +152,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       ...settings,
       jevApiKey: apiKey.trim(),
       jevEndpoint: endpoint.trim(),
-      theme: selectedTheme
+      theme: selectedTheme,
+      cherryDurationMinutes: cherryDuration,
+      cherrySoundEnabled: cherrySound
     });
     onClose();
   };
@@ -228,6 +235,95 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Section: Cherry Clock Settings */}
+          <div className="border-t border-[var(--border-subtle)] pt-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-main)]">
+                <span className="text-sm">🍒</span>
+                <span>樱桃时钟偏好</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 font-medium">
+                沉浸专注
+              </span>
+            </div>
+            <p className="text-[11px] text-[var(--text-faint)]">
+              设置默认倒计时专注时长与到期提醒，完成后将自动沉淀为该任务的只读樱桃子任务
+            </p>
+
+            <div className="p-3 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-3">
+              {/* Duration Setting */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs text-[var(--text-main)] font-medium flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-rose-400" /> 单次专注时长
+                  </span>
+                  <span className="text-xs font-mono font-bold text-rose-400">
+                    {cherryDuration} 分钟
+                  </span>
+                </div>
+
+                {/* Preset Buttons */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[15, 20, 25, 30, 45, 60].map(mins => (
+                    <button
+                      key={mins}
+                      type="button"
+                      onClick={() => setCherryDuration(mins)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                        cherryDuration === mins
+                          ? 'bg-rose-500 text-white shadow-sm'
+                          : 'bg-[var(--bg-main)] text-[var(--text-sub)] hover:text-[var(--text-main)] border border-[var(--border-subtle)]'
+                      }`}
+                    >
+                      {mins}m
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1 ml-auto">
+                    <input
+                      type="number"
+                      min={1}
+                      max={180}
+                      value={cherryDuration}
+                      onChange={(e) => setCherryDuration(Math.max(1, Math.min(180, parseInt(e.target.value) || 25)))}
+                      className="w-14 px-1.5 py-0.5 text-xs text-center rounded-lg bg-[var(--bg-main)] border border-[var(--border-subtle)] text-[var(--text-main)] font-mono outline-none"
+                    />
+                    <span className="text-[11px] text-[var(--text-faint)]">分钟</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sound Setting */}
+              <div className="flex items-center justify-between pt-2 border-t border-[var(--border-subtle)]/60">
+                <div className="flex items-center gap-2">
+                  <Volume2 className="w-3.5 h-3.5 text-[var(--text-sub)]" />
+                  <div>
+                    <div className="text-xs font-medium text-[var(--text-main)]">到期提示音</div>
+                    <div className="text-[10px] text-[var(--text-faint)]">倒计时归零时自动播放清脆提示铃音</div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => playCherryCompletionChime()}
+                    className="px-2 py-0.5 text-[10px] text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 rounded-md transition-colors"
+                  >
+                    试听铃音
+                  </button>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={cherrySound}
+                      onChange={(e) => setCherrySound(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-8 h-4 bg-[var(--border-subtle)] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-rose-500"></div>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 

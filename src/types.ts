@@ -18,6 +18,15 @@ export interface ActivityDayData {
   level: 0 | 1 | 2 | 3 | 4;
 }
 
+export interface CherrySubtask {
+  id: string;
+  taskId: string;
+  title: string;
+  durationMinutes: number;
+  completedAt: number;
+  autoCompleted: true;
+}
+
 export interface TaskItem {
   id: string;
   title: string;
@@ -33,6 +42,7 @@ export interface TaskItem {
   createdAt: number;
   updatedAt: number;
   notes?: string[]; // Supplemental notes/information added over time
+  cherrySubtasks?: CherrySubtask[]; // 樱桃时钟到期后自动生成的只读子任务
   jevConfidence?: number;
   isStale?: boolean; // Jev flagged as stagnant / expired
   cleanupSuggested?: boolean;
@@ -75,4 +85,6 @@ export interface AppSettings {
   widgetWidth: 'compact' | 'standard' | 'fluid';
   showCompleted: boolean;
   theme: AppTheme;
+  cherryDurationMinutes?: number; // 樱桃时钟默认时长（分钟），默认25
+  cherrySoundEnabled?: boolean;  // 樱桃时钟到期提示音，默认开启
 }

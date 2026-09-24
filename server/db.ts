@@ -17,6 +17,7 @@ export interface DBTask {
   createdAt: number;
   updatedAt: number;
   notes?: string[];
+  cherrySubtasks?: any[];
   isStale?: boolean;
   jevConfidence?: number;
 }
@@ -78,6 +79,9 @@ export async function ensureTables(sql: any) {
     `;
     await sql`
       ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS notes JSONB DEFAULT '[]'::jsonb;
+    `;
+    await sql`
+      ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS cherry_subtasks JSONB DEFAULT '[]'::jsonb;
     `;
 
     // Index for fast tenant query and strict isolation
@@ -203,6 +207,7 @@ export async function fetchAllTasksFromDB(userId: string): Promise<DBTask[] | nu
     updatedAt: Number(r.updated_at),
     isStale: Boolean(r.is_stale),
     notes: Array.isArray(r.notes) ? r.notes : [],
+    cherrySubtasks: Array.isArray(r.cherry_subtasks) ? r.cherry_subtasks : [],
     jevConfidence: r.jev_confidence ?? undefined
   }));
 }
@@ -219,17 +224,18 @@ export async function upsertTaskToDB(task: DBTask, userId: string): Promise<bool
 
   const tagsJson = JSON.stringify(task.tags || []);
   const notesJson = JSON.stringify(task.notes || []);
+  const cherrySubtasksJson = JSON.stringify(task.cherrySubtasks || []);
 
   // Strict ownership check on conflict: only allow update if user_id matches
   await sql`
     INSERT INTO jev_tasks (
       id, user_id, title, raw_input, category, priority, urgency_score, 
       tags, due_date, due_date_iso, completed, completed_at, 
-      created_at, updated_at, is_stale, notes, jev_confidence
+      created_at, updated_at, is_stale, notes, cherry_subtasks, jev_confidence
     ) VALUES (
       ${task.id}, ${userId}, ${task.title}, ${task.rawInput || null}, ${task.category}, ${task.priority}, ${task.urgencyScore ?? 0.5},
       ${tagsJson}::jsonb, ${task.dueDate || null}, ${task.dueDateIso || null}, ${task.completed}, ${task.completedAt || null},
-      ${task.createdAt}, ${task.updatedAt}, ${task.isStale || false}, ${notesJson}::jsonb, ${task.jevConfidence || null}
+      ${task.createdAt}, ${task.updatedAt}, ${task.isStale || false}, ${notesJson}::jsonb, ${cherrySubtasksJson}::jsonb, ${task.jevConfidence || null}
     )
     ON CONFLICT (id) DO UPDATE SET
       title = EXCLUDED.title,
@@ -245,6 +251,7 @@ export async function upsertTaskToDB(task: DBTask, userId: string): Promise<bool
       updated_at = EXCLUDED.updated_at,
       is_stale = EXCLUDED.is_stale,
       notes = EXCLUDED.notes,
+      cherry_subtasks = EXCLUDED.cherry_subtasks,
       jev_confidence = EXCLUDED.jev_confidence
     WHERE jev_tasks.user_id = ${userId};
   `;

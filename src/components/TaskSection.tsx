@@ -13,6 +13,7 @@ interface TaskSectionProps {
   onMoveToPlanning: (id: string) => void;
   onDeferTask?: (id: string) => void;
   onStartGesture?: (task: ITaskItem, point: { x: number; y: number }, cardRect: CardRect) => void;
+  onStartCherryClock?: (task: ITaskItem) => void;
 }
 
 export const TaskSection: React.FC<TaskSectionProps> = ({
@@ -23,7 +24,8 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
   onDeleteTask,
   onMoveToPlanning,
   onDeferTask,
-  onStartGesture
+  onStartGesture,
+  onStartCherryClock
 }) => {
   const [showCompleted, setShowCompleted] = useState(false);
 
@@ -57,6 +59,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
               onDelete={onDeleteTask}
               onMoveToPlanning={onMoveToPlanning}
               onStartGesture={onStartGesture}
+              onStartCherryClock={onStartCherryClock}
             />
           ))}
         </div>
@@ -100,6 +103,7 @@ export const TaskSection: React.FC<TaskSectionProps> = ({
                     onUpdate={onUpdateTask}
                     onDelete={onDeleteTask}
                     onMoveToPlanning={onMoveToPlanning}
+                    onStartCherryClock={onStartCherryClock}
                   />
                 ))}
               </motion.div>

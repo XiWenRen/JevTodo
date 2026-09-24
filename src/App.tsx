@@ -55,6 +55,8 @@ import { JevBatchSplitModal, BatchParsedTask } from './components/JevBatchSplitM
 import { CardRect } from './components/TaskItem';
 import { getOnboardingTasks } from './data/onboardingTasks';
 import { CalendarReportsView } from './components/CalendarReportsView';
+import { CherryClockModal } from './components/CherryClockModal';
+import { CherrySubtask } from './types';
 
 const STORAGE_KEY_GUEST_TASKS_OLD = 'jev_minimal_todo_guest_tasks_v1';
 const STORAGE_KEY_GUEST_TASKS = 'jev_minimal_todo_guest_tasks_v2';
@@ -195,6 +197,44 @@ export default function App() {
   // Jev Batch Input & Auto-Split Modal State
   const [isBatchSplitModalOpen, setIsBatchSplitModalOpen] = useState(false);
   const [batchSplitInitialText, setBatchSplitInitialText] = useState('');
+
+  // Cherry Clock Modal State & Handlers
+  const [cherryActiveTask, setCherryActiveTask] = useState<TaskItem | null>(null);
+  const [isCherryModalOpen, setIsCherryModalOpen] = useState(false);
+
+  const handleStartCherryClock = useCallback((task: TaskItem) => {
+    setCherryActiveTask(task);
+    setIsCherryModalOpen(true);
+  }, []);
+
+  const handleCherryClockComplete = useCallback((taskId: string, durationMinutes: number) => {
+    const now = Date.now();
+    const newSubtask: CherrySubtask = {
+      id: `cherry_${now}_${Math.random().toString(36).substr(2, 6)}`,
+      taskId,
+      title: `🍒 专注完成 (${durationMinutes}m)`,
+      durationMinutes,
+      completedAt: now,
+      autoCompleted: true
+    };
+
+    setTasks(prevTasks => {
+      const updated = prevTasks.map(t => {
+        if (t.id === taskId) {
+          const existing = t.cherrySubtasks || [];
+          const updatedTask = {
+            ...t,
+            cherrySubtasks: [...existing, newSubtask],
+            updatedAt: now
+          };
+          syncTaskToCloud(updatedTask);
+          return updatedTask;
+        }
+        return t;
+      });
+      return updated;
+    });
+  }, []);
 
   // Toast feedback with optional inline action button
   interface ToastInfo {
@@ -1266,6 +1306,7 @@ export default function App() {
                 onMoveToPlanning={handleMoveToPlanning}
                 onDeferTask={handleDeferTask}
                 onStartGesture={handleStartGesture}
+                onStartCherryClock={handleStartCherryClock}
               />
             )}
           </div>
@@ -1459,6 +1500,20 @@ export default function App() {
         onTriggerCloudSync={handleManualCloudSync}
         currentUser={currentUser}
         onOpenAuth={() => setIsAuthModalOpen(true)}
+      />
+
+      {/* Immersive Cherry Clock Countdown Modal */}
+      <CherryClockModal
+        isOpen={isCherryModalOpen}
+        task={cherryActiveTask}
+        durationMinutes={settings.cherryDurationMinutes || 25}
+        soundEnabled={settings.cherrySoundEnabled ?? true}
+        theme={settings.theme}
+        onClose={() => {
+          setIsCherryModalOpen(false);
+          setCherryActiveTask(null);
+        }}
+        onComplete={handleCherryClockComplete}
       />
     </div>
   );

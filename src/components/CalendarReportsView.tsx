@@ -15,7 +15,7 @@ import {
   Plus,
   Bookmark
 } from 'lucide-react';
-import { TaskItem, TaskCategory, AppTheme, CalendarViewMode, ReportType } from '../types';
+import { TaskItem, TaskCategory, AppTheme, CalendarViewMode, ReportType, CherrySubtask } from '../types';
 
 interface CalendarReportsViewProps {
   tasks: TaskItem[];
@@ -190,6 +190,33 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
       return true;
     });
   }, [tagFilteredTasks, statusFilter]);
+
+  // Comprehensive Cherry Clock analytics across universalFilteredTasks
+  const allCherryStats = useMemo(() => {
+    let totalCherryCount = 0;
+    let totalCherryMinutes = 0;
+    const cherryByDate: Record<string, { count: number; minutes: number; items: { subtask: CherrySubtask; parentTask: TaskItem }[] }> = {};
+
+    universalFilteredTasks.forEach(task => {
+      if (task.cherrySubtasks && task.cherrySubtasks.length > 0) {
+        task.cherrySubtasks.forEach(cs => {
+          totalCherryCount++;
+          const mins = cs.durationMinutes || 25;
+          totalCherryMinutes += mins;
+
+          const dateKey = toDateStr(new Date(cs.completedAt));
+          if (!cherryByDate[dateKey]) {
+            cherryByDate[dateKey] = { count: 0, minutes: 0, items: [] };
+          }
+          cherryByDate[dateKey].count++;
+          cherryByDate[dateKey].minutes += mins;
+          cherryByDate[dateKey].items.push({ subtask: cs, parentTask: task });
+        });
+      }
+    });
+
+    return { totalCherryCount, totalCherryMinutes, cherryByDate };
+  }, [universalFilteredTasks]);
 
   // ----------------------------------------------------------------------
   // Calendar State & Calculations
@@ -880,11 +907,22 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                         >
                           {day.dayNum}
                         </span>
-                        {dayTasks.length > 0 && (
-                          <span className="text-[9px] text-[var(--text-faint)] font-mono">
-                            {dayTasks.length}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {allCherryStats.cherryByDate[day.dateStr] && (
+                            <span 
+                              className="text-[9px] text-rose-400 font-mono flex items-center gap-0.5" 
+                              title={`本日达成 ${allCherryStats.cherryByDate[day.dateStr].count} 次樱桃专注 (${allCherryStats.cherryByDate[day.dateStr].minutes}分钟)`}
+                            >
+                              <span>🍒</span>
+                              <span>{allCherryStats.cherryByDate[day.dateStr].count}</span>
+                            </span>
+                          )}
+                          {dayTasks.length > 0 && (
+                            <span className="text-[9px] text-[var(--text-faint)] font-mono">
+                              {dayTasks.length}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Task Pills (Strictly Single Line, Truncated) */}
@@ -901,6 +939,9 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                             }`}
                           >
                             <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-blue-400/80" />
+                            {t.cherrySubtasks && t.cherrySubtasks.length > 0 && (
+                              <span className="text-[10px] text-rose-400 select-none">🍒</span>
+                            )}
                             <span className="truncate whitespace-nowrap">{t.title}</span>
                           </button>
                         ))}
@@ -940,6 +981,12 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                         <div className={`text-xs font-mono font-bold ${col.isToday ? 'text-blue-400' : 'text-[var(--text-main)]'}`}>
                           {col.dayNum}
                         </div>
+                        {allCherryStats.cherryByDate[col.dateStr] && (
+                          <div className="text-[9px] text-rose-400 font-mono flex items-center justify-center gap-0.5 mt-0.5">
+                            <span>🍒</span>
+                            <span>{allCherryStats.cherryByDate[col.dateStr].count}</span>
+                          </div>
+                        )}
                       </div>
                       <div className="p-1 space-y-1 overflow-y-auto flex-1">
                         {dayTasks.map(t => (
@@ -950,6 +997,9 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                           >
                             <div className="flex items-center gap-1">
                               <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-blue-400/80" />
+                              {t.cherrySubtasks && t.cherrySubtasks.length > 0 && (
+                                <span className="text-[10px] text-rose-400 select-none">🍒</span>
+                              )}
                               <span className={`truncate ${t.completed ? 'line-through text-[var(--text-faint)]' : 'text-[var(--text-main)]'}`}>
                                 {t.title}
                               </span>
@@ -1025,6 +1075,17 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
               <span className="text-[var(--text-faint)]">当前范围</span>
               <span className="font-mono font-bold text-[var(--text-main)]">{universalFilteredTasks.length}项</span>
             </div>
+            {/* Cherry Clock Global Stats Pill */}
+            <div className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs flex items-center justify-between col-span-2 sm:col-span-4">
+              <div className="flex items-center gap-1.5 text-rose-400 font-medium">
+                <span className="text-sm">🍒</span>
+                <span>樱桃专注达成</span>
+              </div>
+              <div className="flex items-center gap-2 font-mono">
+                <span className="font-bold text-rose-400">{allCherryStats.totalCherryCount} 颗</span>
+                <span className="text-[10px] text-[var(--text-faint)]">({allCherryStats.totalCherryMinutes} 分钟专注)</span>
+              </div>
+            </div>
           </div>
 
           {/* Heatmap Grid */}
@@ -1069,13 +1130,52 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
           </div>
 
           {/* Selected Date List */}
-          <div className="p-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] space-y-1.5">
+          <div className="p-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-panel)] space-y-2">
             <div className="flex items-center justify-between text-xs font-mono">
               <span className="text-[var(--text-main)] font-semibold">{selectedHeatmapDate}</span>
-              <span className="text-[var(--text-faint)]">{selectedHeatmapTasks.length} 项</span>
+              <span className="text-[var(--text-faint)]">{selectedHeatmapTasks.length} 任务</span>
             </div>
+
+            {/* Cherry Clock subtasks completed on this date */}
+            {allCherryStats.cherryByDate[selectedHeatmapDate] && (
+              <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-rose-400 font-semibold">
+                  <span className="flex items-center gap-1">
+                    <span>🍒</span>
+                    <span>本日收获 {allCherryStats.cherryByDate[selectedHeatmapDate].count} 颗樱桃</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                    共 {allCherryStats.cherryByDate[selectedHeatmapDate].minutes} 分钟
+                  </span>
+                </div>
+                <div className="space-y-1">
+                  {allCherryStats.cherryByDate[selectedHeatmapDate].items.map((item, idx) => (
+                    <div
+                      key={item.subtask.id || idx}
+                      onClick={() => setSelectedTask(item.parentTask)}
+                      className="flex items-center justify-between text-[11px] bg-rose-500/5 hover:bg-rose-500/15 border border-rose-500/10 rounded px-2 py-1 cursor-pointer transition-colors"
+                      title={`点击查看父任务: ${item.parentTask.title}`}
+                    >
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="text-xs">🍒</span>
+                        <span className="font-medium text-[var(--text-main)] truncate">
+                          {item.subtask.title || `专注完成 (${item.subtask.durationMinutes}m)`}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-faint)] truncate">
+                          · {item.parentTask.title}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-[var(--text-faint)] font-mono shrink-0 ml-1">
+                        {new Date(item.subtask.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {selectedHeatmapTasks.length === 0 ? (
-              <div className="text-center py-3 text-[11px] text-[var(--text-faint)]">无任务记录</div>
+              <div className="text-center py-2 text-[11px] text-[var(--text-faint)]">无普通任务记录</div>
             ) : (
               <div className="space-y-1 max-h-40 overflow-y-auto">
                 {selectedHeatmapTasks.map(t => (
@@ -1084,9 +1184,14 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                     onClick={() => setSelectedTask(t)}
                     className="p-1.5 rounded bg-[var(--chip-bg)] border border-[var(--chip-border)] text-xs flex items-center justify-between cursor-pointer hover:bg-[var(--chip-hover)]"
                   >
-                    <span className={`truncate ${t.completed ? 'line-through text-[var(--text-faint)]' : 'text-[var(--text-main)]'}`}>
-                      {t.title}
-                    </span>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {t.cherrySubtasks && t.cherrySubtasks.length > 0 && (
+                        <span className="text-[11px] select-none">🍒</span>
+                      )}
+                      <span className={`truncate ${t.completed ? 'line-through text-[var(--text-faint)]' : 'text-[var(--text-main)]'}`}>
+                        {t.title}
+                      </span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1359,6 +1464,38 @@ export const CalendarReportsView: React.FC<CalendarReportsViewProps> = ({
                     #{tag}
                   </span>
                 ))}
+              </div>
+            )}
+
+            {/* Cherry Clock subtasks summary */}
+            {selectedTask.cherrySubtasks && selectedTask.cherrySubtasks.length > 0 && (
+              <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 space-y-1.5">
+                <div className="flex items-center justify-between text-xs text-rose-400 font-semibold">
+                  <span className="flex items-center gap-1">
+                    <span>🍒</span>
+                    <span>樱桃专注记录 ({selectedTask.cherrySubtasks.length}次)</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-[var(--text-faint)]">
+                    累计 {selectedTask.cherrySubtasks.reduce((sum, c) => sum + (c.durationMinutes || 25), 0)} 分钟
+                  </span>
+                </div>
+                <div className="space-y-1 max-h-28 overflow-y-auto">
+                  {selectedTask.cherrySubtasks.map((cherry, idx) => (
+                    <div
+                      key={cherry.id || idx}
+                      className="flex items-center justify-between text-[10px] bg-rose-500/5 border border-rose-500/10 rounded px-2 py-0.5"
+                    >
+                      <div className="flex items-center gap-1 text-[var(--text-main)]">
+                        <span>🍒</span>
+                        <span>{cherry.title || `专注完成 (${cherry.durationMinutes}m)`}</span>
+                      </div>
+                      <span className="text-[9px] text-[var(--text-faint)] font-mono">
+                        {new Date(cherry.completedAt).toLocaleDateString([], { month: 'numeric', day: 'numeric' })}{' '}
+                        {new Date(cherry.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
