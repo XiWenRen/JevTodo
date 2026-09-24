@@ -52,6 +52,29 @@ export function getAuthHeaders(): Record<string, string> {
   return headers;
 }
 
+async function parseAuthResponse<T = any>(res: Response): Promise<{ ok: boolean; status: number; data?: T; error?: string }> {
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      const data = await res.json();
+      return { ok: res.ok, status: res.status, data, error: data?.error };
+    } catch {
+      return { ok: false, status: res.status, error: '服务器响应格式无法解析' };
+    }
+  }
+
+  // Handle plain text or HTML (e.g. Vercel 500 error pages)
+  try {
+    const text = await res.text();
+    if (res.status >= 500) {
+      return { ok: false, status: res.status, error: '认证服务器正在初始化或暂时繁忙，请稍后重试' };
+    }
+    return { ok: false, status: res.status, error: text.slice(0, 100) || `请求失败 (${res.status})` };
+  } catch {
+    return { ok: false, status: res.status, error: `网络请求失败 (${res.status})` };
+  }
+}
+
 export async function loginUser(username: string, password: string): Promise<{ success: boolean; user?: AuthUser; token?: string; error?: string }> {
   try {
     const res = await fetch('/api/auth', {
@@ -59,16 +82,17 @@ export async function loginUser(username: string, password: string): Promise<{ s
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'login', username, password })
     });
-    const data = await res.json();
-    if (!res.ok) {
-      return { success: false, error: data.error || '登录失败' };
+    const parsed = await parseAuthResponse(res);
+    if (!parsed.ok || !parsed.data) {
+      return { success: false, error: parsed.error || '登录失败，请检查用户名或密码' };
     }
+    const data = parsed.data;
     if (data.token && data.user) {
       setStoredAuth(data.token, data.user);
     }
     return { success: true, user: data.user, token: data.token };
   } catch (err: any) {
-    return { success: false, error: err.message || '网络连接异常' };
+    return { success: false, error: err.message || '网络连接异常，请检查网络设置' };
   }
 }
 
@@ -79,16 +103,17 @@ export async function registerUser(username: string, password: string): Promise<
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'register', username, password })
     });
-    const data = await res.json();
-    if (!res.ok) {
-      return { success: false, error: data.error || '注册失败' };
+    const parsed = await parseAuthResponse(res);
+    if (!parsed.ok || !parsed.data) {
+      return { success: false, error: parsed.error || '注册失败，请稍后重试' };
     }
+    const data = parsed.data;
     if (data.token && data.user) {
       setStoredAuth(data.token, data.user);
     }
     return { success: true, user: data.user, token: data.token };
   } catch (err: any) {
-    return { success: false, error: err.message || '网络连接异常' };
+    return { success: false, error: err.message || '网络连接异常，请检查网络设置' };
   }
 }
 
@@ -100,12 +125,15 @@ export async function checkCurrentUser(): Promise<AuthUser | null> {
     const res = await fetch('/api/auth', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    if (!res.ok) {
+    if (res.status === 401) {
       clearStoredAuth();
       return null;
     }
-    const data = await res.json();
-    return data.user || null;
+    if (!res.ok) {
+      return getStoredUser();
+    }
+    const parsed = await parseAuthResponse(res);
+    return parsed.data?.user || getStoredUser();
   } catch {
     // If offline, return locally cached user
     return getStoredUser();
