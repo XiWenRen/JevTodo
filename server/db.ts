@@ -30,6 +30,17 @@ export interface AppUserRecord {
   created_at: number;
 }
 
+export interface DBOperationLog {
+  id: string;
+  userId?: string;
+  timestamp: number;
+  type: string;
+  title: string;
+  description: string;
+  affectedCount: number;
+  taskSnapshots: any[];
+}
+
 function getDatabaseUrl(): string | null {
   return process.env.POSTGRES_URL || process.env.DATABASE_URL || null;
 }
@@ -87,6 +98,28 @@ export async function ensureTables(sql: any) {
     // Index for fast tenant query and strict isolation
     await sql`
       CREATE INDEX IF NOT EXISTS idx_jev_tasks_user_id ON jev_tasks(user_id);
+    `;
+
+    // 3. Operation logs table with user_id
+    await sql`
+      CREATE TABLE IF NOT EXISTS jev_operation_logs (
+        id VARCHAR(128) PRIMARY KEY,
+        user_id VARCHAR(128) NOT NULL,
+        timestamp BIGINT NOT NULL,
+        type VARCHAR(64) NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        affected_count INT DEFAULT 1,
+        task_snapshots JSONB DEFAULT '[]'::jsonb
+      );
+    `;
+
+    // Indices for operation logs
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_jev_operation_logs_user_id ON jev_operation_logs(user_id);
+    `;
+    await sql`
+      CREATE INDEX IF NOT EXISTS idx_jev_operation_logs_timestamp ON jev_operation_logs(timestamp DESC);
     `;
 
     tableInitialized = true;
@@ -290,3 +323,97 @@ export async function syncBatchTasksToDB(tasks: DBTask[], userId: string): Promi
   }
   return true;
 }
+
+// ==================== Strict Multi-Tenant Operation Logs Methods ====================
+
+/**
+ * Fetch all operation logs strictly scoped to a specific user.
+ * Cannot access operation logs of other users (anti-IDOR).
+ */
+export async function fetchAllOperationLogsFromDB(userId: string): Promise<DBOperationLog[] | null> {
+  const sql = getSqlClient();
+  if (!sql) return null;
+
+  await ensureTables(sql);
+
+  const rows = await sql`
+    SELECT * FROM jev_operation_logs 
+    WHERE user_id = ${userId}
+    ORDER BY timestamp DESC
+    LIMIT 200;
+  `;
+
+  return rows.map((r: any) => ({
+    id: r.id,
+    userId: r.user_id,
+    timestamp: Number(r.timestamp),
+    type: r.type,
+    title: r.title,
+    description: r.description,
+    affectedCount: Number(r.affected_count ?? 1),
+    taskSnapshots: Array.isArray(r.task_snapshots) ? r.task_snapshots : []
+  }));
+}
+
+/**
+ * Insert or update an operation log strictly scoped to a specific user.
+ */
+export async function insertOperationLogToDB(log: DBOperationLog, userId: string): Promise<boolean> {
+  const sql = getSqlClient();
+  if (!sql) return false;
+
+  await ensureTables(sql);
+
+  const snapshotsJson = JSON.stringify(log.taskSnapshots || []);
+
+  await sql`
+    INSERT INTO jev_operation_logs (
+      id, user_id, timestamp, type, title, description, affected_count, task_snapshots
+    ) VALUES (
+      ${log.id}, ${userId}, ${log.timestamp}, ${log.type}, ${log.title}, ${log.description},
+      ${log.affectedCount ?? 1}, ${snapshotsJson}::jsonb
+    )
+    ON CONFLICT (id) DO UPDATE SET
+      type = EXCLUDED.type,
+      title = EXCLUDED.title,
+      description = EXCLUDED.description,
+      affected_count = EXCLUDED.affected_count,
+      task_snapshots = EXCLUDED.task_snapshots
+    WHERE jev_operation_logs.user_id = ${userId};
+  `;
+
+  return true;
+}
+
+/**
+ * Batch sync operation logs strictly scoped to a specific user.
+ */
+export async function syncBatchOperationLogsToDB(logs: DBOperationLog[], userId: string): Promise<boolean> {
+  const sql = getSqlClient();
+  if (!sql) return false;
+
+  await ensureTables(sql);
+
+  for (const log of logs) {
+    await insertOperationLogToDB(log, userId);
+  }
+  return true;
+}
+
+/**
+ * Clear all operation logs strictly scoped to user_id.
+ * If another user calls this, only their own records are deleted.
+ */
+export async function clearOperationLogsFromDB(userId: string): Promise<boolean> {
+  const sql = getSqlClient();
+  if (!sql) return false;
+
+  await ensureTables(sql);
+
+  await sql`
+    DELETE FROM jev_operation_logs 
+    WHERE user_id = ${userId};
+  `;
+  return true;
+}
+

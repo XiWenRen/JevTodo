@@ -9,6 +9,10 @@ import {
   upsertTaskToDB, 
   deleteTaskFromDB, 
   syncBatchTasksToDB, 
+  fetchAllOperationLogsFromDB,
+  insertOperationLogToDB,
+  syncBatchOperationLogsToDB,
+  clearOperationLogsFromDB,
   isCloudDBConfigured,
   registerUser,
   authenticateUser,
@@ -183,6 +187,86 @@ async function startServer() {
       return res.json({ configured: true, success: true });
     } catch (e: any) {
       return res.status(500).json({ error: e?.message || "DB delete failed" });
+    }
+  });
+
+  // Cloud Operation Logs Persistence API with strict user-level data isolation
+  app.get("/api/operation-logs", async (req, res) => {
+    try {
+      if (!isCloudDBConfigured()) {
+        return res.json({
+          configured: false,
+          source: "local_storage",
+          logs: [],
+          message: "未检测到数据库，已自动启用客户端 LocalStorage 离线存储。"
+        });
+      }
+
+      const userId = extractUserIdFromReq(req);
+      if (!userId) {
+        return res.status(401).json({
+          configured: true,
+          authenticated: false,
+          error: "请先登录后访问您的操作历史日志",
+          logs: []
+        });
+      }
+
+      const logs = await fetchAllOperationLogsFromDB(userId);
+      return res.json({
+        configured: true,
+        authenticated: true,
+        source: "vercel_postgres",
+        logs: logs || []
+      });
+    } catch (e: any) {
+      console.warn("Error fetching operation logs from DB:", e);
+      return res.status(500).json({ error: e?.message || "DB logs fetch failed" });
+    }
+  });
+
+  app.post("/api/operation-logs", async (req, res) => {
+    try {
+      if (!isCloudDBConfigured()) {
+        return res.json({ configured: false, success: true, source: "local_storage" });
+      }
+
+      const userId = extractUserIdFromReq(req);
+      if (!userId) {
+        return res.status(401).json({ error: "请先登录" });
+      }
+
+      const body = req.body || {};
+      if (body.action === "batch_sync" && Array.isArray(body.logs)) {
+        await syncBatchOperationLogsToDB(body.logs, userId);
+        return res.json({ configured: true, success: true, count: body.logs.length });
+      }
+      if (body.log) {
+        await insertOperationLogToDB(body.log, userId);
+        return res.json({ configured: true, success: true });
+      }
+      return res.status(400).json({ error: "Missing log data" });
+    } catch (e: any) {
+      console.warn("Error saving operation log to DB:", e);
+      return res.status(500).json({ error: e?.message || "DB log save failed" });
+    }
+  });
+
+  app.delete("/api/operation-logs", async (req, res) => {
+    try {
+      if (!isCloudDBConfigured()) {
+        return res.json({ configured: false, success: true });
+      }
+
+      const userId = extractUserIdFromReq(req);
+      if (!userId) {
+        return res.status(401).json({ error: "请先登录" });
+      }
+
+      await clearOperationLogsFromDB(userId);
+      return res.json({ configured: true, success: true });
+    } catch (e: any) {
+      return res.status(500).json({ error: e?.message || "DB logs clear failed" });
     }
   });
 
