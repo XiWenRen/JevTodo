@@ -708,16 +708,22 @@ export async function evaluateWithJev(
   const { dueDate, dueDateIso, dueTimestamp, cleanTitle } = extractDateTime(rawInput);
   const { tags, remainingText } = extractFlomoTags(cleanTitle);
 
-  // If user provided an API key, call the backend /api/jev/evaluate endpoint
-  if (options?.apiKey) {
+  // Check if API key is provided directly or via env
+  const effectiveApiKey =
+    options?.apiKey ||
+    (typeof import.meta !== 'undefined' && (import.meta.env?.VITE_JEV_API_KEY as string)) ||
+    '';
+
+  // If user provided an API key or env var is present, call the backend /api/jev/evaluate endpoint
+  if (effectiveApiKey) {
     try {
       const res = await fetch('/api/jev/evaluate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: rawInput,
-          apiKey: options.apiKey,
-          endpoint: options.endpoint
+          apiKey: effectiveApiKey,
+          endpoint: options?.endpoint
         })
       });
 

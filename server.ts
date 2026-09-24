@@ -421,15 +421,6 @@ async function startServer() {
                   "规划待办": "未来计划、长期目标或随时可做的事项"
                 }
               },
-              priority: {
-                type: "choice",
-                criteria: {
-                  "P0": "最高紧急必做，立即执行",
-                  "P1": "重要今日完成",
-                  "P2": "常规近期推进",
-                  "P3": "长期规划或闲暇安排"
-                }
-              },
               urgency_score: {
                 type: "score",
                 criteria: [
@@ -462,7 +453,6 @@ async function startServer() {
             const answers = data.answers || {};
 
             const category = answers.category?.value || answers.category || "即刻完成";
-            const priority = answers.priority?.value || answers.priority || "P1";
             
             let urgencyScore = 0.8;
             const scoreVal = typeof answers.urgency_score === "number"
@@ -482,7 +472,6 @@ async function startServer() {
 
             return res.json({
               category,
-              priority,
               urgencyScore,
               tags: specificTags,
               needsCleanup: cleanupProb > 0.6,
@@ -513,24 +502,20 @@ async function startServer() {
       // High-accuracy fallback decision
       const lower = text.toLowerCase();
       let category = "近期完成";
-      let priority = "P2";
       let urgencyScore = 0.5;
 
       const hasFutureDay = /(明天|明早|明晚|后天|这周|本周|下周)/.test(lower);
       const isPastDay = /(昨天|昨日|昨晚|昨早|前天|前日|前晚|大前天|上周|上星期)/.test(lower);
-      const isUrgentIncident = /(宕机|502|故障|报警|告警|p0|严重)/.test(lower);
+      const isUrgentIncident = /(宕机|502|故障|报警|告警|严重)/.test(lower);
 
       if (!isPastDay && (!hasFutureDay || isUrgentIncident) && /(今天|今晚|下午|上午|马上|立即|紧急|现在|开会|交差|deadline|宕机|告警|报警|502|卡点|阻塞|故障|冒烟)/.test(lower)) {
         category = "即刻完成";
-        priority = /(紧急|重要|p0|严重|今天内|宕机|502|高危|告警|报警|生产环境|故障)/.test(lower) ? "P0" : "P1";
-        urgencyScore = priority === "P0" ? 0.98 : 0.92;
+        urgencyScore = /(紧急|重要|严重|今天内|宕机|502|高危|告警|报警|生产环境|故障)/.test(lower) ? 0.98 : 0.92;
       } else if (/(下个月|明年|长远|有空|闲暇|抽空|规划|梦想|想学|下半年|架构演进|储备|远期)/.test(lower)) {
         category = "规划待办";
-        priority = "P3";
         urgencyScore = 0.25;
       } else {
         category = "近期完成";
-        priority = /(紧急|重要|p1)/.test(lower) ? "P1" : "P2";
         urgencyScore = /(采购|预算|评审|用例|例会|周五|周四|本周)/.test(lower) ? 0.72 : 0.65;
       }
 
@@ -538,7 +523,6 @@ async function startServer() {
 
       return res.json({
         category,
-        priority,
         urgencyScore,
         tags: specificTags,
         confidence: 0.93,

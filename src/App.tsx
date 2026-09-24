@@ -133,14 +133,15 @@ export default function App() {
         const parsed = JSON.parse(saved);
         return {
           theme: 'obsidian',
-          ...parsed
+          ...parsed,
+          jevApiKey: parsed.jevApiKey || (import.meta.env.VITE_JEV_API_KEY as string) || ''
         };
       }
     } catch (e) {
       console.warn('Error reading settings from storage:', e);
     }
     return {
-      jevApiKey: '',
+      jevApiKey: (import.meta.env.VITE_JEV_API_KEY as string) || '',
       jevEndpoint: 'https://ai-gateway.vercel.sh/typesafe/v1/systemone',
       autoCleanupEnabled: true,
       autoCleanupDays: 5,
