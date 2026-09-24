@@ -19,7 +19,8 @@ import {
   Palette,
   ListPlus,
   ScrollText,
-  Calendar
+  Calendar,
+  KeyRound
 } from 'lucide-react';
 import { ActiveView, TaskItem, AppTheme } from '../types';
 import { AuthUser } from '../utils/auth';
@@ -42,6 +43,8 @@ interface CategoryDrawerProps {
   onToggleCompactMode: () => void;
   onOpenAuth: () => void;
   onOpenOperationLogs: () => void;
+  hasUserApiKey?: boolean;
+  onOpenApiKeyUsage?: () => void;
   onOpenBatchSplit?: () => void;
   onOpenShortcuts: () => void;
   onResetSampleData: () => void;
@@ -73,6 +76,8 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
   onToggleCompactMode,
   onOpenAuth,
   onOpenOperationLogs,
+  hasUserApiKey,
+  onOpenApiKeyUsage,
   onOpenBatchSplit,
   onOpenShortcuts,
   onResetSampleData,
@@ -373,6 +378,25 @@ export const CategoryDrawer: React.FC<CategoryDrawerProps> = ({
                     查看全部
                   </span>
                 </button>
+
+                {hasUserApiKey && onOpenApiKeyUsage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenApiKeyUsage();
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-lg hover:bg-[var(--chip-hover)] text-[var(--text-main)] flex items-center justify-between text-xs transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Jev API 使用量与记录</span>
+                    </span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono border border-emerald-500/20">
+                      已配置
+                    </span>
+                  </button>
+                )}
 
                 {onOpenBatchSplit && (
                   <button

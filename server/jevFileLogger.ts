@@ -79,3 +79,127 @@ export function clearJevLogFile(): boolean {
     return false;
   }
 }
+
+export interface JevLogRecord {
+  id: string;
+  timestamp: string;
+  triggerType: string;
+  status: string;
+  durationMs: number;
+  inputText: string;
+  gateway: string;
+  apiKeyMasked: string;
+  payload?: any;
+  result?: any;
+  error?: string;
+}
+
+export interface JevUsageStats {
+  totalCalls: number;
+  successCalls: number;
+  failedCalls: number;
+  todayCalls: number;
+  avgDurationMs: number;
+  byTriggerType: Record<string, number>;
+  keysSummary: Record<string, number>;
+}
+
+export function parseJevLogFile(keyFilter?: string): { stats: JevUsageStats; records: JevLogRecord[] } {
+  const content = readJevLogFile();
+  const blocks = content.split('--------------------------------------------------------------------------------');
+
+  const records: JevLogRecord[] = [];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let totalDuration = 0;
+  let successCount = 0;
+  let failedCount = 0;
+  let todayCount = 0;
+  const byTriggerType: Record<string, number> = {};
+  const keysSummary: Record<string, number> = {};
+
+  for (let i = 0; i < blocks.length; i++) {
+    const raw = blocks[i].trim();
+    if (!raw || raw.startsWith('Error reading') || raw.startsWith('No Jev logs')) continue;
+
+    const headerMatch = /\[(.*?)\]\s*\[TRIGGER:\s*(.*?)\]\s*\[STATUS:\s*(.*?)\]\s*\[DURATION:\s*(\d+)ms\]/.exec(raw);
+    const inputMatch = /INPUT:\s*"(.*?)"(?:\r?\n|$)/s.exec(raw);
+    const gatewayMatch = /GATEWAY:\s*(.*?)\s*\(KEY:\s*(.*?)\)/.exec(raw);
+    const payloadMatch = /PAYLOAD:\s*(\{.*?\})(?:\r?\n|$)/s.exec(raw);
+    const resultMatch = /RESULT:\s*(\{.*?\})(?:\r?\n|$)/s.exec(raw);
+    const errorMatch = /ERROR\/FALLBACK:\s*(.*?)(?:\r?\n|$)/s.exec(raw);
+
+    const timestamp = headerMatch ? headerMatch[1] : '';
+    const triggerType = headerMatch ? headerMatch[2] : 'unknown';
+    const status = headerMatch ? headerMatch[3] : 'unknown';
+    const durationMs = headerMatch ? parseInt(headerMatch[4], 10) : 0;
+    const inputText = inputMatch ? inputMatch[1] : '';
+    const gateway = gatewayMatch ? gatewayMatch[1] : '';
+    const apiKeyMasked = gatewayMatch ? gatewayMatch[2] : '(未提供)';
+
+    let payload: any = undefined;
+    if (payloadMatch) {
+      try { payload = JSON.parse(payloadMatch[1]); } catch {}
+    }
+
+    let result: any = undefined;
+    if (resultMatch) {
+      try { result = JSON.parse(resultMatch[1]); } catch {}
+    }
+
+    const error = errorMatch ? errorMatch[1] : undefined;
+
+    // Filter by key if specified
+    if (keyFilter) {
+      const cleanFilter = keyFilter.trim().slice(0, 10);
+      if (!apiKeyMasked.includes(cleanFilter)) {
+        continue;
+      }
+    }
+
+    const isSuccess = status.includes('200') || status.includes('OK');
+    if (isSuccess) successCount++;
+    else failedCount++;
+
+    if (timestamp && timestamp.slice(0, 10) === todayStr) {
+      todayCount++;
+    }
+
+    totalDuration += durationMs;
+    byTriggerType[triggerType] = (byTriggerType[triggerType] || 0) + 1;
+    keysSummary[apiKeyMasked] = (keysSummary[apiKeyMasked] || 0) + 1;
+
+    records.push({
+      id: `jev-log-${i}-${Date.parse(timestamp) || Date.now()}`,
+      timestamp,
+      triggerType,
+      status,
+      durationMs,
+      inputText,
+      gateway,
+      apiKeyMasked,
+      payload,
+      result,
+      error
+    });
+  }
+
+  // Newest first
+  records.reverse();
+
+  const totalCalls = records.length;
+  const avgDurationMs = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
+
+  return {
+    stats: {
+      totalCalls,
+      successCalls: successCount,
+      failedCalls: failedCount,
+      todayCalls: todayCount,
+      avgDurationMs,
+      byTriggerType,
+      keysSummary
+    },
+    records
+  };
+}
+

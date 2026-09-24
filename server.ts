@@ -19,7 +19,7 @@ import {
   getUserById
 } from "./server/db.js";
 import { signToken, verifyToken, extractUserIdFromReq } from "./server/auth.js";
-import { writeJevLogEntry, readJevLogFile, clearJevLogFile } from "./server/jevFileLogger.js";
+import { writeJevLogEntry, readJevLogFile, clearJevLogFile, parseJevLogFile } from "./server/jevFileLogger.js";
 import { resolveJevDateTime } from "./server/jevTimeHelper.js";
 import { buildDynamicTagCriteria, buildScheduleContextAndHourCriteria } from "./server/jevScheduleHelper.js";
 
@@ -786,6 +786,11 @@ async function startServer() {
     if (req.query?.clear === "true") {
       clearJevLogFile();
       return res.type("text/plain; charset=utf-8").send("Jev log file cleared.\n");
+    }
+    if (req.query?.format === "json" || req.headers.accept?.includes("application/json")) {
+      const keyFilter = typeof req.query?.key === "string" ? req.query.key : undefined;
+      const parsed = parseJevLogFile(keyFilter);
+      return res.json(parsed);
     }
     const logs = readJevLogFile();
     res.type("text/plain; charset=utf-8").send(logs);

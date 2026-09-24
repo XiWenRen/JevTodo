@@ -52,6 +52,7 @@ import { FloatingInputBar } from './components/FloatingInputBar';
 import { FloatingProgressWidget } from './components/FloatingProgressWidget';
 import { JevOrganizeConfirmModal, OrganizeOptions } from './components/JevOrganizeConfirmModal';
 import { OperationLogModal } from './components/OperationLogModal';
+import { JevApiKeyUsageModal } from './components/JevApiKeyUsageModal';
 import { TaskSnapshotModal } from './components/TaskSnapshotModal';
 import { ShortcutPluginModal } from './components/ShortcutPluginModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -195,6 +196,7 @@ export default function App() {
 
   const [isShortcutModalOpen, setIsShortcutModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isApiKeyUsageModalOpen, setIsApiKeyUsageModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [filterTag, setFilterTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1523,6 +1525,8 @@ export default function App() {
         onToggleCompactMode={() => handleSaveSettings({ ...settings, widgetWidth: isCompactMode ? 'standard' : 'compact' })}
         onOpenAuth={() => setIsAuthModalOpen(true)}
         onOpenOperationLogs={() => setIsLogModalOpen(true)}
+        hasUserApiKey={Boolean(settings.jevApiKey && settings.jevApiKey.trim().length > 0)}
+        onOpenApiKeyUsage={() => setIsApiKeyUsageModalOpen(true)}
         onOpenBatchSplit={() => {
           setBatchSplitInitialText('');
           setIsBatchSplitModalOpen(true);
@@ -1632,6 +1636,13 @@ export default function App() {
       <OperationLogModal
         isOpen={isLogModalOpen}
         onClose={() => setIsLogModalOpen(false)}
+      />
+
+      {/* Jev API Key Usage & Audit Modal */}
+      <JevApiKeyUsageModal
+        isOpen={isApiKeyUsageModalOpen}
+        onClose={() => setIsApiKeyUsageModalOpen(false)}
+        currentApiKey={settings.jevApiKey}
       />
 
       {/* Task Snapshot Drilldown Modal */}
