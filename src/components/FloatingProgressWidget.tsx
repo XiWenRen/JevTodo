@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, X, Check, ArrowRight } from 'lucide-react';
+import { Sparkles, X } from 'lucide-react';
 import { TaskItem } from '../types';
 import { OrganizeOptions } from './JevOrganizeConfirmModal';
 import { useActiveSkin } from '../plugins/skins/SkinRegistry';
@@ -205,12 +205,13 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     setIsPopoverOpen(prev => !prev);
   };
 
-  // 仅执行流转
-  const handleRollForwardOnly = () => {
+  // 执行任务重排（包括任务重新排序、逾期顺延与待办流转）
+  const handleExecuteReorder = () => {
+    startFullRunSequence();
     onConfirmOrganize({
-      reorderTasks: false,
-      deferOverdue: false,
-      archiveStale: false,
+      reorderTasks: true,
+      deferOverdue: overdueCount > 0,
+      archiveStale: staleCount > 0,
       rollForwardDueTasks: true
     });
     setIsPopoverOpen(false);
@@ -354,7 +355,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
       style={{ left: `${currentCoords.x}px`, top: `${currentCoords.y}px` }}
     >
       {/* ========================================================= */}
-      {/* 极简圆润椭圆形气泡：仅保留一个高对比度流转按钮，外圈进度边框 */}
+      {/* 质感微型气泡卡片：保留标题、简单进度与高质感任务重排按钮 */}
       {/* ========================================================= */}
       <AnimatePresence>
         {isPopoverOpen && (
@@ -372,14 +373,14 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
               exit={{ opacity: 0, scale: 0.9, x: isRightSide ? 8 : -8 }}
               transition={{ type: 'spring', stiffness: 500, damping: 32 }}
               className={`absolute top-1/2 -translate-y-1/2 ${
-                isRightSide ? 'right-[54px]' : 'left-[54px]'
-              } rounded-full p-1.5 z-[130] select-none shadow-2xl flex items-center shrink-0`}
+                isRightSide ? 'right-[56px]' : 'left-[56px]'
+              } w-[216px] rounded-2xl p-3 z-[130] select-none shadow-2xl flex flex-col shrink-0 text-left`}
               style={{
                 backgroundColor: 'color-mix(in srgb, var(--bg-drawer) 97%, transparent)',
                 backdropFilter: 'blur(32px) saturate(190%)',
                 WebkitBackdropFilter: 'blur(32px) saturate(190%)',
-                border: `2px solid color-mix(in srgb, #10b981 ${progressPercent}%, #f59e0b)`,
-                boxShadow: '0 12px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.15)'
+                border: `1.5px solid color-mix(in srgb, #10b981 ${progressPercent}%, #f59e0b)`,
+                boxShadow: '0 16px 36px rgba(0,0,0,0.32), 0 2px 8px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.15)'
               }}
             >
               {/* 指向悬浮球的气泡小尖角 (根据靠左/靠右自适应朝向) */}
@@ -407,14 +408,83 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
                 </>
               )}
 
-              {/* 唯一定义的单按钮：清晰高对比度仅流转待办 */}
+              {/* 头部：标题与进度百分比/关闭按钮 */}
+              <div className="flex items-center justify-between pb-1.5 border-b border-[var(--border-subtle)]">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-5 h-5 rounded-md bg-amber-500/15 border border-amber-500/25 flex items-center justify-center text-amber-500 shadow-xs shrink-0">
+                    <Sparkles className="w-3 h-3 stroke-[2.2]" />
+                  </div>
+                  <span className="text-[12px] font-bold text-[var(--text-main)] tracking-tight">
+                    任务重排
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                    {progressPercent}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsPopoverOpen(false)}
+                    className="p-0.5 rounded text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] transition-colors cursor-pointer"
+                    title="关闭"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 微型进度条与简单完成度信息 */}
+              <div className="w-full h-1.5 bg-[var(--border-subtle)] rounded-full overflow-hidden mt-2 mb-1.5">
+                <div 
+                  className="h-full bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-400 rounded-full transition-all duration-500 shadow-xs"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <div className="text-[10px] text-[var(--text-sub)] flex items-center justify-between mb-2.5 px-0.5">
+                <span>今日待办进度</span>
+                <span className="font-mono font-medium">{completedTasksCount}/{totalTasksCount} 完成</span>
+              </div>
+
+              {/* 高质感任务重排操作按钮 */}
               <button
                 type="button"
-                onClick={handleRollForwardOnly}
-                className="h-8 px-4 rounded-full font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md bg-cyan-600 hover:bg-cyan-500 active:bg-cyan-700 text-white active:scale-95 whitespace-nowrap tracking-wide"
+                onClick={handleExecuteReorder}
+                className="w-full h-[34px] rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md bg-gradient-to-r from-amber-500 via-amber-500 to-orange-500 hover:from-amber-400 hover:via-amber-400 hover:to-orange-400 active:scale-[0.97] text-white tracking-wide border border-white/20 select-none"
+                style={{
+                  boxShadow: '0 4px 14px rgba(245, 158, 11, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3)'
+                }}
               >
-                <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>{rollForwardCount > 0 ? `仅流转待办 (${rollForwardCount})` : '仅流转待办'}</span>
+                {/* 重新设计的有质感图标：带有微型毛玻璃底衬 + 分层排序列与双向流转箭头 */}
+                <div className="w-5 h-5 rounded-md flex items-center justify-center bg-white/20 border border-white/25 shadow-xs shrink-0">
+                  <svg
+                    className="w-3.5 h-3.5 drop-shadow-[0_1px_1px_rgba(0,0,0,0.25)]"
+                    viewBox="0 0 18 18"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    {/* 3条分层任务卡片条 */}
+                    <rect x="2" y="3.5" width="7" height="2.2" rx="1.1" fill="currentColor" fillOpacity="0.95" />
+                    <rect x="2" y="7.9" width="9.5" height="2.2" rx="1.1" fill="currentColor" fillOpacity="0.8" />
+                    <rect x="2" y="12.3" width="5.5" height="2.2" rx="1.1" fill="currentColor" fillOpacity="0.65" />
+
+                    {/* 双向重排流转箭头 */}
+                    <path
+                      d="M12.5 7V2.8M12.5 2.8L10.5 5M12.5 2.8L14.5 5"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M15.5 11V15.2M15.5 15.2L13.5 13M15.5 15.2L17.5 13"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </div>
+                <span>{rollForwardCount > 0 ? `任务重排 (${rollForwardCount})` : '任务重排'}</span>
               </button>
             </motion.div>
           </>
