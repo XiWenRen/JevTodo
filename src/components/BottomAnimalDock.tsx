@@ -18,6 +18,8 @@ export const BottomAnimalDock: React.FC<BottomAnimalDockProps> = ({
   const { activeSkin } = useActiveSkin();
   const ActionDockComponent = activeSkin.ActionDock;
 
+  if (!ActionDockComponent) return null;
+
   return (
     <ActionDockComponent
       isVisible={isVisible}

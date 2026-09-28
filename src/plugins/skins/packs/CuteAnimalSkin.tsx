@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, Star, Sparkles, Trash2, Clock, CheckCircle2 } from 'lucide-react';
-import { ISkinPlugin, CompanionRenderProps, ActionDockRenderProps, FocusPetConfig } from '../types';
+import { ICompanionTheme, CompanionRenderProps, ActionDockRenderProps, FocusPetConfig } from '../types';
 
 /**
  * 经典萌宠动物园皮肤包 (Cute Animal Kingdom Skin)
@@ -874,14 +874,18 @@ const animalFocusPets: FocusPetConfig[] = [
   }
 ];
 
-export const CuteAnimalSkin: ISkinPlugin = {
+export const CuteAnimalSkin: ICompanionTheme = {
   id: 'cute-animal',
-  name: '经典萌宠王国',
-  description: '纯 CSS 跑轮仓鼠伴侣、恐龙树懒仓鼠三萌宠领地与樱桃时钟陪伴',
+  name: '跑轮小仓鼠',
+  category: 'animal',
+  description: 'Jon Kantner 经典纯代码跑轮小仓鼠，支持 7 级平滑状态机（飞驰、慢走、线性减速、站定、慢慢趴下、熟睡呼吸与 Zzz 气泡）。',
   icon: '🐹',
-  author: 'CherryTodo Studio',
+  tagline: '沉稳蹬轮与线性减速，安稳趴下熟睡',
+  badge: '经典原版',
+  author: 'Jon Kantner / CherryTodo',
+  accentColor: '#f59e0b',
   CompanionWidget: AnimalCompanionWidget,
-  getCompanionButtonStyle: (props) => ({
+  getCompanionButtonStyle: (props: CompanionRenderProps) => ({
     backgroundColor: `color-mix(in srgb, var(--bg-drawer) ${75 + Math.round(props.progressRatio * 20)}%, #fef3c7 ${Math.round(props.progressRatio * 5)}%)`,
     backdropFilter: 'blur(16px)',
     WebkitBackdropFilter: 'blur(16px)',

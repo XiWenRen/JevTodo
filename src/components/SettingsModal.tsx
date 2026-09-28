@@ -17,14 +17,15 @@ import {
   ChevronRight,
   Activity,
   Sparkles,
-  Palette
+  Palette,
+  Cat
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { AuthUser } from '../utils/auth';
 import { playCherryCompletionChime } from './CherryClockModal';
 import { useActiveSkin } from '../plugins/skins/SkinRegistry';
 
-type SettingsTab = 'ai' | 'clock' | 'skin' | 'sync';
+type SettingsTab = 'ai' | 'clock' | 'companion' | 'sync';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -206,15 +207,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setActiveTab('skin')}
+              onClick={() => setActiveTab('companion')}
               className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                activeTab === 'skin'
+                activeTab === 'companion'
                   ? 'bg-[var(--chip-bg)] text-[var(--text-main)] shadow-sm border border-[var(--border-subtle)]'
                   : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'
               }`}
             >
-              <Palette className="w-3.5 h-3.5 text-purple-400" />
-              <span>皮肤与动物</span>
+              <Cat className="w-3.5 h-3.5 text-orange-400" />
+              <span>浮窗伴侣</span>
             </button>
             <button
               type="button"
@@ -496,67 +497,85 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: 皮肤与微件插件 */}
-          {activeTab === 'skin' && (
+          {/* TAB 3: 浮窗伴侣形象 */}
+          {activeTab === 'companion' && (
             <div className="space-y-3.5">
               <div className="p-3 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-1.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-main)]">
-                    <Palette className="w-4 h-4 text-purple-400" />
-                    <span>皮肤与小动物插件 (Skin Plugins)</span>
+                    <Cat className="w-4 h-4 text-orange-400" />
+                    <span>浮窗伴侣形象 (Floating Companion Theme)</span>
                   </div>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/20 text-purple-400 font-medium">
-                    架构解耦
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/20 text-orange-400 font-medium">
+                    独立个性化
                   </span>
                 </div>
                 <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
-                  显示表现层与核心业务完全解耦。切换不同皮肤包可无缝热重载底部动作坞、悬浮陪伴小仓鼠和专注时钟萌宠。
+                  独立自选常驻界面右侧的跑轮伴侣主角。切换形象后，浮窗小组件将以纯代码矢量几何动力学全天候陪伴您的待办旅程。
                 </p>
               </div>
 
               <div className="grid grid-cols-1 gap-2.5">
-                {allSkins.map((skin) => {
-                  const isSelected = activeSkinId === skin.id;
+                {allSkins.map((theme) => {
+                  const isSelected = activeSkinId === theme.id;
+                  const accentColor = theme.accentColor || '#f97316';
                   return (
                     <div
-                      key={skin.id}
-                      onClick={() => setSkin(skin.id)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
+                      key={theme.id}
+                      onClick={() => setSkin(theme.id)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 relative overflow-hidden select-none ${
                         isSelected
-                          ? 'bg-purple-500/10 border-purple-500/40 shadow-sm'
-                          : 'bg-[var(--chip-bg)] border-[var(--border-subtle)] hover:border-[var(--border-medium)]'
+                          ? 'bg-[var(--chip-bg)] shadow-md'
+                          : 'bg-[var(--chip-bg)]/60 border-[var(--border-subtle)] hover:border-[var(--border-medium)] opacity-85 hover:opacity-100'
                       }`}
+                      style={{
+                        borderColor: isSelected ? accentColor : undefined,
+                        boxShadow: isSelected ? `0 0 16px ${accentColor}25, inset 0 0 1px ${accentColor}` : undefined
+                      }}
                     >
-                      <div className="text-2xl p-2 rounded-xl bg-[var(--bg-main)] border border-[var(--border-subtle)] shrink-0 flex items-center justify-center">
-                        {skin.icon}
+                      <div 
+                        className="text-2xl p-2.5 rounded-xl bg-[var(--bg-main)] border border-[var(--border-subtle)] shrink-0 flex items-center justify-center select-none"
+                        style={{
+                          boxShadow: isSelected ? `0 2px 8px ${accentColor}25` : undefined
+                        }}
+                      >
+                        {theme.icon}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-[var(--text-main)] flex items-center gap-1.5">
-                            {skin.name}
+                            <span>{theme.name}</span>
+                            {theme.badge && (
+                              <span 
+                                className="text-[9px] px-1.5 py-0.2 rounded font-mono font-normal"
+                                style={{
+                                  backgroundColor: `${accentColor}18`,
+                                  color: accentColor,
+                                  border: `1px solid ${accentColor}35`
+                                }}
+                              >
+                                {theme.badge}
+                              </span>
+                            )}
                             {isSelected && (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-purple-500 fill-purple-500/20" />
+                              <CheckCircle2 
+                                className="w-3.5 h-3.5" 
+                                style={{ color: accentColor }} 
+                              />
                             )}
                           </span>
                           <span className="text-[10px] text-[var(--text-faint)] font-mono">
-                            {skin.author}
+                            {theme.author || 'CherryTodo'}
                           </span>
                         </div>
-                        <p className="text-[11px] text-[var(--text-sub)] mt-1 line-clamp-2">
-                          {skin.description}
-                        </p>
-                        {skin.focusPets && skin.focusPets.length > 0 && (
-                          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-[var(--text-faint)]">
-                            <span>内置形象:</span>
-                            <div className="flex items-center gap-1">
-                              {skin.focusPets.map(p => (
-                                <span key={p.id} className="px-1.5 py-0.5 rounded bg-[var(--bg-main)] text-[var(--text-main)] border border-[var(--border-subtle)]">
-                                  {p.name}
-                                </span>
-                              ))}
-                            </div>
+                        {theme.tagline && (
+                          <div className="text-[11px] font-medium mt-0.5" style={{ color: isSelected ? accentColor : 'var(--text-sub)' }}>
+                            {theme.tagline}
                           </div>
                         )}
+                        <p className="text-[11px] text-[var(--text-sub)] mt-1 line-clamp-2 leading-relaxed">
+                          {theme.description}
+                        </p>
                       </div>
                     </div>
                   );

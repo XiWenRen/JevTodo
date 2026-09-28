@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Zap, ShieldAlert, Cpu, Orbit, Activity } from 'lucide-react';
-import { ISkinPlugin, CompanionRenderProps, ActionDockRenderProps, FocusPetConfig } from '../types';
+import { ICompanionTheme, CompanionRenderProps, ActionDockRenderProps, FocusPetConfig } from '../types';
 
 /**
  * 赛博机甲风皮肤包 (Cyber Mecha Theme Skin)
@@ -222,14 +222,18 @@ const cyberFocusPets: FocusPetConfig[] = [
   }
 ];
 
-export const CyberMechaSkin: ISkinPlugin = {
+export const CyberMechaSkin: ICompanionTheme = {
   id: 'cyber-mecha',
-  name: '赛博机甲风',
-  description: '量子力学与霓虹冷光，黑洞视界湮灭与时空跃迁',
+  name: '赛博能量核',
+  category: 'mecha',
+  description: '微透黑曜石外壳、旋转虚线能量环与脉冲核心，支持全任务达成时的超载过热光效。',
   icon: '⚡',
+  tagline: '量子核心旋转环与超频脉冲，为高能工作流加速',
+  badge: '极客风',
   author: 'CherryTodo Studio',
+  accentColor: '#06b6d4',
   CompanionWidget: CyberCompanionWidget,
-  getCompanionButtonStyle: (props) => ({
+  getCompanionButtonStyle: (props: CompanionRenderProps) => ({
     backgroundColor: 'rgba(15, 23, 42, 0.88)',
     backdropFilter: 'blur(16px)',
     WebkitBackdropFilter: 'blur(16px)',
