@@ -487,6 +487,8 @@ export default function App() {
       if (activeView !== '全部事项' && activeView !== newTask.category) {
         setActiveView(newTask.category);
       }
+      setFilterTag(null);
+      setSearchQuery('');
 
       if (cloudStatus.isConfigured && currentUser) {
         syncTaskToCloud(newTask);
@@ -513,6 +515,11 @@ export default function App() {
         jevConfidence: 0.5
       };
       setTasks(prev => [emergencyTask, ...prev]);
+      if (activeView !== '全部事项' && activeView !== emergencyTask.category) {
+        setActiveView(emergencyTask.category);
+      }
+      setFilterTag(null);
+      setSearchQuery('');
       showToast(`已录入待办：「${fallbackTitle}」`);
     } finally {
       setIsProcessing(false);
@@ -648,6 +655,8 @@ export default function App() {
       if (activeView !== '全部事项' && activeView !== newTask.category) {
         setActiveView(newTask.category);
       }
+      setFilterTag(null);
+      setSearchQuery('');
 
       if (cloudStatus.isConfigured && currentUser) {
         syncTaskToCloud(newTask);
@@ -674,6 +683,11 @@ export default function App() {
         jevConfidence: 0.5
       };
       setTasks(prev => [emergencyTask, ...prev]);
+      if (activeView !== '全部事项' && activeView !== emergencyTask.category) {
+        setActiveView(emergencyTask.category);
+      }
+      setFilterTag(null);
+      setSearchQuery('');
       showToast(`已独立创建待办「${fallbackTitle}」`);
     } finally {
       setIsProcessing(false);

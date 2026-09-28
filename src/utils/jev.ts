@@ -755,79 +755,76 @@ export async function evaluateWithJev(
   }
   const maskedKey = maskApiKey(effectiveApiKey);
 
-  // If user provided an API key or env var is present, call the backend /api/jev/evaluate endpoint
-  if (effectiveApiKey) {
-    try {
-      const res = await fetch('/api/jev/evaluate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: rawInput,
-          apiKey: effectiveApiKey,
-          endpoint: targetEndpoint,
-          triggerType,
-          allowFallback,
-          userTags: options?.userTags,
-          existingSchedule: options?.existingSchedule
-        })
-      });
+  // Always call backend /api/jev/evaluate endpoint.
+  // The server will automatically use server-side process.env.JEV_API_KEY if client apiKey is not specified.
+  try {
+    const res = await fetch('/api/jev/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: rawInput,
+        apiKey: effectiveApiKey || undefined,
+        endpoint: targetEndpoint,
+        triggerType,
+        allowFallback,
+        userTags: options?.userTags,
+        existingSchedule: options?.existingSchedule
+      })
+    });
 
-      const durationMs = Math.round(performance.now() - startTime);
+    const durationMs = Math.round(performance.now() - startTime);
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.category) {
-          const finalDecision: JevDecision = {
-            category: data.category,
-            urgencyScore: data.urgencyScore ?? 0.8,
-            tags: data.tags && data.tags.length > 0 ? data.tags : ['常规待办'],
-            cleanTitle: data.cleanTitle,
-            dueDate: data.dueDate,
-            dueDateIso: data.dueDateIso,
-            dueTimestamp: data.dueTimestamp,
-            freeWindowSummary: data.freeWindowSummary,
-            confidence: data.confidence ?? 0.94,
-            rawJevAnswers: data.rawJevAnswers,
-            source: data.source || 'typesafe-jev-systemone'
-          };
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.category) {
+        const finalDecision: JevDecision = {
+          category: data.category,
+          urgencyScore: data.urgencyScore ?? 0.8,
+          tags: data.tags && data.tags.length > 0 ? data.tags : ['常规待办'],
+          cleanTitle: data.cleanTitle,
+          dueDate: data.dueDate,
+          dueDateIso: data.dueDateIso,
+          dueTimestamp: data.dueTimestamp,
+          freeWindowSummary: data.freeWindowSummary,
+          confidence: data.confidence ?? 0.94,
+          rawJevAnswers: data.rawJevAnswers,
+          source: data.source || 'typesafe-jev-systemone'
+        };
 
-          const isJev = finalDecision.source === 'typesafe-jev-systemone' || finalDecision.source.includes('jev');
-          console.groupCollapsed(
-            `%c[${isJev ? 'Jev AI 智能解析' : 'Cherry 本地解析'}]%c ${triggerType === 'preview' ? '⚡ 1s实时预测' : '🚀 任务创建评估'}: "${rawInput}" %c(${durationMs}ms) [${finalDecision.source}]`,
-            `background: ${isJev ? '#06b6d4' : '#f43f5e'}; color: white; padding: 1px 6px; border-radius: 3px; font-weight: bold;`,
-            'color: inherit; font-weight: normal;',
-            'color: #06b6d4; font-weight: bold;'
-          );
-          console.log('📌 输入文本:', rawInput);
-          console.log('🎯 提炼任务名称:', finalDecision.cleanTitle || '(未指定)');
-          console.log('🔑 使用 Key:', maskedKey);
-          console.log('🌐 决策来源:', finalDecision.source);
-          console.log('🎯 分类结果:', finalDecision.category);
-          console.log('⚡ 紧迫评分:', finalDecision.urgencyScore);
-          console.log('🏷️ 细化标签 (Jev):', finalDecision.tags);
-          console.log('⏰ 任务时间 (Jev):', finalDecision.dueDate || '无明确时限');
-          if (data.requestPayload) console.log('📤 交互 Payload:', data.requestPayload);
-          if (data.gatewayError) console.warn('⚠️ 远端告警/降级原因:', data.gatewayError);
-          console.log('📦 完整响应:', data);
-          console.groupEnd();
+        const isJev = finalDecision.source === 'typesafe-jev-systemone' || finalDecision.source.includes('jev');
+        console.groupCollapsed(
+          `%c[${isJev ? 'Jev AI 智能解析' : 'Cherry 本地解析'}]%c ${triggerType === 'preview' ? '⚡ 1s实时预测' : '🚀 任务创建评估'}: "${rawInput}" %c(${durationMs}ms) [${finalDecision.source}]`,
+          `background: ${isJev ? '#06b6d4' : '#f43f5e'}; color: white; padding: 1px 6px; border-radius: 3px; font-weight: bold;`,
+          'color: inherit; font-weight: normal;',
+          'color: #06b6d4; font-weight: bold;'
+        );
+        console.log('📌 输入文本:', rawInput);
+        console.log('🎯 提炼任务名称:', finalDecision.cleanTitle || '(未指定)');
+        console.log('🔑 使用 Key:', maskedKey || '(服务端默认 Key)');
+        console.log('🌐 决策来源:', finalDecision.source);
+        console.log('🎯 分类结果:', finalDecision.category);
+        console.log('⚡ 紧迫评分:', finalDecision.urgencyScore);
+        console.log('🏷️ 细化标签 (Jev):', finalDecision.tags);
+        console.log('⏰ 任务时间 (Jev):', finalDecision.dueDate || '无明确时限');
+        if (data.requestPayload) console.log('📤 交互 Payload:', data.requestPayload);
+        if (data.gatewayError) console.warn('⚠️ 远端告警/降级原因:', data.gatewayError);
+        console.log('📦 完整响应:', data);
+        console.groupEnd();
 
-          return finalDecision;
-        }
-      } else {
-        const errText = await res.text().catch(() => '');
-        console.warn(`[Jev AI] 接口响应非 200: HTTP ${res.status}`, errText);
-        if (!allowFallback) {
-          throw new Error(`Jev 智能决策失败 (HTTP ${res.status}): ${errText}`);
-        }
+        return finalDecision;
       }
-    } catch (err) {
-      console.warn('Jev API request failed:', err);
+    } else {
+      const errText = await res.text().catch(() => '');
+      console.warn(`[Jev AI] 接口响应非 200: HTTP ${res.status}`, errText);
       if (!allowFallback) {
-        throw err;
+        throw new Error(`Jev 智能决策失败 (HTTP ${res.status}): ${errText}`);
       }
     }
-  } else if (!allowFallback) {
-    throw new Error('未配置有效 Jev API Key，且偏好设置中已禁止降级');
+  } catch (err) {
+    console.warn('Jev API request failed:', err);
+    if (!allowFallback) {
+      throw err;
+    }
   }
 
   // Fallback to local Cherry Engine (only if allowFallback is true)
