@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthUser, getStoredUser, clearStoredAuth, checkCurrentUser } from '../utils/auth';
 import { checkAndFetchCloudTasks, batchSyncTasksToCloud } from '../utils/cloudSync';
 import { fetchOperationLogsFromCloud, saveOperationLogs } from '../utils/operationLog';
@@ -17,6 +17,12 @@ export function useAuthSession(
   optionalStorageKey?: string
 ) {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredUser());
+  const currentUserRef = useRef<AuthUser | null>(currentUser);
+  currentUserRef.current = currentUser;
+
+  const tasksRef = useRef<TaskItem[]>(tasks);
+  tasksRef.current = tasks;
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const [cloudStatus, setCloudStatus] = useState<CloudStatus>({
@@ -26,82 +32,102 @@ export function useAuthSession(
     isAuthenticated: false
   });
 
+  const isSyncingRef = useRef(false);
+
   // Load cloud tasks for current authenticated user
-  const refreshTasksFromCloud = useCallback(async () => {
+  const refreshTasksFromCloud = useCallback(async (userOverride?: AuthUser | null) => {
+    if (isSyncingRef.current) return;
+    isSyncingRef.current = true;
+
     setCloudStatus(prev => ({ ...prev, isSyncing: true }));
-    const res = await checkAndFetchCloudTasks();
+    try {
+      const res = await checkAndFetchCloudTasks();
 
-    setCloudStatus({
-      isConfigured: res.configured,
-      source: res.source,
-      isSyncing: false,
-      isAuthenticated: res.authenticated
-    });
+      setCloudStatus({
+        isConfigured: res.configured,
+        source: res.source,
+        isSyncing: false,
+        isAuthenticated: res.authenticated
+      });
 
-    if (res.configured && res.authenticated) {
-      if (res.tasks.length > 0) {
-        setTasks(res.tasks);
-      } else {
-        const storageKey = currentUser ? `jev_tasks_user_${currentUser.id}_v1` : (optionalStorageKey || 'jev_minimal_todo_guest_tasks_v2');
-        const userSaved = localStorage.getItem(storageKey);
-        if (userSaved) {
-          const parsed = JSON.parse(userSaved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setTasks(parsed);
-            await batchSyncTasksToCloud(parsed);
+      if (res.configured && res.authenticated) {
+        if (res.tasks.length > 0) {
+          setTasks(res.tasks);
+        } else {
+          const activeUser = userOverride !== undefined ? userOverride : currentUserRef.current;
+          const storageKey = activeUser ? `jev_tasks_user_${activeUser.id}_v1` : (optionalStorageKey || 'jev_minimal_todo_guest_tasks_v2');
+          const userSaved = localStorage.getItem(storageKey);
+          if (userSaved) {
+            try {
+              const parsed = JSON.parse(userSaved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setTasks(parsed);
+                await batchSyncTasksToCloud(parsed);
+              }
+            } catch {}
           }
         }
       }
+    } finally {
+      isSyncingRef.current = false;
     }
-  }, [currentUser, optionalStorageKey, setTasks]);
+  }, [optionalStorageKey, setTasks]);
 
-  // Verify auth session on mount & fetch user tasks
+  // Verify auth session once on mount & fetch user tasks
   useEffect(() => {
     let isMounted = true;
     checkCurrentUser().then(user => {
       if (!isMounted) return;
-      setCurrentUser(user);
-      refreshTasksFromCloud();
+      setCurrentUser(prev => {
+        if (!prev && !user) return null;
+        if (prev && user && prev.id === user.id && prev.username === user.username) {
+          return prev;
+        }
+        return user;
+      });
+      refreshTasksFromCloud(user);
     });
     return () => {
       isMounted = false;
     };
-  }, [refreshTasksFromCloud]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // User Auth Handlers
   const handleAuthSuccess = useCallback(async (user: AuthUser) => {
     setCurrentUser(user);
     const userStorageKey = `jev_tasks_user_${user.id}_v1`;
     const cached = localStorage.getItem(userStorageKey);
+    const currentTasks = tasksRef.current;
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setTasks(parsed);
-        } else if (tasks.length > 0) {
-          localStorage.setItem(userStorageKey, JSON.stringify(tasks));
+        } else if (currentTasks.length > 0) {
+          localStorage.setItem(userStorageKey, JSON.stringify(currentTasks));
         }
       } catch {
-        if (tasks.length > 0) {
-          localStorage.setItem(userStorageKey, JSON.stringify(tasks));
+        if (currentTasks.length > 0) {
+          localStorage.setItem(userStorageKey, JSON.stringify(currentTasks));
         }
       }
     } else {
       // Migrate current tasks to user's isolated storage so items are not lost
-      if (tasks.length > 0) {
+      if (currentTasks.length > 0) {
         try {
-          localStorage.setItem(userStorageKey, JSON.stringify(tasks));
+          localStorage.setItem(userStorageKey, JSON.stringify(currentTasks));
         } catch {}
       }
     }
-    await refreshTasksFromCloud();
+    await refreshTasksFromCloud(user);
     // Warm up user's cloud operation logs into local cache
     fetchOperationLogsFromCloud().then(res => {
       if (res.configured && res.authenticated && res.logs.length > 0) {
         saveOperationLogs(res.logs, user.id);
       }
     }).catch(() => {});
-  }, [refreshTasksFromCloud, setTasks, tasks]);
+  }, [refreshTasksFromCloud, setTasks]);
 
   const handleLogout = useCallback((initialTasks: TaskItem[]) => {
     clearStoredAuth();
