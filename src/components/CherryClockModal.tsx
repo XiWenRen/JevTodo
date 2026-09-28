@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Pause, X } from 'lucide-react';
+import { Play, Pause, X, ArrowRight } from 'lucide-react';
 import { TaskItem, AppTheme } from '../types';
 import { CherryIcon } from './CherryIcon';
 
@@ -177,6 +177,8 @@ const ProgressiveCherry: React.FC<{ stage: number; direction: 'left' | 'right' |
   );
 };
 
+export type ClockPhase = 'focus' | 'break';
+
 export const CherryClockModal: React.FC<CherryClockModalProps> = ({
   isOpen,
   task,
@@ -186,10 +188,14 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
   onClose,
   onComplete
 }) => {
-  const totalSeconds = Math.max(1, durationMinutes * 60);
-  const [secondsLeft, setSecondsLeft] = useState<number>(totalSeconds);
+  const totalFocusSeconds = Math.max(1, durationMinutes * 60);
+  const breakSeconds = 5 * 60; // 5 minutes standard break
+
+  const [phase, setPhase] = useState<ClockPhase>('focus');
+  const [completedPomodoros, setCompletedPomodoros] = useState<number>(0);
+
+  const [secondsLeft, setSecondsLeft] = useState<number>(totalFocusSeconds);
   const [isRunning, setIsRunning] = useState<boolean>(true);
-  const [isFinished, setIsFinished] = useState<boolean>(false);
   const [showExitConfirm, setShowExitConfirm] = useState<boolean>(false);
 
   const { activeSkin } = useActiveSkin();
@@ -205,25 +211,17 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
         }
       ];
 
-  // Randomly select 1 pet from active skin upon each session
   const [currentAnimal, setCurrentAnimal] = useState<FocusPetConfig>(pets[0]);
-
-  // Progressive Cherry Bite Stages:
-  // 0: Whole fresh cherry
-  // 1: Big bite (teeth indentations, juice particles)
-  // 2: Half eaten, core pit visible
-  // 3: Only pit & stem left
-  // 4: Completely swallowed (disappeared, nom-nom heart)
   const [biteStage, setBiteStage] = useState<number>(0);
   const [crumbs, setCrumbs] = useState<{ id: number; x: number; y: number }[]>([]);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const endTimeRef = useRef<number>(0);
-  const remainingSecondsRef = useRef<number>(totalSeconds);
+  const remainingSecondsRef = useRef<number>(totalFocusSeconds);
   const isCompletedRef = useRef<boolean>(false);
 
-  // Completion handler with sound, desktop notification, and state transition
-  const handleCompleteTimer = useCallback(() => {
+  // Focus phase completion: award cherry, notify, and transition into 5-min break
+  const handleFocusPhaseComplete = useCallback(() => {
     if (isCompletedRef.current) return;
     isCompletedRef.current = true;
 
@@ -232,40 +230,95 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
       timerRef.current = null;
     }
 
-    setIsRunning(false);
-    setIsFinished(true);
-    setSecondsLeft(0);
-    remainingSecondsRef.current = 0;
+    setCompletedPomodoros(prev => {
+      const nextCount = prev + 1;
+
+      if (soundEnabled) {
+        playCherryCompletionChime();
+      }
+
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          new Notification('🍒 番茄时钟专注完成！', {
+            body: `「${task?.title || '专注任务'}」已完成第 ${nextCount} 轮专注，收获 1 颗樱桃勋章！进入 5 分钟休息时间~`,
+            icon: '/favicon.ico'
+          });
+        } catch {}
+      }
+
+      return nextCount;
+    });
+
+    if (task) {
+      onComplete(task.id, durationMinutes);
+    }
+
+    // Switch to 5-minute break
+    setPhase('break');
+    setSecondsLeft(breakSeconds);
+    remainingSecondsRef.current = breakSeconds;
+    endTimeRef.current = Date.now() + breakSeconds * 1000;
+    isCompletedRef.current = false;
+    setIsRunning(true);
+    setBiteStage(0);
+  }, [soundEnabled, task, durationMinutes, onComplete, breakSeconds]);
+
+  // Break phase completion: notify and transition back to next focus phase
+  const handleBreakPhaseComplete = useCallback(() => {
+    if (isCompletedRef.current) return;
+    isCompletedRef.current = true;
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
 
     if (soundEnabled) {
       playCherryCompletionChime();
     }
 
-    // HTML5 Desktop Notification if window minimized or in background
     if ('Notification' in window && Notification.permission === 'granted') {
       try {
-        new Notification('🍒 番茄时钟专注完成！', {
-          body: `「${task?.title || '专注任务'}」已完成 ${durationMinutes} 分钟专注，收获一颗樱桃！`,
+        new Notification('⏰ 休息结束！', {
+          body: `5分钟休息已结束，即将开始下一轮番茄时钟专注！`,
           icon: '/favicon.ico'
         });
       } catch {}
     }
 
-    if (task) {
-      onComplete(task.id, durationMinutes);
+    // Switch back to focus
+    setPhase('focus');
+    setSecondsLeft(totalFocusSeconds);
+    remainingSecondsRef.current = totalFocusSeconds;
+    endTimeRef.current = Date.now() + totalFocusSeconds * 1000;
+    isCompletedRef.current = false;
+    setIsRunning(true);
+    setBiteStage(0);
+  }, [soundEnabled, totalFocusSeconds]);
+
+  // Skip break directly into next focus phase
+  const handleSkipBreak = useCallback(() => {
+    if (phase !== 'break') return;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
     }
-  }, [soundEnabled, task, durationMinutes, onComplete]);
+    setPhase('focus');
+    setSecondsLeft(totalFocusSeconds);
+    remainingSecondsRef.current = totalFocusSeconds;
+    endTimeRef.current = Date.now() + totalFocusSeconds * 1000;
+    isCompletedRef.current = false;
+    setIsRunning(true);
+    setBiteStage(0);
+  }, [phase, totalFocusSeconds]);
 
   // Toggle running (pause / resume) with timestamp recalculation
   const toggleRunning = useCallback(() => {
-    if (isFinished) return;
     setIsRunning(prev => {
       const next = !prev;
       if (next) {
-        // Resuming: recompute absolute end timestamp from saved remaining seconds
         endTimeRef.current = Date.now() + remainingSecondsRef.current * 1000;
       } else {
-        // Pausing: capture exact remaining seconds
         const diffMs = endTimeRef.current - Date.now();
         const rem = Math.max(0, Math.ceil(diffMs / 1000));
         remainingSecondsRef.current = rem;
@@ -273,7 +326,7 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
       }
       return next;
     });
-  }, [isFinished]);
+  }, []);
 
   // Initialize session & random animal from active skin
   useEffect(() => {
@@ -281,11 +334,12 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
       const randomIndex = Math.floor(Math.random() * pets.length);
       setCurrentAnimal(pets[randomIndex] || pets[0]);
       isCompletedRef.current = false;
-      remainingSecondsRef.current = totalSeconds;
-      endTimeRef.current = Date.now() + totalSeconds * 1000;
-      setSecondsLeft(totalSeconds);
+      setPhase('focus');
+      setCompletedPomodoros(0);
+      remainingSecondsRef.current = totalFocusSeconds;
+      endTimeRef.current = Date.now() + totalFocusSeconds * 1000;
+      setSecondsLeft(totalFocusSeconds);
       setIsRunning(true);
-      setIsFinished(false);
       setShowExitConfirm(false);
       setBiteStage(0);
 
@@ -296,11 +350,11 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
-  }, [isOpen, totalSeconds, pets]);
+  }, [isOpen, totalFocusSeconds, pets]);
 
   // Main countdown interval based on absolute wall-clock timestamp + visibility/focus listeners
   useEffect(() => {
-    if (!isOpen || isFinished) return;
+    if (!isOpen) return;
 
     const syncRemaining = () => {
       if (!isRunning || isCompletedRef.current) return;
@@ -311,17 +365,18 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
       setSecondsLeft(remaining);
 
       if (remaining <= 0) {
-        handleCompleteTimer();
+        if (phase === 'focus') {
+          handleFocusPhaseComplete();
+        } else {
+          handleBreakPhaseComplete();
+        }
       }
     };
 
     if (isRunning) {
-      // Immediate sync
       syncRemaining();
-      // Tick every 500ms for smooth, drift-free countdown
       timerRef.current = setInterval(syncRemaining, 500);
 
-      // Window minimized / tab visibility change listener
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
           syncRemaining();
@@ -342,16 +397,15 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
-  }, [isOpen, isRunning, isFinished, handleCompleteTimer]);
+  }, [isOpen, isRunning, phase, handleFocusPhaseComplete, handleBreakPhaseComplete]);
 
-  // Progressive biting cycle: advances every 1800ms while running (relaxed, leisurely pace, animal stays completely STILL)
+  // Progressive biting cycle: advances every 1800ms while running in focus mode
   useEffect(() => {
-    if (!isOpen || !isRunning || isFinished) return;
+    if (!isOpen || !isRunning || phase !== 'focus') return;
 
     const biteTimer = setInterval(() => {
       setBiteStage(prev => {
         const next = (prev + 1) % 5;
-        // Splash crumbs on bites
         if (next === 1 || next === 2 || next === 3) {
           setCrumbs([
             { id: Date.now() + 1, x: -14, y: 10 },
@@ -365,15 +419,15 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
     }, 1800);
 
     return () => clearInterval(biteTimer);
-  }, [isOpen, isRunning, isFinished]);
+  }, [isOpen, isRunning, phase]);
 
   const handleRequestClose = useCallback(() => {
-    if (isFinished || secondsLeft === totalSeconds) {
+    if (phase === 'break' || secondsLeft === totalFocusSeconds) {
       onClose();
       return;
     }
     setShowExitConfirm(true);
-  }, [isFinished, secondsLeft, totalSeconds, onClose]);
+  }, [phase, secondsLeft, totalFocusSeconds, onClose]);
 
   const handleConfirmExit = () => {
     setShowExitConfirm(false);
@@ -442,25 +496,40 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
         <div className="flex flex-col items-center justify-center my-auto z-10 space-y-6 sm:space-y-8">
           {/* Top: Large Minimal Countdown Clock */}
           <div className="text-center">
-            <motion.div 
-              key={`${minutes}:${seconds}`}
-              initial={{ opacity: 0.92, scale: 0.99 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-6xl sm:text-7xl md:text-8xl font-mono font-light tracking-tight text-[var(--text-main)] drop-shadow-sm leading-none"
-            >
+            <div className="text-6xl sm:text-7xl md:text-8xl font-mono font-light tracking-tight text-[var(--text-main)] drop-shadow-sm leading-none select-none">
               {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
-            </motion.div>
+            </div>
 
-            {isFinished && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-3 text-sm text-emerald-400 font-medium tracking-wide flex items-center justify-center gap-1.5"
-              >
-                <span>已达成 1 颗樱桃专注勋章</span>
-                <CherryIcon size={18} />
-              </motion.div>
-            )}
+            {/* Status and Focus Badge: completely calm, static, and elegant (no flashing/pulsing) */}
+            <div className="mt-4 flex flex-col items-center gap-2 select-none">
+              <div className="flex items-center gap-2">
+                <span className={`text-xs font-medium px-3 py-1 rounded-full border ${
+                  phase === 'focus'
+                    ? 'bg-rose-500/10 text-rose-400 border-rose-500/25'
+                    : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+                }`}>
+                  {phase === 'focus' ? `🎯 专注第 ${completedPomodoros + 1} 轮` : '☕ 休息时间 (5分钟) · 喝口水舒展一下'}
+                </span>
+                {completedPomodoros > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-xs text-emerald-400 font-medium">
+                    <CherryIcon size={14} />
+                    <span>已达成 {completedPomodoros} 颗樱桃勋章</span>
+                  </span>
+                )}
+              </div>
+
+              {phase === 'break' && (
+                <button
+                  type="button"
+                  onClick={handleSkipBreak}
+                  className="mt-1 px-3.5 py-1.5 rounded-full text-xs font-medium text-emerald-300 hover:text-white bg-emerald-600/25 hover:bg-emerald-600/40 border border-emerald-500/35 transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
+                  title="跳过本次休息，立即进入下一个番茄时钟"
+                >
+                  <span>跳过休息，开始下一轮专注</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 
@@ -471,7 +540,9 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
           <div className="relative flex items-center justify-center w-72 h-72 sm:w-80 sm:h-80 select-none pointer-events-none">
             {/* Soft Ambient Glow */}
             <div 
-              className="absolute w-52 h-52 rounded-full bg-rose-500/15 blur-3xl pointer-events-none"
+              className={`absolute w-52 h-52 rounded-full blur-3xl pointer-events-none transition-colors duration-700 ${
+                phase === 'focus' ? 'bg-rose-500/15' : 'bg-emerald-500/15'
+              }`}
             />
 
             {/* Animal Box (Completely static, no movement) */}
@@ -523,7 +594,7 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
               </motion.div>
 
               {/* Happy Nom-Nom Heart when swallowed (Stage 4) */}
-              {isRunning && !isFinished && biteStage === 4 && (
+              {isRunning && phase === 'focus' && biteStage === 4 && (
                 <motion.div
                   initial={{ opacity: 0, y: 0, scale: 0.4 }}
                   animate={{ opacity: [0, 1, 1, 0], y: -28, scale: [0.4, 1.2, 1.1, 0.9] }}
@@ -539,18 +610,12 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
                 </motion.div>
               )}
 
-              {/* Finished Celebration Banner */}
-              {isFinished && (
-                <motion.div
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: [1, 1.2, 1], opacity: 1 }}
-                  transition={{ repeat: Infinity, duration: 0.9 }}
-                  className="absolute -top-8 text-2xl select-none flex items-center justify-center gap-2"
-                >
-                  <span>🎉</span>
-                  <CherryIcon size={28} />
-                  <span>🎉</span>
-                </motion.div>
+              {/* Break Mode Peaceful Resting Pill */}
+              {phase === 'break' && (
+                <div className="absolute -top-7 text-xs font-medium px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 select-none flex items-center gap-1.5 shadow-sm">
+                  <span>☕</span>
+                  <span>休息蓄力中</span>
+                </div>
               )}
             </div>
           </div>
@@ -587,10 +652,12 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-[var(--text-main)]">
-                    提前离开将不记录樱桃
+                    提前离开将不记录此轮樱桃
                   </h3>
                   <p className="text-xs text-[var(--text-sub)] mt-1.5 leading-relaxed">
-                    倒计时尚未完成，提前退出不会生成樱桃子任务，确认要离开吗？
+                    {completedPomodoros > 0
+                      ? `当前番茄时钟尚未完成，提前退出不会记录此轮樱桃（此前已达成的 ${completedPomodoros} 颗樱桃勋章已安全入账），确认要离开吗？`
+                      : '倒计时尚未完成，提前退出不会生成樱桃子任务，确认要离开吗？'}
                   </p>
                 </div>
 
