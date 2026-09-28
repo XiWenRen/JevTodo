@@ -218,54 +218,131 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
   const [crumbs, setCrumbs] = useState<{ id: number; x: number; y: number }[]>([]);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const endTimeRef = useRef<number>(0);
+  const remainingSecondsRef = useRef<number>(totalSeconds);
+  const isCompletedRef = useRef<boolean>(false);
+
+  // Completion handler with sound, desktop notification, and state transition
+  const handleCompleteTimer = useCallback(() => {
+    if (isCompletedRef.current) return;
+    isCompletedRef.current = true;
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    setIsRunning(false);
+    setIsFinished(true);
+    setSecondsLeft(0);
+    remainingSecondsRef.current = 0;
+
+    if (soundEnabled) {
+      playCherryCompletionChime();
+    }
+
+    // HTML5 Desktop Notification if window minimized or in background
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        new Notification('🍒 番茄时钟专注完成！', {
+          body: `「${task?.title || '专注任务'}」已完成 ${durationMinutes} 分钟专注，收获一颗樱桃！`,
+          icon: '/favicon.ico'
+        });
+      } catch {}
+    }
+
+    if (task) {
+      onComplete(task.id, durationMinutes);
+    }
+  }, [soundEnabled, task, durationMinutes, onComplete]);
+
+  // Toggle running (pause / resume) with timestamp recalculation
+  const toggleRunning = useCallback(() => {
+    if (isFinished) return;
+    setIsRunning(prev => {
+      const next = !prev;
+      if (next) {
+        // Resuming: recompute absolute end timestamp from saved remaining seconds
+        endTimeRef.current = Date.now() + remainingSecondsRef.current * 1000;
+      } else {
+        // Pausing: capture exact remaining seconds
+        const diffMs = endTimeRef.current - Date.now();
+        const rem = Math.max(0, Math.ceil(diffMs / 1000));
+        remainingSecondsRef.current = rem;
+        setSecondsLeft(rem);
+      }
+      return next;
+    });
+  }, [isFinished]);
 
   // Initialize session & random animal from active skin
   useEffect(() => {
     if (isOpen) {
       const randomIndex = Math.floor(Math.random() * pets.length);
       setCurrentAnimal(pets[randomIndex] || pets[0]);
+      isCompletedRef.current = false;
+      remainingSecondsRef.current = totalSeconds;
+      endTimeRef.current = Date.now() + totalSeconds * 1000;
       setSecondsLeft(totalSeconds);
       setIsRunning(true);
       setIsFinished(false);
       setShowExitConfirm(false);
       setBiteStage(0);
+
+      // Request notification permission if not yet decided
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().catch(() => {});
+      }
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
   }, [isOpen, totalSeconds, pets]);
 
-  // Main countdown interval
+  // Main countdown interval based on absolute wall-clock timestamp + visibility/focus listeners
   useEffect(() => {
     if (!isOpen || isFinished) return;
 
+    const syncRemaining = () => {
+      if (!isRunning || isCompletedRef.current) return;
+      const now = Date.now();
+      const diffMs = endTimeRef.current - now;
+      const remaining = Math.max(0, Math.ceil(diffMs / 1000));
+      remainingSecondsRef.current = remaining;
+      setSecondsLeft(remaining);
+
+      if (remaining <= 0) {
+        handleCompleteTimer();
+      }
+    };
+
     if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setSecondsLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current!);
-            setIsRunning(false);
-            setIsFinished(true);
+      // Immediate sync
+      syncRemaining();
+      // Tick every 500ms for smooth, drift-free countdown
+      timerRef.current = setInterval(syncRemaining, 500);
 
-            if (soundEnabled) {
-              playCherryCompletionChime();
-            }
+      // Window minimized / tab visibility change listener
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          syncRemaining();
+        }
+      };
+      const handleWindowFocus = () => {
+        syncRemaining();
+      };
 
-            if (task) {
-              onComplete(task.id, durationMinutes);
-            }
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', handleWindowFocus);
+
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', handleWindowFocus);
+      };
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isOpen, isRunning, isFinished, soundEnabled, task, durationMinutes, onComplete]);
+  }, [isOpen, isRunning, isFinished, handleCompleteTimer]);
 
   // Progressive biting cycle: advances every 1800ms while running (relaxed, leisurely pace, animal stays completely STILL)
   useEffect(() => {
@@ -290,28 +367,6 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
     return () => clearInterval(biteTimer);
   }, [isOpen, isRunning, isFinished]);
 
-  // Keyboard shortcut: Space to pause/resume, Esc to close
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      if (e.code === 'Space') {
-        e.preventDefault();
-        if (!isFinished) {
-          setIsRunning(prev => !prev);
-        }
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        handleRequestClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isFinished, secondsLeft, totalSeconds]);
-
   const handleRequestClose = useCallback(() => {
     if (isFinished || secondsLeft === totalSeconds) {
       onClose();
@@ -324,6 +379,26 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
     setShowExitConfirm(false);
     onClose();
   };
+
+  // Keyboard shortcut: Space to pause/resume, Esc to close
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleRunning();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleRequestClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, toggleRunning, handleRequestClose]);
 
   if (!isOpen || !task) return null;
 
@@ -342,7 +417,7 @@ export const CherryClockModal: React.FC<CherryClockModalProps> = ({
         <div className="w-full flex items-center justify-end gap-2.5 z-20">
           <button
             type="button"
-            onClick={() => setIsRunning(prev => !prev)}
+            onClick={toggleRunning}
             className="w-10 h-10 rounded-full flex items-center justify-center text-[var(--text-sub)] hover:text-[var(--text-main)] hover:bg-[var(--chip-bg)] transition-all active:scale-95"
             title={isRunning ? '暂停 (空格)' : '继续 (空格)'}
           >
