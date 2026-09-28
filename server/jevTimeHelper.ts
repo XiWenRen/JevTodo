@@ -21,8 +21,11 @@ export function resolveJevDateTime(
     return { dueDate: '长期规划' };
   }
 
-  const now = referenceDate || new Date();
-  const target = new Date(now.getTime());
+  const now = referenceDate instanceof Date && !isNaN(referenceDate.getTime())
+    ? referenceDate 
+    : (referenceDate ? new Date(referenceDate) : new Date());
+  const safeNow = isNaN(now.getTime()) ? new Date() : now;
+  const target = new Date(safeNow.getTime());
 
   if (timeScope === '今天') {
     // Keep target as today

@@ -5,6 +5,8 @@ import {
   buildDynamicTagCriteria, 
   buildScheduleContextAndHourCriteria, 
   buildDynamicTitleCriteria,
+  extractSubjectEntities,
+  extractDomainKeywords,
   getPersonalTagLedger
 } from "../jevScheduleHelper.js";
 import { extractUserIdFromReq } from "../auth.js";
@@ -396,42 +398,72 @@ export async function handleJevEvaluate(req: any, res: any) {
             urgencyScore = scoreVal > 1 ? Math.min(1, Math.max(0, scoreVal / 4)) : scoreVal;
           }
 
-          // Matter Tag
-          let matterTag = answers.matter_tag?.choice || answers.matter_tag?.value || answers.matter_tag;
-          if (matterTag && matterTagCriteria[matterTag]) {
-            matterTag = matterTag.trim().replace(/^#/, "");
-          } else {
-            matterTag = null;
+          // 1. Tags directly powered by Jev & Subject Entity Recognition
+          const explicitTags: string[] = [];
+          const tagRegex = /#([\u4e00-\u9fa5\w-]+)/g;
+          let tm;
+          while ((tm = tagRegex.exec(text)) !== null) {
+            if (!explicitTags.includes(tm[1])) explicitTags.push(tm[1]);
           }
 
-          // Mint tag into user's evolving ledger
-          if (matterTag) {
-            userLedger.recordTagUsage(matterTag, 'jev_minted');
-          }
+          const jevTags = [...explicitTags];
 
-          const tags: string[] = [];
-          if (matterTag) tags.push(matterTag);
-
-          // Supplemental explicit tags
-          const explicitMatches = text.match(/#([\u4e00-\u9fa5\w-]+)/g);
-          if (explicitMatches) {
-            for (const t of explicitMatches) {
-              const clean = t.replace("#", "");
-              if (!tags.includes(clean)) tags.push(clean);
+          // A. High-precision Subject & System Entities recognized from text
+          const subjectEntities = extractSubjectEntities(text);
+          for (const entity of subjectEntities) {
+            if (jevTags.length >= 3) break;
+            if (!jevTags.includes(entity) && entity !== "常规待办") {
+              jevTags.push(entity);
             }
           }
 
-          // Time slot & target hour
+          // B. Primary Jev domain / matter choice
+          const primaryJevTag = answers.matter_tag?.choice;
+          if (primaryJevTag && primaryJevTag !== "常规待办" && !jevTags.includes(primaryJevTag)) {
+            if (jevTags.length < 3) {
+              jevTags.push(primaryJevTag);
+            }
+          }
+
+          // C. Probabilities from Jev
+          const probs = answers.matter_tag?.probabilities || {};
+          for (const [tName, prob] of Object.entries(probs)) {
+            if (jevTags.length >= 3) break;
+            if (typeof prob === "number" && prob >= 0.2 && tName !== "常规待办" && !jevTags.includes(tName)) {
+              jevTags.push(tName);
+            }
+          }
+
+          // D. Pair core subject with concrete business action if only 1 tag is populated
+          if (jevTags.length < 2) {
+            const domainKws = extractDomainKeywords(text);
+            for (const dKw of domainKws) {
+              if (jevTags.length >= 2) break;
+              if (!jevTags.includes(dKw) && dKw !== "常规待办") {
+                jevTags.push(dKw);
+              }
+            }
+          }
+
+          if (jevTags.length === 0) jevTags.push("常规待办");
+
+          // Record evolved tags in user ledger
+          for (const tag of jevTags) {
+            if (tag !== "常规待办") {
+              userLedger.recordTagUsage(tag, 'jev_minted');
+            }
+          }
+
+          // 2. Task Time directly powered by Jev
           const chosenTimeScope = answers.time_scope?.choice || answers.time_scope?.value;
           const chosenTimeSlot = answers.time_slot?.choice || answers.time_slot?.value;
           const chosenTargetHour = answers.target_hour?.choice || answers.target_hour?.value;
 
-          const { dueDate, dueTimestamp } = resolveJevDateTime(
-            text, 
-            category, 
+          const { dueDate, dueDateIso, dueTimestamp } = resolveJevDateTime(
             chosenTimeScope, 
             chosenTimeSlot, 
-            chosenTargetHour
+            chosenTargetHour,
+            text
           );
 
           const cleanupProb = answers.needs_cleanup?.probability ?? 0;
@@ -446,15 +478,16 @@ export async function handleJevEvaluate(req: any, res: any) {
             statusCode: 200,
             durationMs: gatewayDuration,
             requestPayload: payload,
-            result: { cleanTitle, category, urgencyScore, tags, dueDate, dueTimestamp, confidence, source: "typesafe-jev-systemone" }
+            result: { cleanTitle, category, urgencyScore, tags: jevTags, dueDate, dueTimestamp, confidence, source: "typesafe-jev-systemone" }
           });
 
           return res.json({
             cleanTitle,
             category,
             urgencyScore,
-            tags,
+            tags: jevTags,
             dueDate,
+            dueDateIso,
             dueTimestamp,
             needsCleanup: cleanupProb > 0.6,
             freeWindowSummary,

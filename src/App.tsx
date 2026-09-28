@@ -421,14 +421,28 @@ export default function App() {
           durationMinutes: 45
         }));
 
-      const decision = precomputedDecision || await evaluateWithJev(rawInput, {
-        apiKey: settings.jevApiKey,
-        endpoint: settings.jevEndpoint,
-        allowFallback: settings.allowFallback ?? false,
-        triggerType: 'create_task',
-        userTags: allTags,
-        existingSchedule
-      });
+      let decision: JevDecision;
+      try {
+        decision = precomputedDecision || await evaluateWithJev(rawInput, {
+          apiKey: settings.jevApiKey,
+          endpoint: settings.jevEndpoint,
+          allowFallback: settings.allowFallback ?? false,
+          triggerType: 'create_task',
+          userTags: allTags,
+          existingSchedule
+        });
+      } catch (jevErr) {
+        console.warn('Jev online evaluation failed, falling back to local heuristic:', jevErr);
+        decision = await evaluateWithJev(rawInput, {
+          apiKey: settings.jevApiKey,
+          endpoint: settings.jevEndpoint,
+          allowFallback: true,
+          triggerType: 'create_task',
+          userTags: allTags,
+          existingSchedule
+        });
+        showToast('已采用本地智能规则为您录入待办');
+      }
 
       // 2. Jev Duplicate Detection against existing tasks
       const dupCheck = detectDuplicateWithJev(rawInput, tasks);
@@ -484,6 +498,22 @@ export default function App() {
       ]);
     } catch (err) {
       console.error('Failed to add task with Jev:', err);
+      // Emergency fallback: guarantee user input is NEVER lost
+      const fallbackTitle = rawInput.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim() || '待办事项';
+      const emergencyTask: TaskItem = {
+        id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        title: fallbackTitle,
+        rawInput,
+        category: '即刻完成',
+        urgencyScore: 0.5,
+        tags: ['常规待办'],
+        completed: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        jevConfidence: 0.5
+      };
+      setTasks(prev => [emergencyTask, ...prev]);
+      showToast(`已录入待办：「${fallbackTitle}」`);
     } finally {
       setIsProcessing(false);
     }
@@ -570,14 +600,28 @@ export default function App() {
           durationMinutes: 45
         }));
 
-      const decision = await evaluateWithJev(rawInput, {
-        apiKey: settings.jevApiKey,
-        endpoint: settings.jevEndpoint,
-        allowFallback: settings.allowFallback ?? false,
-        triggerType: 'create_task',
-        userTags: allTags,
-        existingSchedule
-      });
+      let decision: JevDecision;
+      try {
+        decision = await evaluateWithJev(rawInput, {
+          apiKey: settings.jevApiKey,
+          endpoint: settings.jevEndpoint,
+          allowFallback: settings.allowFallback ?? false,
+          triggerType: 'create_task',
+          userTags: allTags,
+          existingSchedule
+        });
+      } catch (jevErr) {
+        console.warn('Jev online evaluation failed, falling back to local heuristic:', jevErr);
+        decision = await evaluateWithJev(rawInput, {
+          apiKey: settings.jevApiKey,
+          endpoint: settings.jevEndpoint,
+          allowFallback: true,
+          triggerType: 'create_task',
+          userTags: allTags,
+          existingSchedule
+        });
+        showToast('已采用本地智能规则为您录入待办');
+      }
 
       const taskTitle = (decision.cleanTitle && decision.cleanTitle.trim().length > 0)
         ? decision.cleanTitle.trim()
@@ -616,6 +660,21 @@ export default function App() {
       showToast(`已独立创建待办「${newTask.title}」`);
     } catch (err) {
       console.error('Failed to force create task:', err);
+      const fallbackTitle = rawInput.replace(/#([\u4e00-\u9fa5\w-]+)/g, '').trim() || '待办事项';
+      const emergencyTask: TaskItem = {
+        id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        title: fallbackTitle,
+        rawInput,
+        category: '即刻完成',
+        urgencyScore: 0.5,
+        tags: ['常规待办'],
+        completed: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        jevConfidence: 0.5
+      };
+      setTasks(prev => [emergencyTask, ...prev]);
+      showToast(`已独立创建待办「${fallbackTitle}」`);
     } finally {
       setIsProcessing(false);
     }
