@@ -18,12 +18,17 @@ import {
   Activity,
   Sparkles,
   Palette,
-  Cat
+  Cat,
+  Plus,
+  Upload,
+  ExternalLink,
+  Trash2,
+  Compass
 } from 'lucide-react';
 import { AppSettings } from '../types';
 import { AuthUser } from '../utils/auth';
 import { playCherryCompletionChime } from './CherryClockModal';
-import { useActiveSkin } from '../plugins/skins/SkinRegistry';
+import { useActiveSkin, companionRegistry } from '../plugins/skins/SkinRegistry';
 
 type SettingsTab = 'ai' | 'clock' | 'companion' | 'sync';
 
@@ -64,6 +69,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [testMessage, setTestMessage] = useState<string>('');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  // 伴侣主题与风格筛选
+  const [styleFilter, setStyleFilter] = useState<'all' | 'vector' | 'lottie' | 'mecha'>('all');
+  const [showCustomImport, setShowCustomImport] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customUrl, setCustomUrl] = useState('');
+  const [customIcon, setCustomIcon] = useState('✨');
+  const [customColor, setCustomColor] = useState('#f97316');
+  const [customData, setCustomData] = useState<any>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const { activeSkinId, allSkins, setSkin } = useActiveSkin();
 
@@ -500,86 +516,341 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* TAB 3: 浮窗伴侣形象 */}
           {activeTab === 'companion' && (
             <div className="space-y-3.5">
-              <div className="p-3 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-1.5">
+              {/* 头部说明卡片 */}
+              <div className="p-3.5 rounded-xl bg-[var(--chip-bg)] border border-[var(--chip-border)] space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--text-main)]">
                     <Cat className="w-4 h-4 text-orange-400" />
-                    <span>浮窗伴侣形象 (Floating Companion Theme)</span>
+                    <span>浮窗伴侣形象与风格库</span>
                   </div>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/10 border border-orange-500/20 text-orange-400 font-medium">
-                    独立个性化
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCustomImport(prev => !prev)}
+                    className="text-[11px] px-2.5 py-1 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-orange-400 font-medium flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>{showCustomImport ? '收起导入面板' : '导入自定义 Lottie'}</span>
+                  </button>
                 </div>
                 <p className="text-[11px] text-[var(--text-sub)] leading-relaxed">
-                  独立自选常驻界面右侧的跑轮伴侣主角。切换形象后，浮窗小组件将以纯代码矢量几何动力学全天候陪伴您的待办旅程。
+                  独立自选常驻界面右侧的动态桌面伴侣。支持由代码高精度驱动的「极简纯矢量」以及支持丰富手绘细节的「开源 Lottie」，全天候伴您专注待办。
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-2.5">
-                {allSkins.map((theme) => {
-                  const isSelected = activeSkinId === theme.id;
-                  const accentColor = theme.accentColor || '#f97316';
-                  return (
-                    <div
-                      key={theme.id}
-                      onClick={() => setSkin(theme.id)}
-                      className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 relative overflow-hidden select-none ${
-                        isSelected
-                          ? 'bg-[var(--chip-bg)] shadow-md'
-                          : 'bg-[var(--chip-bg)]/60 border-[var(--border-subtle)] hover:border-[var(--border-medium)] opacity-85 hover:opacity-100'
-                      }`}
-                      style={{
-                        borderColor: isSelected ? accentColor : undefined,
-                        boxShadow: isSelected ? `0 0 16px ${accentColor}25, inset 0 0 1px ${accentColor}` : undefined
-                      }}
-                    >
-                      <div 
-                        className="text-2xl p-2.5 rounded-xl bg-[var(--bg-main)] border border-[var(--border-subtle)] shrink-0 flex items-center justify-center select-none"
-                        style={{
-                          boxShadow: isSelected ? `0 2px 8px ${accentColor}25` : undefined
-                        }}
+              {/* 自定义 Lottie 导入与挑选推荐面板 */}
+              <AnimatePresence>
+                {showCustomImport && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="p-3.5 rounded-xl bg-[var(--bg-main)] border border-orange-500/30 space-y-3 overflow-hidden shadow-sm"
+                  >
+                    <div className="flex items-center justify-between pb-1 border-b border-[var(--border-subtle)]">
+                      <span className="text-xs font-semibold text-[var(--text-main)] flex items-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5 text-orange-400" />
+                        <span>导入专属 Lottie 动效伴侣</span>
+                      </span>
+                      <a
+                        href="https://lottiefiles.com/search?q=corgi&category=animations"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
                       >
-                        {theme.icon}
+                        <Compass className="w-3 h-3" />
+                        <span>去 LottieFiles 挑选素材</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+
+                    {/* 挑选风格标签建议提示 */}
+                    <div className="p-2.5 rounded-lg bg-[var(--chip-bg)]/70 border border-[var(--border-subtle)] text-[10.5px] text-[var(--text-sub)] space-y-1 leading-relaxed">
+                      <div className="font-medium text-[var(--text-main)] flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        <span>风格挑选建议：</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-[var(--text-main)] flex items-center gap-1.5">
-                            <span>{theme.name}</span>
-                            {theme.badge && (
-                              <span 
-                                className="text-[9px] px-1.5 py-0.2 rounded font-mono font-normal"
-                                style={{
-                                  backgroundColor: `${accentColor}18`,
-                                  color: accentColor,
-                                  border: `1px solid ${accentColor}35`
-                                }}
-                              >
-                                {theme.badge}
-                              </span>
-                            )}
-                            {isSelected && (
-                              <CheckCircle2 
-                                className="w-3.5 h-3.5" 
-                                style={{ color: accentColor }} 
-                              />
-                            )}
-                          </span>
-                          <span className="text-[10px] text-[var(--text-faint)] font-mono">
-                            {theme.author || 'CherryTodo'}
-                          </span>
+                      <div>
+                        • 搜索关键词推荐：<code className="px-1 py-0.2 rounded bg-black/10 dark:bg-white/10 font-mono text-orange-400">corgi</code> (柯基)、<code className="px-1 py-0.2 rounded bg-black/10 dark:bg-white/10 font-mono text-orange-400">cat walk</code> (漫步猫)、<code className="px-1 py-0.2 rounded bg-black/10 dark:bg-white/10 font-mono text-orange-400">pixel pet</code> (像素萌宠)、<code className="px-1 py-0.2 rounded bg-black/10 dark:bg-white/10 font-mono text-orange-400">cute hamster</code> (小仓鼠)。
+                      </div>
+                      <div>• 挑选到心仪动画后，可直接复制其 <span className="font-mono text-[var(--text-main)]">.json 链接</span>，或下载 .json 文件在下方上传。</div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-12">
+                          <label className="text-[10px] text-[var(--text-faint)] block mb-1">图标</label>
+                          <input
+                            type="text"
+                            maxLength={2}
+                            value={customIcon}
+                            onChange={(e) => setCustomIcon(e.target.value)}
+                            className="w-full text-center px-1 py-1 rounded-lg bg-[var(--chip-bg)] border border-[var(--border-subtle)] text-xs text-[var(--text-main)]"
+                          />
                         </div>
-                        {theme.tagline && (
-                          <div className="text-[11px] font-medium mt-0.5" style={{ color: isSelected ? accentColor : 'var(--text-sub)' }}>
-                            {theme.tagline}
-                          </div>
-                        )}
-                        <p className="text-[11px] text-[var(--text-sub)] mt-1 line-clamp-2 leading-relaxed">
-                          {theme.description}
-                        </p>
+                        <div className="flex-1">
+                          <label className="text-[10px] text-[var(--text-faint)] block mb-1">伴侣名称</label>
+                          <input
+                            type="text"
+                            placeholder="例如：可乐柯基、呆萌小水豚"
+                            value={customName}
+                            onChange={(e) => setCustomName(e.target.value)}
+                            className="w-full px-2.5 py-1 rounded-lg bg-[var(--chip-bg)] border border-[var(--border-subtle)] text-xs text-[var(--text-main)]"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-[var(--text-faint)] block mb-1">方式 A：在线 JSON 动效地址 (URL)</label>
+                        <input
+                          type="url"
+                          placeholder="https://.../animation.json"
+                          value={customUrl}
+                          onChange={(e) => {
+                            setCustomUrl(e.target.value);
+                            setCustomData(null);
+                          }}
+                          className="w-full px-2.5 py-1 rounded-lg bg-[var(--chip-bg)] border border-[var(--border-subtle)] text-xs font-mono text-[var(--text-main)]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-[var(--text-faint)] block mb-1">方式 B：或者上传本地 .json 动效文件</label>
+                        <input
+                          type="file"
+                          accept=".json"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            setImportError(null);
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              try {
+                                const parsed = JSON.parse(event.target?.result as string);
+                                if (!parsed.layers || !parsed.v) {
+                                  throw new Error('未检测到标准 Bodymovin/Lottie 动画图层');
+                                }
+                                setCustomData(parsed);
+                                setCustomUrl('');
+                                if (!customName) {
+                                  setCustomName(file.name.replace(/\.[^/.]+$/, ''));
+                                }
+                                setImportStatus(`已解析 ${file.name} (${parsed.layers.length} 个图层)`);
+                              } catch (err: any) {
+                                setImportError(err.message || '无效的 JSON 文件');
+                              }
+                            };
+                            reader.readAsText(file);
+                          }}
+                          className="text-xs file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-[11px] file:bg-[var(--chip-bg)] file:text-[var(--text-main)] hover:file:bg-[var(--chip-hover)] cursor-pointer text-[var(--text-sub)]"
+                        />
                       </div>
                     </div>
-                  );
-                })}
+
+                    {importError && (
+                      <div className="text-[10.5px] text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-md">
+                        {importError}
+                      </div>
+                    )}
+                    {importStatus && (
+                      <div className="text-[10.5px] text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md">
+                        {importStatus}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowCustomImport(false)}
+                        className="px-3 py-1 rounded-lg text-xs text-[var(--text-sub)] hover:text-[var(--text-main)] bg-[var(--chip-bg)]"
+                      >
+                        取消
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!customName.trim()) {
+                            setImportError('请输入伴侣名称');
+                            return;
+                          }
+                          if (!customUrl.trim() && !customData) {
+                            setImportError('请输入有效的 Lottie JSON 链接或选择本地文件');
+                            return;
+                          }
+                          try {
+                            const id = `custom-${Date.now()}`;
+                            const newTheme = companionRegistry.createAndRegisterCustomLottie({
+                              id,
+                              name: customName.trim(),
+                              url: customUrl.trim() || undefined,
+                              data: customData || undefined,
+                              icon: customIcon.trim() || '✨',
+                              accentColor: customColor,
+                              author: '用户自定义'
+                            }, true);
+                            setSkin(newTheme.id);
+                            setShowCustomImport(false);
+                            setCustomName('');
+                            setCustomUrl('');
+                            setCustomData(null);
+                            setImportStatus(null);
+                            setImportError(null);
+                          } catch (err: any) {
+                            setImportError(err.message || '导入失败');
+                          }
+                        }}
+                        className="px-3.5 py-1 rounded-lg text-xs font-medium text-white bg-orange-500 hover:bg-orange-600 shadow-sm transition-all"
+                      >
+                        保存并设为当前伴侣
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* 风格标签筛选栏 */}
+              <div className="flex items-center gap-1.5 p-1 bg-[var(--chip-bg)]/40 rounded-xl border border-[var(--border-subtle)] overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setStyleFilter('all')}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer ${
+                    styleFilter === 'all'
+                      ? 'bg-[var(--chip-bg)] text-[var(--text-main)] shadow-xs border border-[var(--border-subtle)]'
+                      : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'
+                  }`}
+                >
+                  全部 ({allSkins.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStyleFilter('vector')}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+                    styleFilter === 'vector'
+                      ? 'bg-[var(--chip-bg)] text-orange-500 dark:text-orange-400 shadow-xs border border-orange-500/30'
+                      : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'
+                  }`}
+                >
+                  <span>🌟 极简纯矢量</span>
+                  <span className="text-[10px] opacity-75 font-mono">
+                    ({allSkins.filter(s => s.styleTag === 'vector').length})
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStyleFilter('lottie')}
+                  className={`px-3 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+                    styleFilter === 'lottie'
+                      ? 'bg-[var(--chip-bg)] text-sky-500 dark:text-sky-400 shadow-xs border border-sky-500/30'
+                      : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'
+                  }`}
+                >
+                  <span>✨ 精选 Lottie</span>
+                  <span className="text-[10px] opacity-75 font-mono">
+                    ({allSkins.filter(s => s.styleTag === 'lottie').length})
+                  </span>
+                </button>
+                {allSkins.some(s => s.styleTag === 'mecha') && (
+                  <button
+                    type="button"
+                    onClick={() => setStyleFilter('mecha')}
+                    className={`px-3 py-1 rounded-lg text-xs font-medium transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 ${
+                      styleFilter === 'mecha'
+                        ? 'bg-[var(--chip-bg)] text-cyan-500 dark:text-cyan-400 shadow-xs border border-cyan-500/30'
+                        : 'text-[var(--text-sub)] hover:text-[var(--text-main)]'
+                    }`}
+                  >
+                    <span>⚡ 赛博未来</span>
+                    <span className="text-[10px] opacity-75 font-mono">
+                      ({allSkins.filter(s => s.styleTag === 'mecha').length})
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* 伴侣主题卡片列表 */}
+              <div className="grid grid-cols-1 gap-2.5">
+                {allSkins
+                  .filter(theme => styleFilter === 'all' || theme.styleTag === styleFilter)
+                  .map((theme) => {
+                    const isSelected = activeSkinId === theme.id;
+                    const accentColor = theme.accentColor || '#f97316';
+                    const isCustom = theme.id.startsWith('custom-');
+
+                    return (
+                      <div
+                        key={theme.id}
+                        onClick={() => setSkin(theme.id)}
+                        className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-3 relative overflow-hidden select-none ${
+                          isSelected
+                            ? 'bg-[var(--chip-bg)] shadow-md'
+                            : 'bg-[var(--chip-bg)]/60 border-[var(--border-subtle)] hover:border-[var(--border-medium)] opacity-85 hover:opacity-100'
+                        }`}
+                        style={{
+                          borderColor: isSelected ? accentColor : undefined,
+                          boxShadow: isSelected ? `0 0 16px ${accentColor}25, inset 0 0 1px ${accentColor}` : undefined
+                        }}
+                      >
+                        <div 
+                          className="text-2xl p-2.5 rounded-xl bg-[var(--bg-main)] border border-[var(--border-subtle)] shrink-0 flex items-center justify-center select-none"
+                          style={{
+                            boxShadow: isSelected ? `0 2px 8px ${accentColor}25` : undefined
+                          }}
+                        >
+                          {theme.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-[var(--text-main)] flex items-center gap-1.5">
+                              <span>{theme.name}</span>
+                              {theme.badge && (
+                                <span 
+                                  className="text-[9px] px-1.5 py-0.2 rounded font-mono font-normal"
+                                  style={{
+                                    backgroundColor: `${accentColor}18`,
+                                    color: accentColor,
+                                    border: `1px solid ${accentColor}35`
+                                  }}
+                                >
+                                  {theme.badge}
+                                </span>
+                              )}
+                              {isSelected && (
+                                <CheckCircle2 
+                                  className="w-3.5 h-3.5" 
+                                  style={{ color: accentColor }} 
+                                />
+                              )}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-[var(--text-faint)] font-mono">
+                                {theme.author || 'CherryTodo'}
+                              </span>
+                              {isCustom && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    companionRegistry.removeCustomTheme(theme.id);
+                                  }}
+                                  className="p-1 text-[var(--text-faint)] hover:text-rose-400 rounded transition-colors"
+                                  title="删除自定义主题"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {theme.tagline && (
+                            <div className="text-[11px] font-medium mt-0.5" style={{ color: isSelected ? accentColor : 'var(--text-sub)' }}>
+                              {theme.tagline}
+                            </div>
+                          )}
+                          <p className="text-[11px] text-[var(--text-sub)] mt-1 line-clamp-2 leading-relaxed">
+                            {theme.description}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
           )}

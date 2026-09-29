@@ -15,6 +15,9 @@ interface FloatingProgressWidgetProps {
   isCompactMode?: boolean;
   onConfirmOrganize: (options: OrganizeOptions) => void;
   onOpenConfirmModal?: () => void;
+  isGestureActive?: boolean;
+  isMagnetized?: boolean;
+  isChomping?: boolean;
 }
 
 export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
@@ -24,7 +27,10 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
   staleCount = 0,
   rollForwardCount = 0,
   isCompactMode = false,
-  onConfirmOrganize
+  onConfirmOrganize,
+  isGestureActive = false,
+  isMagnetized = false,
+  isChomping = false
 }) => {
   const { activeSkin } = useActiveSkin();
   const CompanionWidget = activeSkin.CompanionWidget;
@@ -147,6 +153,24 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     }
     prevCompletedCountRef.current = completedTasksCount;
   }, [completedTasksCount, isHovered, isPopoverOpen]);
+
+  // 当樱桃拖拽手势激活时，唤醒悬浮球宠物待命
+  useEffect(() => {
+    if (isGestureActive) {
+      clearAllTimers();
+      setActivityState('running');
+      setAnimDur(isMagnetized ? '0.36s' : '0.6s');
+    } else if (!isPopoverOpen && !isHovered && activityState === 'running') {
+      startLinearSlowdown();
+    }
+  }, [isGestureActive, isMagnetized]);
+
+  // 当樱桃投喂吞食瞬间，触发高能冲刺狂奔
+  useEffect(() => {
+    if (isChomping) {
+      startFullRunSequence();
+    }
+  }, [isChomping]);
 
   // 监听 ESC 键关闭气泡
   useEffect(() => {
@@ -494,7 +518,75 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
       {/* ========================================================= */}
       {/* 跑轮伴侣主按钮 (支持拖拽移动，周围环绕 SVG 进度边框圆环) */}
       {/* ========================================================= */}
+      {/* 投喂手势激活时的磁吸引力光晕与引导气泡 */}
+      <AnimatePresence>
+        {isGestureActive && !isChomping && (
+          <motion.div
+            key="halo-pulse-ring"
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{
+              scale: isMagnetized ? [1.15, 1.5, 1.25] : [1, 1.25, 1],
+              opacity: isMagnetized ? [0.75, 1, 0.75] : [0.35, 0.65, 0.35]
+            }}
+            exit={{
+              scale: 0.8,
+              opacity: 0,
+              transition: { repeat: 0, duration: 0.18, ease: 'easeOut' }
+            }}
+            transition={{
+              repeat: Infinity,
+              duration: isMagnetized ? 0.8 : 1.5,
+              ease: 'easeInOut'
+            }}
+            className="absolute -inset-4 rounded-full pointer-events-none z-0"
+            style={{
+              background: `radial-gradient(circle, ${activeSkin.accentColor || '#f59e0b'}40 0%, ${activeSkin.accentColor || '#f59e0b'}12 65%, transparent 100%)`,
+              border: `1.8px dashed ${activeSkin.accentColor || '#f59e0b'}${isMagnetized ? 'dd' : '66'}`
+            }}
+          />
+        )}
+        {isGestureActive && !isChomping && (
+          <motion.div
+            key="halo-guide-bubble"
+            initial={{ opacity: 0, y: 6, scale: 0.85 }}
+            animate={{ opacity: 1, y: 0, scale: isMagnetized ? 1.1 : 1 }}
+            exit={{ opacity: 0, y: 4, scale: 0.85, transition: { duration: 0.15, ease: 'easeOut' } }}
+            transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+            className="absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap px-2.5 py-1 rounded-full text-[10.5px] font-bold z-30 shadow-lg pointer-events-none select-none flex items-center gap-1"
+            style={{
+              backgroundColor: isMagnetized ? activeSkin.accentColor || '#ea580c' : 'rgba(15, 23, 42, 0.85)',
+              color: '#ffffff',
+              border: '1.2px solid rgba(255, 255, 255, 0.25)',
+              backdropFilter: 'blur(12px)',
+              boxShadow: isMagnetized 
+                ? `0 4px 16px ${activeSkin.accentColor || '#ea580c'}60` 
+                : '0 4px 12px rgba(0,0,0,0.3)'
+            }}
+          >
+            <span>{isMagnetized ? '😋' : '🍒'}</span>
+            <span>{isMagnetized ? '啊呜~ 快投喂我!' : '喂我完成待办!'}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 吞食命中瞬间的 +1 饱餐冲刺气泡 */}
+      <AnimatePresence>
+        {isChomping && (
+          <motion.div
+            initial={{ opacity: 1, y: 0, scale: 0.6 }}
+            animate={{ opacity: 0, y: -36, scale: 1.25 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.85, ease: 'easeOut' }}
+            className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap px-3 py-1 rounded-full text-xs font-black text-amber-300 bg-amber-500/90 border border-amber-200/50 shadow-xl pointer-events-none z-40 flex items-center gap-1"
+          >
+            <span>✨</span>
+            <span>+1 🍒 饱餐冲刺!</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.button
+        id="floating-companion-ball"
         type="button"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -502,7 +594,20 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         onPointerCancel={handlePointerUp}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        whileHover={{ scale: 1.08 }}
+        animate={
+          isChomping
+            ? { scale: [1, 1.28, 0.9, 1.12, 1] }
+            : (isGestureActive && isMagnetized)
+            ? { scale: 1.16 }
+            : isGestureActive
+            ? { scale: 1.05 }
+            : { scale: 1 }
+        }
+        transition={{
+          duration: isChomping ? 0.45 : 0.2,
+          ease: 'easeOut'
+        }}
+        whileHover={{ scale: isGestureActive ? 1.16 : 1.08 }}
         whileTap={{ scale: 0.94 }}
         className="relative w-[48px] h-[48px] rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing outline-none focus:outline-none select-none group z-10 overflow-visible touch-none"
         style={buttonStyle}

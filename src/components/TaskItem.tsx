@@ -4,7 +4,9 @@ import {
   Clock, 
   AlertCircle,
   X,
-  Calendar
+  Calendar,
+  Trash2,
+  Check
 } from 'lucide-react';
 import { TaskItem as ITaskItem, TaskCategory } from '../types';
 import { formatDynamicDueDate, extractDateTime } from '../utils/jev';
@@ -20,10 +22,14 @@ export interface CardRect {
 interface TaskItemProps {
   task: ITaskItem;
   isGhost?: boolean;
+  isBatchMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (id: string) => void;
   onToggleComplete: (id: string) => void;
   onUpdate: (updated: ITaskItem) => void;
   onDelete: (id: string) => void;
   onMoveToPlanning?: (id: string) => void;
+  onDefer?: (id: string) => void;
   onStartGesture?: (task: ITaskItem, point: { x: number; y: number }, cardRect: CardRect) => void;
   onStartCherryClock?: (task: ITaskItem) => void;
 }
@@ -54,10 +60,14 @@ export function getDueDateStatus(task: ITaskItem, referenceNow: Date = new Date(
 export const TaskItem: React.FC<TaskItemProps> = ({
   task,
   isGhost = false,
+  isBatchMode = false,
+  isSelected = false,
+  onToggleSelect,
   onToggleComplete,
   onUpdate,
   onDelete,
   onMoveToPlanning,
+  onDefer,
   onStartGesture,
   onStartCherryClock
 }) => {
@@ -67,6 +77,29 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const [editCategory, setEditCategory] = useState<TaskCategory>(task.category);
   const [newTagInput, setNewTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
+
+  // Swipe drawer state
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Close swipe offset on outside click
+  useEffect(() => {
+    if (swipeOffset === 0) return;
+    const handleGlobalClick = (e: MouseEvent | TouchEvent) => {
+      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
+        setSwipeOffset(0);
+      }
+    };
+    window.addEventListener('pointerdown', handleGlobalClick);
+    return () => window.removeEventListener('pointerdown', handleGlobalClick);
+  }, [swipeOffset]);
+
+  // Reset swipe when entering batch mode or completing task
+  useEffect(() => {
+    if (isBatchMode || task.completed) {
+      setSwipeOffset(0);
+    }
+  }, [isBatchMode, task.completed]);
 
   // Sync edit fields when task changes or edit mode opens
   useEffect(() => {
@@ -139,9 +172,42 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     });
   };
 
+  // Card click event handler (handles batch mode selection cleanly without duplicate pointer events)
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isEditing) return;
+
+    // If card was swiped open, clicking it snaps it shut
+    if (swipeOffset < 0) {
+      setSwipeOffset(0);
+      return;
+    }
+
+    // In batch mode, clicking anywhere on the card toggles selection exactly once
+    if (isBatchMode) {
+      const target = e.target as HTMLElement;
+      if (target.closest('input')) return;
+      onToggleSelect?.(task.id);
+      return;
+    }
+  };
+
   // Long press pointer events
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (isEditing || task.completed) return;
+    if (isEditing) return;
+
+    // If card was swiped open, clicking it snaps it shut
+    if (swipeOffset < 0) {
+      setSwipeOffset(0);
+      return;
+    }
+
+    // In batch mode, do NOT trigger drag or long press gestures
+    if (isBatchMode) {
+      return;
+    }
+
+    if (task.completed) return;
+
     // Don't trigger if clicking tag inputs or buttons
     const target = e.target as HTMLElement;
     if (target.closest('button') || target.closest('input')) return;
@@ -181,8 +247,8 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     if (!pointerStartPosRef.current || isGestureActiveRef.current) return;
     const dx = Math.abs(e.clientX - pointerStartPosRef.current.x);
     const dy = Math.abs(e.clientY - pointerStartPosRef.current.y);
-    // If movement exceeds 8px before timer fires, consider it a page scroll and cancel
-    if (dx > 8 || dy > 8) {
+    // If movement exceeds 6px before timer fires, cancel long press to allow smooth swipe/scroll
+    if (dx > 6 || dy > 6) {
       if (longPressTimerRef.current) {
         clearTimeout(longPressTimerRef.current);
         longPressTimerRef.current = null;
@@ -226,65 +292,150 @@ export const TaskItem: React.FC<TaskItemProps> = ({
 
   return (
     <motion.div
+      ref={cardRef}
       layout
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
-      onContextMenu={(e) => {
-        if (!isEditing) {
-          e.preventDefault();
-        }
-      }}
-      style={{
-        touchAction: 'pan-y',
-        WebkitTouchCallout: 'none',
-        WebkitUserSelect: 'none',
-        userSelect: 'none'
-      }}
-      className={`group relative rounded-xl px-3.5 py-2.5 transition-all duration-150 border acrylic-card select-none cursor-pointer ${
-        task.completed
-          ? 'opacity-50 border-transparent'
-          : isOverdue
-          ? 'border-rose-500/30 hover:border-rose-500/50'
-          : 'hover:border-[var(--border-hover)]'
-      }`}
+      className="relative w-full rounded-xl overflow-hidden select-none group/card-wrapper bg-[var(--chip-bg)]/30"
     >
-      {!isEditing ? (
-        <div className="flex items-start justify-between gap-2">
-          {/* Main Task Information */}
-          <div className="flex-1 min-w-0">
-            {/* Title Row */}
-            <div className="flex items-start gap-1.5 min-w-0">
-              {/* Ultra-Minimalist Cherry Clock Entry: Single icon on the far left of task title */}
-              {onStartCherryClock && !task.completed && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStartCherryClock(task);
-                  }}
-                  className="mt-[1px] inline-flex items-center justify-center shrink-0 hover:scale-125 active:scale-90 transition-transform cursor-pointer select-none group/cherry-btn"
-                  title="开启樱桃时钟倒计时"
-                >
-                  <CherryIcon size={16} className="filter drop-shadow-[0_1px_3px_rgba(244,63,94,0.4)]" />
-                </button>
-              )}
+      {/* Swipe Action Floating Dock Behind Card (Revealed on Left Swipe) */}
+      {!task.completed && !isEditing && !isBatchMode && (
+        <div className="absolute inset-y-0 right-0 w-[142px] flex items-center justify-end gap-1.5 p-1.5 z-0">
+          {/* 延后 Capsule Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDefer?.(task.id);
+              setSwipeOffset(0);
+            }}
+            className="h-full w-[62px] rounded-xl flex flex-col items-center justify-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 active:scale-95 border border-amber-500/25 text-amber-500 dark:text-amber-400 transition-all cursor-pointer shadow-xs select-none group/defer"
+            title="顺延至明天"
+          >
+            <div className="w-6 h-6 rounded-lg bg-amber-500/15 flex items-center justify-center group-hover/defer:scale-110 transition-transform">
+              <Calendar className="w-3.5 h-3.5 text-amber-500 stroke-[2.2]" />
+            </div>
+            <span className="text-[10.5px] font-medium tracking-wide">延后</span>
+          </button>
 
-              <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
-                <span
-                  onClick={() => setIsEditing(true)}
-                  className={`text-sm select-none font-normal leading-snug break-words transition-colors ${
-                    task.completed
-                      ? 'line-through text-[var(--text-faint)]'
-                      : 'text-[var(--text-main)] hover:text-cyan-400'
-                  }`}
-                  title="点击快速编辑文本"
-                >
-                  {task.title}
-                </span>
+          {/* 删除 Capsule Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(task.id);
+              setSwipeOffset(0);
+            }}
+            className="h-full w-[62px] rounded-xl flex flex-col items-center justify-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 active:scale-95 border border-rose-500/25 text-rose-500 dark:text-rose-400 transition-all cursor-pointer shadow-xs select-none group/del"
+            title="快速删除"
+          >
+            <div className="w-6 h-6 rounded-lg bg-rose-500/15 flex items-center justify-center group-hover/del:scale-110 transition-transform">
+              <Trash2 className="w-3.5 h-3.5 text-rose-500 stroke-[2.2]" />
+            </div>
+            <span className="text-[10.5px] font-medium tracking-wide">删除</span>
+          </button>
+        </div>
+      )}
+
+      {/* Foreground Swipeable Card */}
+      <motion.div
+        drag={!isEditing && !isBatchMode && !task.completed ? "x" : false}
+        dragDirectionLock
+        dragConstraints={{ left: -142, right: 0 }}
+        dragElastic={0.12}
+        animate={{ x: swipeOffset }}
+        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+        onDragStart={() => {
+          if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+          }
+        }}
+        onDragEnd={(_, info) => {
+          if (info.offset.x < -45 || info.velocity.x < -200) {
+            setSwipeOffset(-142);
+          } else {
+            setSwipeOffset(0);
+          }
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onContextMenu={(e) => {
+          if (!isEditing) {
+            e.preventDefault();
+          }
+        }}
+        onClick={handleCardClick}
+        style={{
+          touchAction: 'pan-y',
+          WebkitTouchCallout: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none'
+        }}
+        className={`relative z-10 w-full rounded-xl px-3.5 py-2.5 transition-all duration-150 border acrylic-card select-none cursor-pointer ${
+          task.completed
+            ? 'opacity-50 border-transparent'
+            : isSelected
+            ? 'border-[var(--accent-bg)]/60 bg-[var(--chip-bg)] shadow-xs ring-1 ring-[var(--accent-bg)]/20'
+            : isOverdue
+            ? 'border-rose-500/30 hover:border-rose-500/50'
+            : 'hover:border-[var(--border-hover)]'
+        } ${swipeOffset < 0 ? 'shadow-[-6px_0_18px_rgba(0,0,0,0.18)] border-[var(--border-medium)] bg-[var(--bg-card)]' : ''}`}
+      >
+        {!isEditing ? (
+          <div className="flex items-start justify-between gap-2">
+            {/* Main Task Information */}
+            <div className="flex-1 min-w-0">
+              {/* Title Row */}
+              <div className="flex items-start gap-1.5 min-w-0">
+                {/* Batch Mode Checkbox */}
+                {isBatchMode && (
+                  <div
+                    className={`mr-2 mt-0.5 w-4 h-4 rounded-md flex items-center justify-center shrink-0 transition-all pointer-events-none border ${
+                      isSelected
+                        ? 'bg-[var(--accent-bg)] border-[var(--accent-bg)] text-[var(--accent-fg)] shadow-xs'
+                        : 'border-[var(--border-medium)] bg-[var(--bg-input)]'
+                    }`}
+                  >
+                    {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                  </div>
+                )}
+
+                {/* Ultra-Minimalist Cherry Clock Entry: Single icon on the far left of task title */}
+                {!isBatchMode && onStartCherryClock && !task.completed && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStartCherryClock(task);
+                    }}
+                    className="mt-[1px] inline-flex items-center justify-center shrink-0 hover:scale-125 active:scale-90 transition-transform cursor-pointer select-none group/cherry-btn"
+                    title="开启樱桃时钟倒计时"
+                  >
+                    <CherryIcon size={16} className="filter drop-shadow-[0_1px_3px_rgba(244,63,94,0.4)]" />
+                  </button>
+                )}
+
+                <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+                  <span
+                    onClick={() => {
+                      if (!isBatchMode) {
+                        setIsEditing(true);
+                      }
+                    }}
+                    className={`text-sm select-none font-normal leading-snug break-words transition-colors ${
+                      task.completed
+                        ? 'line-through text-[var(--text-faint)]'
+                        : isBatchMode
+                        ? 'text-[var(--text-main)]'
+                        : 'text-[var(--text-main)] hover:text-cyan-400'
+                    }`}
+                    title={isBatchMode ? "点击选择待办" : "点击快速编辑文本"}
+                  >
+                    {task.title}
+                  </span>
 
                 {/* Stale warning */}
                 {task.isStale && !task.completed && (
@@ -539,6 +690,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           </div>
         </div>
       )}
+      </motion.div>
     </motion.div>
   );
 };

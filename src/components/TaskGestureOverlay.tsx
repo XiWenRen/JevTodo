@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { TaskItem as ITaskItem } from '../types';
 import { CardRect } from './TaskItem';
 import { CherryIcon } from './CherryIcon';
+import { useActiveSkin } from '../plugins/skins/SkinRegistry';
+import { playCherryChompSound, playCherryThrowSound } from '../utils/cherryAudio';
 
 export type GestureActionType = 'none' | 'delete' | 'defer' | 'planning' | 'complete';
 
@@ -40,16 +42,17 @@ export const UnifiedCherry: React.FC<UnifiedCherryProps> = ({ size = 34 }) => {
 };
 
 // ==========================================
-// 樱桃投喂手势调度组件 (无新蒙层，直接在原层呈现)
+// 悬浮球核心投喂手势调度组件
 // ==========================================
 export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
   gestureData,
   onClose,
   onAction,
   onTargetChange,
-  onChompChange,
-  onJumpChange
+  onChompChange
 }) => {
+  const { activeSkin } = useActiveSkin();
+
   const [cherryPos, setCherryPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isMorphedToCherry, setIsMorphedToCherry] = useState(false);
   const [showRipple, setShowRipple] = useState(false);
@@ -61,26 +64,23 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
     rotate: 0,
     scale: 1
   });
+  const [activeTargetState, setActiveTargetState] = useState<GestureActionType>('none');
 
-  // 使用 ref 避免频繁 re-render 闭包陈旧问题和反复绑定解绑监听器导致的抖动
   const currentPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const activeTargetRef = useRef<GestureActionType>('none');
   const isThrowingRef = useRef(false);
   const animFrameRef = useRef<number | null>(null);
 
-  // 稳定保存外部回调，防止父组件更新 state 时重新挂载动效或意外 cancelAnimationFrame
   const onActionRef = useRef(onAction);
   const onCloseRef = useRef(onClose);
   const onTargetChangeRef = useRef(onTargetChange);
   const onChompChangeRef = useRef(onChompChange);
-  const onJumpChangeRef = useRef(onJumpChange);
 
   useEffect(() => {
     onActionRef.current = onAction;
     onCloseRef.current = onClose;
     onTargetChangeRef.current = onTargetChange;
     onChompChangeRef.current = onChompChange;
-    onJumpChangeRef.current = onJumpChange;
   });
 
   // 初始化长按手势与变樱桃过渡动效
@@ -91,6 +91,7 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       setCherryPos(initialPos);
       setThrowPos({ x: initialPos.x, y: initialPos.y, rotate: 0, scale: 1 });
       activeTargetRef.current = 'none';
+      setActiveTargetState('none');
       isThrowingRef.current = false;
       setIsThrowing(false);
       setIsMorphedToCherry(false);
@@ -99,14 +100,13 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
 
       onTargetChangeRef.current?.('none');
       onChompChangeRef.current?.(null);
-      onJumpChangeRef.current?.(null);
 
-      // 第 1 阶段：稍微留出 25ms 启动平滑卡片缩拢凝结为樱桃光晕的过渡动画
+      // 阶段 1：卡片平滑收缩
       const morphTimer = setTimeout(() => {
         setIsMorphedToCherry(true);
       }, 25);
 
-      // 第 2 阶段：卡片凝聚达到临界点，萌趣卡通樱桃破茧弹出并绽放微光涟漪
+      // 阶段 2：破茧成樱桃微光
       const rippleTimer = setTimeout(() => {
         setShowRipple(true);
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
@@ -128,7 +128,7 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
     }
   }, [gestureData?.task?.id]);
 
-  // 绑定全局鼠标与触摸移动（在手势存续期内仅绑定一次，杜绝频繁拆解监听引起的鼠标抖动）
+  // 绑定全局鼠标与触摸移动跟踪
   useEffect(() => {
     if (!gestureData) return;
 
@@ -136,39 +136,30 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       if (isThrowingRef.current) return;
       const prevX = currentPosRef.current.x;
       const deltaX = clientX - prevX;
-      // 微妙物理惯性倾角（-16deg 到 +16deg）
       const tilt = Math.max(-16, Math.min(16, deltaX * 1.6));
       setTiltAngle(tilt);
 
       currentPosRef.current = { x: clientX, y: clientY };
       setCherryPos({ x: clientX, y: clientY });
 
-      // 计算是否拖入主体界面底部的 3 动物领地
-      const dockEl = document.getElementById('bottom-animal-dock');
-      const rect = dockEl?.getBoundingClientRect();
-      const H = typeof window !== 'undefined' ? window.innerHeight : 800;
-
+      // 核心目标：检测与常驻悬浮球的距离 (Magnetic Area to Floating Ball)
       let detected: GestureActionType = 'none';
+      const ballEl = document.getElementById('floating-companion-ball');
+      if (ballEl) {
+        const ballRect = ballEl.getBoundingClientRect();
+        const ballCenterX = ballRect.left + ballRect.width / 2;
+        const ballCenterY = ballRect.top + ballRect.height / 2;
+        const distToBall = Math.hypot(clientX - ballCenterX, clientY - ballCenterY);
 
-      // 靠近底部领地（向上浮动 80px 范围即判定为已进入瞄准）
-      const triggerTop = rect ? rect.top - 70 : H - 180;
-
-      if (clientY > triggerTop) {
-        const left = rect ? rect.left : 0;
-        const width = rect ? rect.width : window.innerWidth;
-        const relativeX = clientX - left;
-
-        if (relativeX < width / 3) {
-          detected = 'delete';   // 左 1/3：小恐龙 (删除)
-        } else if (relativeX < (width * 2) / 3) {
-          detected = 'defer';    // 中 1/3：小树懒 (延后)
-        } else {
-          detected = 'complete'; // 右 1/3：小仓鼠 (完成)
+        // 悬浮球磁吸范围：140px 判定为吸附并喂食
+        if (distToBall < 140) {
+          detected = 'complete';
         }
       }
 
       if (detected !== activeTargetRef.current) {
         activeTargetRef.current = detected;
+        setActiveTargetState(detected);
         onTargetChangeRef.current?.(detected);
         if (detected !== 'none' && typeof navigator !== 'undefined' && navigator.vibrate) {
           try {
@@ -179,6 +170,11 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
     };
 
     const handlePointerMove = (e: PointerEvent) => {
+      // 若鼠标已松开（buttons === 0），安全触发释放
+      if (e.buttons === 0 && !isThrowingRef.current) {
+        handleRelease();
+        return;
+      }
       processMove(e.clientX, e.clientY);
     };
 
@@ -189,70 +185,48 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       }
     };
 
-    // 核心物理抛物线弹道引擎与空中交汇捕捉算法
+    // 核心物理抛物线弹道：直冲悬浮球嘴部锚点
     const executeParabolicThrow = (target: GestureActionType, startX: number, startY: number) => {
       isThrowingRef.current = true;
-      // 立即将起点设为当前松开位置，绝对不抖动或跳回 (0, 0)
       setThrowPos({ x: startX, y: startY, rotate: 0, scale: 1 });
       setIsThrowing(true);
 
-      const dockEl = document.getElementById('bottom-animal-dock');
-      const rect = dockEl?.getBoundingClientRect();
-      const H = typeof window !== 'undefined' ? window.innerHeight : 800;
+      // 瞄准悬浮球实时位置与伴侣嘴位锚点
+      const ballEl = document.getElementById('floating-companion-ball');
+      const ballRect = ballEl?.getBoundingClientRect();
 
-      const dockLeft = rect ? rect.left : 0;
-      const dockWidth = rect ? rect.width : window.innerWidth;
-      const dockTop = rect ? rect.top : H - 120;
-      const cellWidth = dockWidth / 3;
+      let meetX = window.innerWidth - 30;
+      let meetY = window.innerHeight / 2;
 
-      // 目标交汇点：动物跃至半空最高点时的嘴巴空间坐标
-      let meetX = dockLeft + dockWidth / 2;
-      let meetY = dockTop + 14;
-
-      if (target === 'delete') {
-        // 小恐龙向右看，半空大嘴迎接樱桃
-        meetX = dockLeft + cellWidth * 0.60;
-        meetY = dockTop + 14;
-      } else if (target === 'defer') {
-        // 小树懒仰头向天空伸展
-        meetX = dockLeft + cellWidth + cellWidth * 0.50;
-        meetY = dockTop + 12;
-      } else if (target === 'complete') {
-        // 小松鼠向左侧跃起
-        meetX = dockLeft + cellWidth * 2 + cellWidth * 0.40;
-        meetY = dockTop + 10;
+      if (ballRect) {
+        const anchorXStr = activeSkin.anatomy?.mouthAnchor?.left || '50%';
+        const anchorYStr = activeSkin.anatomy?.mouthAnchor?.top || '50%';
+        const anchorX = parseFloat(anchorXStr) / 100;
+        const anchorY = parseFloat(anchorYStr) / 100;
+        meetX = ballRect.left + ballRect.width * anchorX;
+        meetY = ballRect.top + ballRect.height * anchorY;
       }
 
-      const duration = 500; // 飞行总耗时 500ms
+      const duration = 420; // 420ms 流畅物理飞行
       const startTime = performance.now();
-      // 优美高拱抛物线弧度
-      const peakHeight = Math.max(90, Math.abs(startY - meetY) * 0.45 + 55);
+      const peakHeight = Math.max(65, Math.abs(startY - meetY) * 0.35 + 40);
 
-      let animalHasJumped = false;
+      playCherryThrowSound();
 
       const animateThrow = (now: number) => {
         const elapsed = now - startTime;
         const progress = Math.min(1, elapsed / duration);
         const t = progress;
 
-        // 运动轨迹交汇物理逻辑：
-        // 1. 樱桃先高高抛起上升，动物在地面注视；
-        // 2. 当樱桃接近顶点并开始俯冲（t >= 0.35，约 175ms）时，动物蹬地一跃而起！
-        // 3. 动物跳跃上升耗时约 220ms，恰好在 t = 1.0 (500ms) 时与下落的樱桃在空中交汇点 (meetX, meetY) 完美相撞吞入！
-        if (t >= 0.35 && !animalHasJumped) {
-          animalHasJumped = true;
-          onJumpChangeRef.current?.(target);
-        }
-
-        // 抛物线方程
+        // 抛物线轨迹
         const curX = startX + (meetX - startX) * t;
         const linearY = startY + (meetY - startY) * t;
         const arcY = -4 * peakHeight * t * (1 - t);
         const curY = linearY + arcY;
 
-        // 旋转与接近嘴巴时的微小缩放吸入感（从 1.0 平滑吸小至 ~0.35，让樱桃顺畅进入嘴中）
-        const rotate = t * 540;
-        const scale = t > 0.65 ? 1 - ((t - 0.65) / 0.35) * 0.65 : 1;
+        // 旋转与进入嘴部时的缩小吸入感
+        const rotate = t * 720;
+        const scale = t > 0.65 ? 1 - ((t - 0.65) / 0.35) * 0.75 : 1;
 
         setThrowPos({
           x: curX,
@@ -264,23 +238,21 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
         if (progress < 1) {
           animFrameRef.current = requestAnimationFrame(animateThrow);
         } else {
-          // 精确在空中交汇飞入嘴中！动物落回地面、闭嘴咀嚼与庆祝粒子爆发
-          onJumpChangeRef.current?.(null);
-          onChompChangeRef.current?.(target);
+          // 命中悬浮球嘴部！
+          onChompChangeRef.current?.('complete');
+          playCherryChompSound();
           if (typeof navigator !== 'undefined' && navigator.vibrate) {
             try {
-              navigator.vibrate([18, 26, 20]);
+              navigator.vibrate([18, 28, 18]);
             } catch {}
           }
 
-          // 保持咀嚼与台词气泡展示一段时间后，结算业务逻辑
           setTimeout(() => {
-            onActionRef.current?.(target, gestureData.task);
+            onActionRef.current?.('complete', gestureData.task);
             onChompChangeRef.current?.(null);
             onTargetChangeRef.current?.('none');
-            onJumpChangeRef.current?.(null);
             onCloseRef.current?.();
-          }, 750);
+          }, 500);
         }
       };
 
@@ -289,14 +261,29 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
 
     const handleRelease = () => {
       if (isThrowingRef.current) return;
-      const target = activeTargetRef.current;
+      let target = activeTargetRef.current;
       const releasePos = currentPosRef.current;
 
-      if (target !== 'none') {
-        executeParabolicThrow(target, releasePos.x, releasePos.y);
+      // 如果未完全进入吸附区，但离悬浮球较近 (< 160px)，宽容自动吸附完成投喂
+      if (target === 'none') {
+        const ballEl = document.getElementById('floating-companion-ball');
+        if (ballEl) {
+          const ballRect = ballEl.getBoundingClientRect();
+          const ballCenterX = ballRect.left + ballRect.width / 2;
+          const ballCenterY = ballRect.top + ballRect.height / 2;
+          const dist = Math.hypot(releasePos.x - ballCenterX, releasePos.y - ballCenterY);
+          if (dist < 160) {
+            target = 'complete';
+          }
+        }
+      }
+
+      if (target === 'complete') {
+        executeParabolicThrow('complete', releasePos.x, releasePos.y);
       } else {
-        // 未拖入底部领地，安全取消
+        // 未投中悬浮球，优雅取消回弹并彻底复位
         onTargetChangeRef.current?.('none');
+        onChompChangeRef.current?.(null);
         onCloseRef.current?.();
       }
     };
@@ -304,29 +291,40 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
     const handleCancel = () => {
       if (isThrowingRef.current) return;
       onTargetChangeRef.current?.('none');
+      onChompChangeRef.current?.(null);
       onCloseRef.current?.();
     };
 
     window.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('pointerup', handleRelease);
     window.addEventListener('pointercancel', handleCancel);
+    window.addEventListener('mouseup', handleRelease);
 
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
     window.addEventListener('touchend', handleRelease);
     window.addEventListener('touchcancel', handleCancel);
 
+    // 8 秒超时无操作保底安全退出
+    const safetyTimer = setTimeout(() => {
+      if (!isThrowingRef.current) {
+        handleCancel();
+      }
+    }, 8000);
+
     return () => {
+      clearTimeout(safetyTimer);
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handleRelease);
       window.removeEventListener('pointercancel', handleCancel);
+      window.removeEventListener('mouseup', handleRelease);
       window.removeEventListener('touchmove', handleTouchMove);
       window.removeEventListener('touchend', handleRelease);
       window.removeEventListener('touchcancel', handleCancel);
     };
-  }, [gestureData?.task?.id]);
+  }, [gestureData?.task?.id, activeSkin]);
 
   if (!gestureData) return null;
   const { task, cardRect } = gestureData;
@@ -336,7 +334,7 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       <div className="fixed inset-0 z-[150] select-none touch-none overflow-hidden pointer-events-none">
         
         {/* ========================================================= */}
-        {/* 动态抛物线飞向动物嘴巴的卡通樱桃 (绝对从松开处起飞，吸入嘴中) */}
+        {/* 动态抛物线飞向悬浮球伴侣嘴巴的卡通樱桃 */}
         {/* ========================================================= */}
         {isThrowing && (
           <div

@@ -60,7 +60,6 @@ import { SettingsModal } from './components/SettingsModal';
 import { AuthModal } from './components/AuthModal';
 import { CategoryDrawer } from './components/CategoryDrawer';
 import { TaskGestureOverlay, GestureData, GestureActionType } from './components/TaskGestureOverlay';
-import { BottomAnimalDock } from './components/BottomAnimalDock';
 import { JevDuplicateModal } from './components/JevDuplicateModal';
 import { JevBatchSplitModal, BatchParsedTask } from './components/JevBatchSplitModal';
 import { CardRect } from './components/TaskItem';
@@ -71,6 +70,7 @@ import { CherrySubtask } from './types';
 import { useAppSettings, THEMES } from './hooks/useAppSettings';
 import { useAuthSession } from './hooks/useAuthSession';
 import { useCherryFocus } from './hooks/useCherryFocus';
+import { playCherryChompSound, playCherryCompletionChime } from './utils/cherryAudio';
 
 const STORAGE_KEY_GUEST_TASKS_OLD = 'jev_minimal_todo_guest_tasks_v1';
 const STORAGE_KEY_GUEST_TASKS = 'jev_minimal_todo_guest_tasks_v2';
@@ -99,6 +99,7 @@ export default function App() {
     if (activeView !== '轨迹') {
       setLastTaskCategory(activeView);
     }
+    setSelectedTaskIds(new Set());
   }, [activeView]);
 
   // Top header user menu state & ref
@@ -109,7 +110,10 @@ export default function App() {
   const [gestureData, setGestureData] = useState<GestureData | null>(null);
   const [animalActiveTarget, setAnimalActiveTarget] = useState<GestureActionType>('none');
   const [animalChompingTarget, setAnimalChompingTarget] = useState<GestureActionType | null>(null);
-  const [animalJumpingTarget, setAnimalJumpingTarget] = useState<GestureActionType | null>(null);
+
+  // Batch Selection & Operations State
+  const [isBatchMode, setIsBatchMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
 
   // Derive local storage key based on active user to isolate browser cache
   const [tasks, setTasks] = useState<TaskItem[]>(() => {
@@ -879,6 +883,10 @@ export default function App() {
 
   // Execute action from radial throw gesture
   const handleGestureAction = (action: GestureActionType, task: TaskItem) => {
+    setGestureData(null);
+    setAnimalActiveTarget('none');
+    setAnimalChompingTarget(null);
+
     if (action === 'complete') {
       handleToggleComplete(task.id);
     } else if (action === 'delete') {
@@ -1062,6 +1070,144 @@ export default function App() {
     if (activeView === '全部事项' || activeView === '轨迹') return filteredTasks;
     return filteredTasks.filter(t => t.category === activeView);
   }, [filteredTasks, activeView]);
+
+  // Batch Selection & Operations Handlers
+  const handleToggleBatchMode = useCallback(() => {
+    setIsBatchMode(prev => {
+      const next = !prev;
+      if (!next) setSelectedTaskIds(new Set());
+      return next;
+    });
+  }, []);
+
+  const handleToggleSelectTask = useCallback((id: string) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    const pendingIds = currentViewTasks.filter(t => !t.completed).map(t => t.id);
+    setSelectedTaskIds(new Set(pendingIds));
+  }, [currentViewTasks]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedTaskIds(new Set());
+  }, []);
+
+  const handleBatchComplete = useCallback(() => {
+    if (selectedTaskIds.size === 0) return;
+    const selectedList = tasks.filter(t => selectedTaskIds.has(t.id));
+    const count = selectedList.length;
+
+    // 触发悬浮球美味吞食动效与饱餐冲刺
+    setAnimalChompingTarget('complete');
+    playCherryChompSound();
+    playCherryCompletionChime();
+    setTimeout(() => {
+      setAnimalChompingTarget(null);
+    }, 900);
+
+    recordOperation(
+      'task_complete',
+      '批量完成待办',
+      `批量完成了 ${count} 项待办`,
+      selectedList.map(t => taskToSnapshot({ ...t, completed: true }, '批量标记完成'))
+    );
+
+    const now = Date.now();
+    setTasks(prev => {
+      const updated = prev.map(t => {
+        if (selectedTaskIds.has(t.id)) {
+          return {
+            ...t,
+            completed: true,
+            completedAt: now,
+            updatedAt: now
+          };
+        }
+        return t;
+      });
+      if (cloudStatus.isConfigured && currentUser) {
+        batchSyncTasksToCloud(updated);
+      }
+      return updated;
+    });
+
+    showToast(`已批量完成 ${count} 项待办！浮窗伴侣大饱口福 🍒`);
+    setSelectedTaskIds(new Set());
+    setIsBatchMode(false);
+  }, [selectedTaskIds, tasks, cloudStatus.isConfigured, currentUser, showToast]);
+
+  const handleBatchDefer = useCallback(() => {
+    if (selectedTaskIds.size === 0) return;
+    const selectedList = tasks.filter(t => selectedTaskIds.has(t.id));
+    const count = selectedList.length;
+    const ONE_DAY = 24 * 3600 * 1000;
+    const now = Date.now();
+
+    recordOperation(
+      'task_defer',
+      '批量延后待办',
+      `批量延后了 ${count} 项待办至明日`,
+      selectedList.map(t => taskToSnapshot(t, '批量延后'))
+    );
+
+    setTasks(prev => {
+      const updated = prev.map(t => {
+        if (selectedTaskIds.has(t.id)) {
+          const nextCategory: TaskCategory = t.category === '即刻完成' ? '近期完成' : '规划待办';
+          const nextDueDate = t.category === '即刻完成' ? '明天处理' : '稍后规划';
+          const nextIso = new Date(now + ONE_DAY).toISOString();
+          return {
+            ...t,
+            category: nextCategory,
+            dueDate: nextDueDate,
+            dueDateIso: nextIso,
+            isStale: false,
+            updatedAt: now
+          };
+        }
+        return t;
+      });
+      if (cloudStatus.isConfigured && currentUser) {
+        batchSyncTasksToCloud(updated);
+      }
+      return updated;
+    });
+
+    showToast(`已批量将 ${count} 项待办顺延至明日 📅`);
+    setSelectedTaskIds(new Set());
+    setIsBatchMode(false);
+  }, [selectedTaskIds, tasks, cloudStatus.isConfigured, currentUser, showToast]);
+
+  const handleBatchDelete = useCallback(() => {
+    if (selectedTaskIds.size === 0) return;
+    const selectedList = tasks.filter(t => selectedTaskIds.has(t.id));
+    const count = selectedList.length;
+
+    recordOperation(
+      'task_delete',
+      '批量删除待办',
+      `批量删除了 ${count} 项待办`,
+      selectedList.map(t => taskToSnapshot(t, '已批量删除'))
+    );
+
+    setTasks(prev => {
+      const remaining = prev.filter(t => !selectedTaskIds.has(t.id));
+      if (cloudStatus.isConfigured && currentUser) {
+        selectedList.forEach(t => deleteTaskFromCloud(t.id));
+      }
+      return remaining;
+    });
+
+    showToast(`已成功删除 ${count} 项待办 🗑️`);
+    setSelectedTaskIds(new Set());
+    setIsBatchMode(false);
+  }, [selectedTaskIds, tasks, cloudStatus.isConfigured, currentUser, showToast]);
 
   // Collect all unique tags for quick filter chips
   const allTags = useMemo(() => {
@@ -1335,6 +1481,15 @@ export default function App() {
                 category={activeView}
                 tasks={currentViewTasks}
                 activeGestureTaskId={gestureData?.task?.id || null}
+                isBatchMode={isBatchMode}
+                selectedTaskIds={selectedTaskIds}
+                onToggleBatchMode={handleToggleBatchMode}
+                onToggleSelectTask={handleToggleSelectTask}
+                onSelectAll={handleSelectAll}
+                onClearSelection={handleClearSelection}
+                onBatchComplete={handleBatchComplete}
+                onBatchDefer={handleBatchDefer}
+                onBatchDelete={handleBatchDelete}
                 onToggleComplete={handleToggleComplete}
                 onUpdateTask={handleUpdateTask}
                 onDeleteTask={handleDeleteTask}
@@ -1345,14 +1500,6 @@ export default function App() {
               />
             )}
           </div>
-
-          {/* 底部 3 动物投喂领地 (仅在长按触发时出现在任务主体界面底部，透明背景 + 弱化阴影过渡) */}
-          <BottomAnimalDock
-            isVisible={!!gestureData}
-            activeTarget={animalActiveTarget}
-            chompingAnimal={animalChompingTarget}
-            jumpingAnimal={animalJumpingTarget}
-          />
         </main>
       </div>
 
@@ -1375,18 +1522,17 @@ export default function App() {
         </div>
       )}
 
-      {/* 樱桃投喂手势调度层 (无新增蒙层遮罩，直接在原层呈现樱桃与抛物线弹道) */}
+      {/* 樱桃投喂手势调度层 (以常驻悬浮球为核心投喂目标) */}
       <TaskGestureOverlay
         gestureData={gestureData}
         onClose={() => {
           setGestureData(null);
           setAnimalActiveTarget('none');
-          setAnimalJumpingTarget(null);
+          setAnimalChompingTarget(null);
         }}
         onAction={handleGestureAction}
         onTargetChange={setAnimalActiveTarget}
         onChompChange={setAnimalChompingTarget}
-        onJumpChange={setAnimalJumpingTarget}
       />
 
       {/* Left Slide-out Category Drawer */}
@@ -1415,7 +1561,7 @@ export default function App() {
         staleCount={analysis.cleanupList.length}
       />
 
-      {/* Mascot Cyber Progress Widget - Pinned adjacent to Main Card */}
+      {/* 浮窗伴侣核心悬浮球与能量吸收枢纽 */}
       <FloatingProgressWidget
         tasks={tasks}
         adviceSummary={analysis.adviceSummary}
@@ -1424,6 +1570,9 @@ export default function App() {
         rollForwardCount={rollForwardCandidates.length}
         isCompactMode={isCompactMode}
         onConfirmOrganize={handleExecuteAutoOrganize}
+        isGestureActive={!!gestureData}
+        isMagnetized={animalActiveTarget === 'complete'}
+        isChomping={animalChompingTarget === 'complete'}
       />
 
       {/* Jev Duplicate Detection Resolution Modal */}
