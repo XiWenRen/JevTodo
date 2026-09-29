@@ -6,7 +6,8 @@ import {
   X,
   Calendar,
   Trash2,
-  Check
+  Check,
+  Plus
 } from 'lucide-react';
 import { TaskItem as ITaskItem, TaskCategory } from '../types';
 import { formatDynamicDueDate, extractDateTime } from '../utils/jev';
@@ -75,6 +76,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const [editTitle, setEditTitle] = useState(task.title);
   const [editDueDate, setEditDueDate] = useState(task.dueDate || '');
   const [editCategory, setEditCategory] = useState<TaskCategory>(task.category);
+  const [editNotes, setEditNotes] = useState<string[]>(task.notes || []);
+  const [newNoteInput, setNewNoteInput] = useState('');
+  const [showNewNoteInput, setShowNewNoteInput] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
 
@@ -107,6 +111,9 @@ export const TaskItem: React.FC<TaskItemProps> = ({
     const dynamic = formatDynamicDueDate(task);
     setEditDueDate(dynamic.hasDueDate ? (task.dueDate || dynamic.displayDate) : '');
     setEditCategory(task.category);
+    setEditNotes(task.notes ? [...task.notes] : []);
+    setNewNoteInput('');
+    setShowNewNoteInput(false);
   }, [task, isEditing]);
 
   // Long press tracking refs
@@ -114,6 +121,27 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const pointerStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const cardRectRef = useRef<CardRect | null>(null);
   const isGestureActiveRef = useRef(false);
+
+  const handleUpdateNote = (index: number, newText: string) => {
+    setEditNotes(prev => {
+      const next = [...prev];
+      next[index] = newText;
+      return next;
+    });
+  };
+
+  const handleDeleteNote = (index: number) => {
+    setEditNotes(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddNewNote = () => {
+    const trimmed = newNoteInput.trim();
+    if (trimmed) {
+      setEditNotes(prev => [...prev, trimmed]);
+      setNewNoteInput('');
+      setShowNewNoteInput(false);
+    }
+  };
 
   const handleSaveEdit = () => {
     if (!editTitle.trim()) return;
@@ -134,6 +162,11 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       }
     }
 
+    // Merge any pending unsubmitted newNoteInput
+    const pending = newNoteInput.trim();
+    const mergedNotes = pending ? [...editNotes, pending] : editNotes;
+    const finalNotes = mergedNotes.map(n => n.trim()).filter(Boolean);
+
     onUpdate({
       ...task,
       title: editTitle.trim(),
@@ -141,6 +174,7 @@ export const TaskItem: React.FC<TaskItemProps> = ({
       dueDateIso: nextDueDateIso,
       dueTimestamp: nextDueTimestamp,
       category: editCategory,
+      notes: finalNotes.length > 0 ? finalNotes : undefined,
       updatedAt: Date.now()
     });
     setIsEditing(false);
@@ -538,6 +572,22 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                   +标签
                 </button>
               )}
+
+              {/* +补充 快捷入口 */}
+              {!task.completed && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowNewNoteInput(true);
+                    setIsEditing(true);
+                  }}
+                  className="hover:text-amber-500 transition-colors opacity-70 hover:opacity-100 flex items-center gap-0.5"
+                  title="添加补充内容/备注"
+                >
+                  +补充
+                </button>
+              )}
             </div>
 
             {/* Supplemental Notes / Info if any */}
@@ -546,7 +596,16 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 {task.notes.map((note, idx) => (
                   <div
                     key={idx}
-                    className="flex items-start gap-1.5 text-[11px] text-[var(--text-sub)] bg-[var(--chip-bg)]/80 border border-[var(--chip-border)]/60 rounded-md px-2 py-1 leading-relaxed"
+                    onClick={(e) => {
+                      if (!isBatchMode) {
+                        e.stopPropagation();
+                        setIsEditing(true);
+                      }
+                    }}
+                    className={`flex items-start gap-1.5 text-[11px] text-[var(--text-sub)] bg-[var(--chip-bg)]/80 border border-[var(--chip-border)]/60 rounded-md px-2 py-1 leading-relaxed ${
+                      !isBatchMode ? 'cursor-pointer hover:border-amber-500/40 hover:bg-[var(--chip-bg)] transition-colors' : ''
+                    }`}
+                    title={!isBatchMode ? "点击编辑补充内容" : undefined}
                   >
                     <span className="text-amber-500/90 shrink-0 font-medium select-none">💬 补充:</span>
                     <span className="flex-1 break-words">{note}</span>
@@ -687,6 +746,112 @@ export const TaskItem: React.FC<TaskItemProps> = ({
                 清空截止
               </button>
             )}
+          </div>
+
+          {/* 补充内容 / 备注编辑区 */}
+          <div className="mt-3 pt-2.5 border-t border-[var(--border-subtle)]/70 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-[var(--text-sub)] flex items-center gap-1.5">
+                <span className="text-amber-500 text-sm">💬</span>
+                <span>补充内容 / 备注</span>
+                {editNotes.length > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-[var(--chip-bg)] text-[var(--text-faint)]">
+                    {editNotes.length}条
+                  </span>
+                )}
+              </span>
+              {!showNewNoteInput && (
+                <button
+                  type="button"
+                  onClick={() => setShowNewNoteInput(true)}
+                  className="text-xs text-amber-500 hover:text-amber-400 font-medium flex items-center gap-1 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>添加补充</span>
+                </button>
+              )}
+            </div>
+
+            {/* 已有补充内容列表 */}
+            {editNotes.length > 0 && (
+              <div className="space-y-1.5">
+                {editNotes.map((note, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-start gap-1.5 bg-[var(--bg-input)] border border-[var(--border-subtle)] rounded-lg p-1.5 group/note focus-within:border-amber-500/40"
+                  >
+                    <span className="text-[10px] text-amber-500/80 font-mono select-none pt-0.5 shrink-0">
+                      #{idx + 1}
+                    </span>
+                    <textarea
+                      rows={1}
+                      value={note}
+                      onChange={(e) => handleUpdateNote(idx, e.target.value)}
+                      placeholder="补充内容..."
+                      className="flex-1 text-xs bg-transparent text-[var(--text-main)] outline-none resize-none leading-relaxed"
+                      style={{ minHeight: '24px' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNote(idx)}
+                      className="text-[var(--text-faint)] hover:text-rose-400 p-1 rounded transition-colors shrink-0 opacity-60 group-hover/note:opacity-100"
+                      title="删除此条补充"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 新增补充内容输入区 */}
+            {showNewNoteInput ? (
+              <div className="flex items-start gap-1.5 bg-[var(--bg-input)] border border-amber-500/40 rounded-lg p-2">
+                <textarea
+                  rows={2}
+                  autoFocus
+                  value={newNoteInput}
+                  onChange={(e) => setNewNoteInput(e.target.value)}
+                  placeholder="输入补充内容或备注（按 Ctrl+Enter 或点击添加）..."
+                  className="flex-1 text-xs bg-transparent text-[var(--text-main)] outline-none resize-none leading-relaxed"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                      e.preventDefault();
+                      handleAddNewNote();
+                    } else if (e.key === 'Escape') {
+                      setShowNewNoteInput(false);
+                    }
+                  }}
+                />
+                <div className="flex flex-col gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleAddNewNote}
+                    disabled={!newNoteInput.trim()}
+                    className="px-2.5 py-1 text-xs bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white rounded-md font-medium transition-all"
+                  >
+                    添加
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewNoteInput('');
+                      setShowNewNoteInput(false);
+                    }}
+                    className="px-2.5 py-0.5 text-[11px] text-[var(--text-faint)] hover:text-[var(--text-main)]"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : editNotes.length === 0 ? (
+              <div 
+                onClick={() => setShowNewNoteInput(true)}
+                className="text-xs text-[var(--text-faint)] hover:text-amber-500/90 border border-dashed border-[var(--border-subtle)] hover:border-amber-500/40 rounded-lg py-2 px-3 text-center cursor-pointer transition-colors"
+              >
+                + 点击添加第一条补充内容或备注
+              </div>
+            ) : null}
           </div>
         </div>
       )}
