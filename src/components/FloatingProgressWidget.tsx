@@ -281,29 +281,6 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
     prevCompletedCountRef.current = completedTasksCount;
   }, [completedTasksCount, isHovered, isPopoverOpen]);
 
-  // 实时捕获指针/樱桃拖拽全局坐标，供宠物在球内走动与头部视线跟随
-  const [cherryTrackPos, setCherryTrackPos] = useState<{ x: number; y: number } | null>(null);
-  const isHamsterWheel = activeSkin.anatomy?.type === 'css_wheel' || activeSkin.id === 'cute-animal';
-  const naturalFacing = activeSkin.anatomy?.initialFacing || (isHamsterWheel ? 'right' : 'left');
-  const [currentFacing, setCurrentFacing] = useState<'left' | 'right'>(naturalFacing);
-
-  // 当切换皮肤时，重置默认朝向
-  useEffect(() => {
-    setCurrentFacing(naturalFacing);
-  }, [activeSkin.id, naturalFacing]);
-
-  useEffect(() => {
-    if (!isGestureActive) {
-      setCherryTrackPos(null);
-      return;
-    }
-    const handleMove = (e: PointerEvent) => {
-      setCherryTrackPos({ x: e.clientX, y: e.clientY });
-    };
-    window.addEventListener('pointermove', handleMove);
-    return () => window.removeEventListener('pointermove', handleMove);
-  }, [isGestureActive]);
-
   // 当樱桃拖拽手势激活时，唤醒悬浮球宠物待命（高速跑动状态狂奔迎接樱桃）
   useEffect(() => {
     if (isGestureActive) {
@@ -440,85 +417,7 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
   const currentCoords = coords || getDefaultPos();
   const isRightSide = currentCoords.x > (typeof window !== 'undefined' ? window.innerWidth / 2 : 300);
 
-  // 计算视线朝向、头部仰俯角度与球内微移动（基于嘴部真实物理像素锚点与纯净世界坐标系）
-  const lookInfo = React.useMemo(() => {
-    if (!isGestureActive || !cherryTrackPos) {
-      return { shiftX: 0, shiftY: 0, worldRotate: 0, facingScale: 1, targetFacing: currentFacing };
-    }
 
-    // 悬浮球屏幕当前几何包围盒
-    const ballEl = typeof document !== 'undefined' ? document.getElementById('floating-companion-ball') : null;
-    const rect = ballEl ? ballEl.getBoundingClientRect() : null;
-    const centerX = rect ? rect.left + rect.width / 2 : currentCoords.x + 24;
-    const centerY = rect ? rect.top + rect.height / 2 : currentCoords.y + 24;
-    const width = rect ? rect.width : 48;
-    const height = rect ? rect.height : 48;
-
-    // 1. 目标朝向判定（基于球心与樱桃相对位置，加 ±3px 防抖死区）
-    let targetFacing = currentFacing;
-    const relX = cherryTrackPos.x - centerX;
-    if (relX < -3) {
-      targetFacing = 'left';
-    } else if (relX > 3) {
-      targetFacing = 'right';
-    }
-
-    // 2. 精确计算伴侣嘴部真实屏幕像素坐标
-    const anchorXRatio = parseFloat(activeSkin.anatomy?.mouthAnchor?.left || '50%') / 100;
-    const anchorYRatio = parseFloat(activeSkin.anatomy?.mouthAnchor?.top || '50%') / 100;
-
-    // 若当前视觉朝向被镜像翻转了，嘴巴在 X 轴上镜像到 (1 - anchorXRatio)
-    const isFlipped = targetFacing !== naturalFacing;
-    const actualMouthXRatio = isFlipped ? (1 - anchorXRatio) : anchorXRatio;
-
-    const mouthX = (rect ? rect.left : currentCoords.x) + width * actualMouthXRatio;
-    const mouthY = (rect ? rect.top : currentCoords.y) + height * anchorYRatio;
-
-    // 嘴巴指向樱桃的绝对相对向量
-    const dx = cherryTrackPos.x - mouthX;
-    const dy = cherryTrackPos.y - mouthY;
-
-    // 3. 计算内层水平转身 facingScale
-    // 跑轮皮肤保持同心绝对锁定，整轮不翻转（facingScale 恒为 1，仓鼠内部高速奔跑迎客）
-    let facingScale = 1;
-    if (!isHamsterWheel) {
-      if (naturalFacing === 'left') {
-        facingScale = targetFacing === 'left' ? 1 : -1;
-      } else {
-        facingScale = targetFacing === 'right' ? 1 : -1;
-      }
-    }
-
-    // 4. 计算外层世界坐标系的视线仰俯角 worldRotate (纯净世界坐标系，不受任何 scale 镜像污染)
-    // 仰头：dy < 0（樱桃在上方）；低头：dy > 0（樱桃在下方）
-    // 视觉面向右侧时（头部在右）：向上仰头为逆时针旋转（负角度），向下低头为顺时针旋转（正角度）
-    // 视觉面向左侧时（头部在左）：向上仰头为顺时针旋转（正角度），向下低头为逆时针旋转（负角度）
-    const isVisualFacingRight = targetFacing === 'right';
-    const rawAngle = Math.max(-22, Math.min(20, (Math.atan2(dy, Math.max(20, Math.abs(dx))) * 180) / Math.PI));
-    
-    // 仓鼠跑轮做轻微倾斜（±10°），其它皮肤做纯正视线跟随
-    const worldRotate = isHamsterWheel
-      ? Math.max(-10, Math.min(10, rawAngle * 0.5))
-      : (isVisualFacingRight ? rawAngle : -rawAngle);
-
-    // 5. 探头微位移 shiftX, shiftY (在球内明显朝樱桃方向探头)
-    const shiftX = Math.max(-5, Math.min(5, (dx / 120) * 5));
-    const shiftY = Math.max(-4, Math.min(4, (dy / 120) * 4));
-
-    return {
-      shiftX,
-      shiftY,
-      worldRotate,
-      facingScale,
-      targetFacing
-    };
-  }, [isGestureActive, cherryTrackPos, currentCoords.x, currentCoords.y, isHamsterWheel, naturalFacing, currentFacing, activeSkin.anatomy]);
-
-  useEffect(() => {
-    if (lookInfo.targetFacing && lookInfo.targetFacing !== currentFacing) {
-      setCurrentFacing(lookInfo.targetFacing);
-    }
-  }, [lookInfo.targetFacing, currentFacing]);
 
   // 指针拖拽跟踪
   const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number } | null>(null);
@@ -902,40 +801,10 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
           </defs>
         </svg>
 
-        {/* 球内宠物分层渲染：外层世界视线仰俯与探头走位，内层独立水平转身，彻底解耦 */}
-        <motion.div
-          className="relative flex items-center justify-center w-full h-full pointer-events-none"
-          animate={
-            isGestureActive
-              ? {
-                  x: lookInfo.shiftX,
-                  y: lookInfo.shiftY,
-                  rotate: lookInfo.worldRotate,
-                }
-              : { x: 0, y: 0, rotate: 0 }
-          }
-          transition={{
-            type: 'spring',
-            stiffness: 280,
-            damping: 22
-          }}
-        >
-          <motion.div
-            className="relative flex items-center justify-center w-full h-full pointer-events-none"
-            animate={
-              isGestureActive
-                ? { scaleX: lookInfo.facingScale }
-                : { scaleX: 1 }
-            }
-            transition={{
-              type: 'spring',
-              stiffness: 340,
-              damping: 26
-            }}
-          >
-            <CompanionWidget {...companionProps} />
-          </motion.div>
-        </motion.div>
+        {/* 球内宠物渲染层：保持原生自然质感与高帧率动画，去除生硬的角度拉扯与翻转 */}
+        <div className="relative flex items-center justify-center w-full h-full pointer-events-none">
+          <CompanionWidget {...companionProps} />
+        </div>
       </motion.button>
     </div>
   );
