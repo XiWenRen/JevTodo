@@ -34,6 +34,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
 }) => {
   const { activeSkin } = useActiveSkin();
   const CompanionWidget = activeSkin.CompanionWidget;
+  const isHamsterSkin = activeSkin.id === 'cute-animal';
 
   const [activityState, setActivityState] = useState<CompanionActivityState>('walking');
   const [animDur, setAnimDur] = useState<string>('1.1s');
@@ -771,35 +772,81 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
         style={buttonStyle}
         title={`${activeSkin.name} · 今日完成率 ${progressPercent}% (可按住拖拽定位，点击展开流转气泡)`}
       >
+        {/* 仓鼠专属跑轮旋转关键帧 (逆时针匹配向左跑动踏地) */}
+        <style>{`
+          @keyframes hamsterWheelSpinCCW {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(-360deg); }
+          }
+        `}</style>
+
         {/* 周围一圈动态指示进度的边框圆环 */}
-        <svg className="absolute -inset-1 w-[56px] h-[56px] pointer-events-none -rotate-90">
-          <circle
-            cx="28"
-            cy="28"
-            r="23"
-            fill="none"
-            stroke="var(--border-subtle)"
-            strokeWidth="2.5"
-          />
-          <circle
-            cx="28"
-            cy="28"
-            r="23"
-            fill="none"
-            stroke="url(#hamster-progress-gradient)"
-            strokeWidth="2.5"
-            strokeDasharray={144.5}
-            strokeDashoffset={144.5 - (144.5 * progressPercent) / 100}
-            strokeLinecap="round"
-            className="transition-all duration-700 ease-out"
-          />
-          <defs>
-            <linearGradient id="hamster-progress-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#f59e0b" />
-              <stop offset="100%" stopColor="#10b981" />
-            </linearGradient>
-          </defs>
-        </svg>
+        <div className="absolute -inset-1 w-[56px] h-[56px] pointer-events-none">
+          {/* 基础静态底轨与任务进度环 */}
+          <svg className="w-full h-full -rotate-90">
+            <circle
+              cx="28"
+              cy="28"
+              r="23"
+              fill="none"
+              stroke="var(--border-subtle)"
+              strokeWidth="2.5"
+            />
+            <circle
+              cx="28"
+              cy="28"
+              r="23"
+              fill="none"
+              stroke="url(#hamster-progress-gradient)"
+              strokeWidth="2.5"
+              strokeDasharray={144.5}
+              strokeDashoffset={144.5 - (144.5 * progressPercent) / 100}
+              strokeLinecap="round"
+              className="transition-all duration-700 ease-out"
+            />
+            <defs>
+              <linearGradient id="hamster-progress-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#f59e0b" />
+                <stop offset="100%" stopColor="#10b981" />
+              </linearGradient>
+            </defs>
+          </svg>
+
+          {/* 仓鼠专属：联动旋转的跑轮防滑刻度齿环 (按仓鼠跑动速度逆时针同步飞转) */}
+          {isHamsterSkin && (
+            <svg
+              className="absolute inset-0 w-full h-full pointer-events-none"
+              style={{
+                transformOrigin: '28px 28px',
+                animation: `hamsterWheelSpinCCW ${animDur} linear infinite`,
+                animationPlayState: isStationary ? 'paused' : 'running'
+              }}
+            >
+              {/* 跑轮细腻防滑刻度 (8等分微齿，滚动时具有极佳的物理跑轮沉浸感) */}
+              <circle
+                cx="28"
+                cy="28"
+                r="23"
+                fill="none"
+                stroke="rgba(245, 158, 11, 0.55)"
+                strokeWidth="2.5"
+                strokeDasharray="2.5 15.56"
+                strokeLinecap="round"
+              />
+              {/* 跑轮外缘细微抓齿点 */}
+              <circle
+                cx="28"
+                cy="28"
+                r="24.4"
+                fill="none"
+                stroke="rgba(251, 191, 36, 0.4)"
+                strokeWidth="1.2"
+                strokeDasharray="1.5 18.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          )}
+        </div>
 
         {/* 球内宠物渲染层：保持原生自然质感与高帧率动画，去除生硬的角度拉扯与翻转 */}
         <div className="relative flex items-center justify-center w-full h-full pointer-events-none">

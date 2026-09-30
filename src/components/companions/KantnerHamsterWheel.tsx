@@ -74,6 +74,7 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
 
         .kantner-hamster-wheel-${size} {
           --dur: ${animDur};
+          --hamster-y: ${showWheel ? '1.85em' : '0.38em'};
           position: relative;
           width: 12em;
           height: 12em;
@@ -162,10 +163,11 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
           right: 0.08em; top: 50%; transform: translateY(-50%); width: 0.22em; height: 0.9em;
         }
 
+        /* 仓鼠身体容器：原生朝左奔跑 (正数 scaleX) */
         .kantner-hamster-wheel-${size} .hamster-facing-right {
           inset: 0;
-          transform: scaleX(-1.26) scaleY(1.26);
-          transform-origin: 50% 60%;
+          transform: scaleX(1.16) scaleY(1.16);
+          transform-origin: 50% 50%;
           z-index: 3;
         }
 
@@ -174,7 +176,7 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
           left: calc(50% - 3.5em);
           width: 7em;
           height: 3.75em;
-          transform: rotate(4deg) translate(-0.8em, 1.85em);
+          transform: rotate(4deg) translate(-0.4em, var(--hamster-y));
           transform-origin: 50% 0;
           animation: hamsterAnim var(--dur) ease-in-out infinite;
           animation-play-state: ${isStationary ? 'paused' : 'running'};
@@ -182,18 +184,18 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
         }
 
         .kantner-hamster-wheel-${size}.is-stopped .hamster-unit {
-          transform: rotate(3deg) translate(-0.8em, 1.95em);
+          transform: rotate(3deg) translate(-0.4em, calc(var(--hamster-y) + 0.1em));
           transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         .kantner-hamster-wheel-${size}.is-settling .hamster-unit {
-          transform: rotate(1deg) translate(-0.8em, 2.22em);
+          transform: rotate(1deg) translate(-0.4em, calc(var(--hamster-y) + 0.22em));
           transition: transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
         .kantner-hamster-wheel-${size}.is-sleeping .hamster-unit {
-          transform: rotate(0deg) translate(-0.8em, 2.25em);
-          animation: hamsterSleepBreath 2.8s ease-in-out infinite !important;
+          transform: rotate(0deg) translate(-0.4em, calc(var(--hamster-y) + 0.26em));
+          animation: hamsterSleepBreath var(--dur) ease-in-out infinite !important;
           transition: transform 0.8s ease;
         }
 
@@ -346,13 +348,13 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
           transform-origin: 0.25em 0.25em;
         }
 
-        /* 纯仓鼠模式（无跑轮）：居中微调与饱满视觉 */
+        /* 纯仓鼠模式（无跑轮）：朝左奔跑与不超出底边的居中高度 */
         .kantner-hamster-wheel-${size}.no-wheel .hamster-facing-right {
-          transform: scaleX(-1.38) scaleY(1.38);
-          transform-origin: 50% 55%;
+          transform: scaleX(1.18) scaleY(1.18);
+          transform-origin: 50% 50%;
         }
         .kantner-hamster-wheel-${size}.no-wheel .hamster-unit {
-          transform: rotate(2deg) translate(-0.8em, 1.25em);
+          transform: rotate(2deg) translate(-0.4em, var(--hamster-y));
         }
 
         /* ======================================================== */
@@ -364,8 +366,8 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
         }
 
         @keyframes hamsterAnim {
-          from, to { transform: rotate(4deg) translate(-0.8em, 1.85em); }
-          50% { transform: rotate(0deg) translate(-0.8em, 1.85em); }
+          from, to { transform: rotate(4deg) translate(-0.4em, var(--hamster-y, 1.85em)); }
+          50% { transform: rotate(0deg) translate(-0.4em, var(--hamster-y, 1.85em)); }
         }
 
         @keyframes hamsterHeadAnim {
@@ -414,8 +416,8 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
         }
 
         @keyframes hamsterSleepBreath {
-          0%, 100% { transform: rotate(0deg) translate(-0.8em, 2.25em) scale(1, 0.96); }
-          50% { transform: rotate(0deg) translate(-0.8em, 2.33em) scale(0.98, 1.02); }
+          0%, 100% { transform: rotate(0deg) translate(-0.4em, calc(var(--hamster-y, 1.85em) + 0.28em)) scale(1, 0.96); }
+          50% { transform: rotate(0deg) translate(-0.4em, calc(var(--hamster-y, 1.85em) + 0.35em)) scale(0.98, 1.02); }
         }
 
         @keyframes zzz-float-a {
