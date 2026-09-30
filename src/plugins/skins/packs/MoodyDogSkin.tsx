@@ -49,9 +49,10 @@ export const MoodyDogSkin: ICompanionTheme = {
   CompanionStage: MoodyDogStage,
   anatomy: {
     type: 'lottie_ground',
+    initialFacing: 'right',
     bodyHeightRatio: 0.65,
-    mouthAnchor: { left: '62%', top: '44%' },
-    tagline: '四足步态：身体匀称，头部前倾，嘴部位于前侧中平位'
+    mouthAnchor: { left: '66%', top: '44%' },
+    tagline: '四足步态：身体匀称，头部前倾，嘴部位于右前侧中平位'
   },
   getCompanionButtonStyle: (props: CompanionRenderProps) => ({
     backgroundColor: `color-mix(in srgb, var(--bg-drawer) ${75 + Math.round(props.progressRatio * 20)}%, #fef3c7 ${Math.round(props.progressRatio * 5)}%)`,

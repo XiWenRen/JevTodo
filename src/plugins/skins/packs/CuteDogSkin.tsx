@@ -49,9 +49,10 @@ export const CuteDogSkin: ICompanionTheme = {
   CompanionStage: CuteDogStage,
   anatomy: {
     type: 'lottie_ground',
+    initialFacing: 'left',
     bodyHeightRatio: 0.65,
-    mouthAnchor: { left: '58%', top: '42%' },
-    tagline: '开朗活泼型：头部昂扬，嘴部位于前侧中上方'
+    mouthAnchor: { left: '34%', top: '42%' },
+    tagline: '开朗活泼型：头部昂扬，嘴部位于前侧左上方'
   },
   getCompanionButtonStyle: (props: CompanionRenderProps) => ({
     backgroundColor: `color-mix(in srgb, var(--bg-drawer) ${75 + Math.round(props.progressRatio * 20)}%, #ffedd5 ${Math.round(props.progressRatio * 5)}%)`,

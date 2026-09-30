@@ -321,9 +321,10 @@ export const CuteAnimalSkin: ICompanionTheme = {
   CompanionStage: AnimalCompanionStage,
   anatomy: {
     type: 'css_wheel',
+    initialFacing: 'right',
     bodyHeightRatio: 0.65,
-    mouthAnchor: { left: '68%', top: '38%' },
-    tagline: '圆轮居中型：头部朝右，嘴巴位于右侧中上方'
+    mouthAnchor: { left: '55%', top: '58%' },
+    tagline: '圆轮居中型：小仓鼠朝右奔跑，嘴部位于右中下方'
   },
   getCompanionButtonStyle: (props: CompanionRenderProps) => ({
     backgroundColor: `color-mix(in srgb, var(--bg-drawer) ${75 + Math.round(props.progressRatio * 20)}%, #fef3c7 ${Math.round(props.progressRatio * 5)}%)`,

@@ -49,7 +49,8 @@ export interface FocusPetConfig {
 }
 
 export interface CompanionAnatomy {
-  type: 'css_wheel' | 'lottie_ground' | 'lottie_idle' | 'pixel';
+  type: 'css_wheel' | 'lottie_ground' | 'lottie_idle' | 'lottie_hover' | 'pixel';
+  initialFacing?: 'left' | 'right'; // 初始素材天然朝向
   bodyHeightRatio: number; // 角色高宽在容器里的占比，如 0.6 代表 60%
   mouthAnchor: { left: string; top: string }; // 嘴巴或进食点相对位置
   tagline: string;

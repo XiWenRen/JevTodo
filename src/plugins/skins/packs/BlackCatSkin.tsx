@@ -49,9 +49,10 @@ export const BlackCatSkin: ICompanionTheme = {
   CompanionStage: BlackCatStage,
   anatomy: {
     type: 'lottie_ground',
+    initialFacing: 'left',
     bodyHeightRatio: 0.62,
-    mouthAnchor: { left: '52%', top: '45%' },
-    tagline: '修长优雅型：纯黑剪影，猫眼灵动，嘴部位于前侧中部'
+    mouthAnchor: { left: '30%', top: '48%' },
+    tagline: '修长优雅型：纯黑剪影，猫眼灵动，嘴部位于前侧左侧'
   },
   getCompanionButtonStyle: (props: CompanionRenderProps) => ({
     backgroundColor: `color-mix(in srgb, var(--bg-drawer) ${75 + Math.round(props.progressRatio * 20)}%, #e0e7ff ${Math.round(props.progressRatio * 5)}%)`,

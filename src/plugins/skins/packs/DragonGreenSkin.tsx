@@ -37,7 +37,7 @@ const DragonGreenStage: React.FC<CompanionStageProps> = ({
 export const DragonGreenSkin: ICompanionTheme = {
   id: 'dragon-green',
   name: '萌趣小龙',
-  category: 'fantasy',
+  category: 'animal',
   styleTag: 'lottie',
   description: '憨态可掬的碧绿小神龙，扇动双翼、凌空腾跃，祥瑞又治愈。',
   icon: '🐲',
@@ -49,9 +49,10 @@ export const DragonGreenSkin: ICompanionTheme = {
   CompanionStage: DragonGreenStage,
   anatomy: {
     type: 'lottie_hover',
+    initialFacing: 'left',
     bodyHeightRatio: 0.7,
-    mouthAnchor: { left: '54%', top: '48%' },
-    tagline: '悬浮飞翔型：身形丰满，双翼振动，嘴部位于正面中央略偏左'
+    mouthAnchor: { left: '28%', top: '46%' },
+    tagline: '悬浮飞翔型：身形丰满，双翼振动，龙首位于前侧左部'
   },
   getCompanionButtonStyle: (props: CompanionRenderProps) => ({
     backgroundColor: `color-mix(in srgb, var(--bg-drawer) ${75 + Math.round(props.progressRatio * 20)}%, #d1fae5 ${Math.round(props.progressRatio * 5)}%)`,
