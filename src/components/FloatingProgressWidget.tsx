@@ -548,66 +548,56 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
       {/* 跑轮伴侣主按钮 (支持拖拽移动，周围环绕 SVG 进度边框圆环) */}
       {/* ========================================================= */}
       {/* ========================================================= */}
-      {/* 跑轮伴侣主按钮 (支持拖拽移动，周围环绕 SVG 进度边框圆环) */}
+      {/* 方案一：拟人生态与温润地台（去UI框架化） */}
+      {/* 长按变出樱桃后，伴侣脚下泛起温润微光呼吸地台，伴侣欢欣微踮脚 */}
       {/* ========================================================= */}
-      {/* 投喂手势激活时的精致雷达光晕（精准对应 52px 磁吸捕获半径） */}
       <AnimatePresence>
         {isGestureActive && !isChomping && (
-          <div className="absolute -inset-[26px] pointer-events-none z-0 flex items-center justify-center">
-            {/* 1. 柔美漫反射星云光晕 */}
+          <div className="absolute inset-0 pointer-events-none z-0 flex items-center justify-center overflow-visible">
+            {/* 1. 伴侣身后柔和的暖心环境辉光 */}
             <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
+              initial={{ scale: 0.7, opacity: 0 }}
               animate={{
-                scale: isMagnetized ? [1.02, 1.15, 1.05] : [0.92, 1.06, 0.92],
-                opacity: isMagnetized ? [0.65, 0.9, 0.65] : [0.25, 0.45, 0.25]
+                scale: isMagnetized ? [1.1, 1.25, 1.1] : [0.95, 1.1, 0.95],
+                opacity: isMagnetized ? [0.65, 0.85, 0.65] : [0.25, 0.45, 0.25]
               }}
-              exit={{ scale: 0.7, opacity: 0, transition: { duration: 0.18 } }}
+              exit={{ scale: 0.7, opacity: 0, transition: { duration: 0.2 } }}
               transition={{ repeat: Infinity, duration: isMagnetized ? 0.9 : 1.8, ease: 'easeInOut' }}
-              className="absolute inset-0 rounded-full blur-md"
+              className="absolute -inset-3 rounded-full blur-xl pointer-events-none"
               style={{
-                background: `radial-gradient(circle, ${activeSkin.accentColor || '#f59e0b'}50 0%, ${activeSkin.accentColor || '#f59e0b'}18 60%, transparent 100%)`
+                background: `radial-gradient(circle, ${activeSkin.accentColor || '#f59e0b'}50 0%, ${activeSkin.accentColor || '#f59e0b'}15 65%, transparent 100%)`
               }}
             />
 
-            {/* 2. 精致外层雷达聚光环（精准对应 52px 磁吸捕获半径） */}
-            <motion.div
-              initial={{ scale: 0.85, opacity: 0 }}
-              animate={{
-                scale: isMagnetized ? 1.05 : 1,
-                opacity: isMagnetized ? 1 : 0.75,
-                rotate: 360
-              }}
-              exit={{ scale: 0.85, opacity: 0, transition: { duration: 0.15 } }}
-              transition={{
-                rotate: { repeat: Infinity, duration: isMagnetized ? 4 : 12, ease: 'linear' },
-                scale: { type: 'spring', stiffness: 350, damping: 25 },
-                opacity: { duration: 0.2 }
-              }}
-              className="absolute inset-0 rounded-full"
-              style={{
-                border: isMagnetized 
-                  ? `2px solid ${activeSkin.accentColor || '#f59e0b'}` 
-                  : `1.5px dashed ${activeSkin.accentColor || '#f59e0b'}88`,
-                boxShadow: isMagnetized 
-                  ? `0 0 18px ${activeSkin.accentColor || '#f59e0b'}80, inset 0 0 12px ${activeSkin.accentColor || '#f59e0b'}40` 
-                  : `0 0 10px ${activeSkin.accentColor || '#f59e0b'}30`
-              }}
-            />
-
-            {/* 3. 内层动态向心收缩脉冲波 */}
+            {/* 2. 伴侣脚下温润有机光斑地台（柔美椭圆微光，随呼吸起伏） */}
             <motion.div
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{
-                scale: isMagnetized ? [0.75, 1.05] : [0.85, 1.02],
-                opacity: isMagnetized ? [0.6, 0] : [0.35, 0]
+                scale: isMagnetized ? [1.05, 1.2, 1.05] : [0.95, 1.08, 0.95],
+                opacity: isMagnetized ? [0.8, 1, 0.8] : [0.45, 0.75, 0.45]
+              }}
+              exit={{ scale: 0.5, opacity: 0, transition: { duration: 0.18 } }}
+              transition={{ repeat: Infinity, duration: isMagnetized ? 0.8 : 1.6, ease: 'easeInOut' }}
+              className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-[76px] h-[22px] rounded-full blur-[4px] pointer-events-none"
+              style={{
+                background: `radial-gradient(ellipse at center, ${activeSkin.accentColor || '#f59e0b'}80 0%, ${activeSkin.accentColor || '#f59e0b'}25 60%, transparent 85%)`
+              }}
+            />
+
+            {/* 3. 磁吸靠近时，地台泛起的向外扩散水波涟漪环 */}
+            <motion.div
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{
+                scale: isMagnetized ? [0.85, 1.3] : [0.9, 1.15],
+                opacity: isMagnetized ? [0.75, 0] : [0.35, 0]
               }}
               exit={{ opacity: 0 }}
               transition={{
                 repeat: Infinity,
-                duration: isMagnetized ? 0.75 : 1.4,
+                duration: isMagnetized ? 0.75 : 1.5,
                 ease: 'easeOut'
               }}
-              className="absolute inset-1 rounded-full border border-white/40 pointer-events-none"
+              className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-[64px] h-[18px] rounded-full border border-amber-300/40 pointer-events-none"
             />
           </div>
         )}
@@ -736,16 +726,16 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         onMouseLeave={handleMouseLeave}
         animate={
           isChomping
-            ? { scale: [1, 1.28, 0.9, 1.12, 1] }
+            ? { scale: [1, 1.28, 0.9, 1.12, 1], y: [0, -6, 0] }
             : (isGestureActive && isMagnetized)
-            ? { scale: 1.16 }
+            ? { scale: 1.15, y: -5 }
             : isGestureActive
-            ? { scale: 1.05 }
-            : { scale: 1 }
+            ? { scale: 1.05, y: -3 }
+            : { scale: 1, y: 0 }
         }
         transition={{
-          duration: isChomping ? 0.45 : 0.2,
-          ease: 'easeOut'
+          y: { type: 'spring', stiffness: 360, damping: 20 },
+          scale: isChomping ? { duration: 0.45, ease: 'easeOut' } : { duration: 0.2 }
         }}
         whileHover={{ scale: isGestureActive ? 1.16 : 1.08 }}
         whileTap={{ scale: 0.94 }}
