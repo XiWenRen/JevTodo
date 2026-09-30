@@ -780,9 +780,18 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
           }
         `}</style>
 
-        {/* 周围一圈动态指示进度的边框圆环 */}
-        <div className="absolute -inset-1 w-[56px] h-[56px] pointer-events-none">
-          {/* 基础静态底轨与任务进度环 */}
+        {/* 周围一圈动态指示进度的边框圆环 (仓鼠模式下整个圆环本地联动逆时针旋转模拟跑轮) */}
+        <div
+          className="absolute -inset-1 w-[56px] h-[56px] pointer-events-none origin-center"
+          style={
+            isHamsterSkin
+              ? {
+                  animation: `hamsterWheelSpinCCW ${animDur} linear infinite`,
+                  animationPlayState: isStationary ? 'paused' : 'running'
+                }
+              : undefined
+          }
+        >
           <svg className="w-full h-full -rotate-90">
             <circle
               cx="28"
@@ -811,41 +820,6 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
               </linearGradient>
             </defs>
           </svg>
-
-          {/* 仓鼠专属：联动旋转的跑轮防滑刻度齿环 (按仓鼠跑动速度逆时针同步飞转) */}
-          {isHamsterSkin && (
-            <svg
-              className="absolute inset-0 w-full h-full pointer-events-none"
-              style={{
-                transformOrigin: '28px 28px',
-                animation: `hamsterWheelSpinCCW ${animDur} linear infinite`,
-                animationPlayState: isStationary ? 'paused' : 'running'
-              }}
-            >
-              {/* 跑轮细腻防滑刻度 (8等分微齿，滚动时具有极佳的物理跑轮沉浸感) */}
-              <circle
-                cx="28"
-                cy="28"
-                r="23"
-                fill="none"
-                stroke="rgba(245, 158, 11, 0.55)"
-                strokeWidth="2.5"
-                strokeDasharray="2.5 15.56"
-                strokeLinecap="round"
-              />
-              {/* 跑轮外缘细微抓齿点 */}
-              <circle
-                cx="28"
-                cy="28"
-                r="24.4"
-                fill="none"
-                stroke="rgba(251, 191, 36, 0.4)"
-                strokeWidth="1.2"
-                strokeDasharray="1.5 18.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          )}
         </div>
 
         {/* 球内宠物渲染层：保持原生自然质感与高帧率动画，去除生硬的角度拉扯与翻转 */}
