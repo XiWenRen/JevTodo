@@ -75,8 +75,8 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
   if (mood === 'fed') {
     // 满足/好吃状态：幸福月牙弯眼、粉嘟嘟小腮红、满足小猫嘴、头顶跳动小红心
     return (
-      <div className="relative flex items-center justify-center w-7 h-5 text-[var(--text-main,#334155)]">
-        <svg viewBox="0 0 28 20" className="w-7 h-5 overflow-visible">
+      <div className="relative flex items-center justify-center w-5 h-3.5 text-[var(--text-main,#334155)]">
+        <svg viewBox="0 0 28 20" className="w-5 h-3.5 overflow-visible">
           {/* 幸福弯弯笑眼 */}
           <path d="M 5.5 9 Q 8.5 5.5 11.5 9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           <path d="M 16.5 9 Q 19.5 5.5 22.5 9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -98,8 +98,8 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
   if (mood === 'magnet') {
     // 磁吸靠近状态：双眼四角星芒 ✨、小张嘴嗷呜渴望
     return (
-      <div className="relative flex items-center justify-center w-7 h-5">
-        <svg viewBox="0 0 28 20" className="w-7 h-5 overflow-visible">
+      <div className="relative flex items-center justify-center w-5 h-3.5">
+        <svg viewBox="0 0 28 20" className="w-5 h-3.5 overflow-visible">
           {/* 左眼闪亮星芒 */}
           <path
             d="M 8.5 5 L 9.3 8 L 12 8.8 L 9.3 9.6 L 8.5 12.5 L 7.7 9.6 L 5 8.8 L 7.7 8 Z"
@@ -122,8 +122,8 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
 
   // 等待投喂 (wait)：水汪汪的大萌眼 (黑眼仁+双晶莹高光)、娇憨小三瓣嘴 ω
   return (
-    <div className="relative flex items-center justify-center w-7 h-5 text-[var(--text-main,#334155)]">
-      <svg viewBox="0 0 28 20" className="w-7 h-5 overflow-visible">
+    <div className="relative flex items-center justify-center w-5 h-3.5 text-[var(--text-main,#334155)]">
+      <svg viewBox="0 0 28 20" className="w-5 h-3.5 overflow-visible">
         {/* 左大萌眼 */}
         <circle cx="8" cy="8.5" r="3.2" fill="currentColor" />
         <circle cx="7" cy="7.3" r="1.3" fill="#ffffff" />
@@ -305,16 +305,32 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
     prevCompletedCountRef.current = completedTasksCount;
   }, [completedTasksCount, isHovered, isPopoverOpen]);
 
-  // 当樱桃拖拽手势激活时，唤醒悬浮球宠物待命
+  // 实时捕获指针/樱桃拖拽全局坐标，供宠物在球内走动与头部视线跟随
+  const [cherryTrackPos, setCherryTrackPos] = useState<{ x: number; y: number } | null>(null);
+  const [lookFacing, setLookFacing] = useState<number>(1);
+
+  useEffect(() => {
+    if (!isGestureActive) {
+      setCherryTrackPos(null);
+      return;
+    }
+    const handleMove = (e: PointerEvent) => {
+      setCherryTrackPos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('pointermove', handleMove);
+    return () => window.removeEventListener('pointermove', handleMove);
+  }, [isGestureActive]);
+
+  // 当樱桃拖拽手势激活时，唤醒悬浮球宠物待命（以慢走走动状态准备接食）
   useEffect(() => {
     if (isGestureActive) {
       clearAllTimers();
-      setActivityState('running');
-      setAnimDur(isMagnetized ? '0.36s' : '0.6s');
-    } else if (!isPopoverOpen && !isHovered && activityState === 'running') {
+      setActivityState('walking');
+      setAnimDur('1.1s');
+    } else if (!isPopoverOpen && !isHovered && activityState === 'walking') {
       startLinearSlowdown();
     }
-  }, [isGestureActive, isMagnetized]);
+  }, [isGestureActive]);
 
   // 当樱桃投喂吞食瞬间，触发高能冲刺狂奔
   useEffect(() => {
@@ -440,6 +456,37 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
 
   const currentCoords = coords || getDefaultPos();
   const isRightSide = currentCoords.x > (typeof window !== 'undefined' ? window.innerWidth / 2 : 300);
+
+  // 计算视线仰角、身体朝向与在球内走动微偏移
+  const lookInfo = React.useMemo(() => {
+    if (!isGestureActive || !cherryTrackPos) {
+      return { shiftX: 0, shiftY: 0, angle: 0, facing: lookFacing };
+    }
+    const centerX = currentCoords.x + 24;
+    const centerY = currentCoords.y + 24;
+    const dx = cherryTrackPos.x - centerX;
+    const dy = cherryTrackPos.y - centerY;
+
+    let facing = lookFacing;
+    if (dx < -6) facing = -1;
+    else if (dx > 6) facing = 1;
+
+    // 头部/身体仰视或俯视角度
+    const angleVal = Math.max(-18, Math.min(18, (dy / 250) * 18));
+    const angle = facing === -1 ? -angleVal : angleVal;
+
+    // 在球内根据樱桃方位轻微走动靠拢
+    const shiftX = Math.max(-7, Math.min(7, (dx / 260) * 7));
+    const shiftY = Math.max(-5, Math.min(5, (dy / 260) * 5));
+
+    return { shiftX, shiftY, angle, facing };
+  }, [isGestureActive, cherryTrackPos, currentCoords.x, currentCoords.y, lookFacing]);
+
+  useEffect(() => {
+    if (lookInfo.facing !== lookFacing) {
+      setLookFacing(lookInfo.facing);
+    }
+  }, [lookInfo.facing]);
 
   // 指针拖拽跟踪
   const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number } | null>(null);
@@ -591,7 +638,7 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
                   <button
                     type="button"
                     onClick={handleExecuteReorder}
-                    className="inline-flex items-center justify-center w-5 h-5 ml-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 active:scale-90 text-amber-500 hover:text-amber-400 border border-amber-500/30 transition-all cursor-pointer align-middle shadow-2xs hover:rotate-180 duration-300"
+                    className="inline-flex items-center justify-center w-5 h-5 ml-1.5 rounded-md bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-amber-500 hover:text-amber-400 border border-[var(--border-subtle)] transition-all active:scale-90 cursor-pointer align-middle shadow-2xs hover:rotate-180 duration-300"
                     title="整理其他事情"
                   >
                     <RotateCw className="w-2.5 h-2.5 stroke-[2.4]" />
@@ -604,142 +651,75 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
       </AnimatePresence>
 
       {/* ========================================================= */}
-      {/* 方案三：引力透镜与星芒引力场（未来感与空间张力，清晰可见） */}
-      {/* 长按变出樱桃后，伴侣周围展开高能引力场，向心收缩拉扯引力波 */}
+      {/* 方案一温润呼吸光斑地台（去繁化简，衬托精灵球的物理弹跳） */}
       {/* ========================================================= */}
       <AnimatePresence>
         {isGestureActive && !isChomping && (
           <div className="absolute inset-0 pointer-events-none z-0 flex items-center justify-center overflow-visible">
-            {/* 1. 核心引力透镜高光辉光（清晰明亮，琥珀金光晕） */}
+            {/* 1. 伴侣身后柔和的暖心环境辉光 */}
+            <motion.div
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{
+                scale: [0.95, 1.1, 0.95],
+                opacity: [0.25, 0.45, 0.25]
+              }}
+              exit={{ scale: 0.7, opacity: 0, transition: { duration: 0.2 } }}
+              transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
+              className="absolute -inset-3 rounded-full blur-xl pointer-events-none"
+              style={{
+                background: `radial-gradient(circle, ${activeSkin.accentColor || '#f59e0b'}45 0%, ${activeSkin.accentColor || '#f59e0b'}12 65%, transparent 100%)`
+              }}
+            />
+
+            {/* 2. 伴侣脚下温润有机光斑地台 */}
             <motion.div
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{
-                scale: isMagnetized ? [1.15, 1.35, 1.15] : [0.95, 1.15, 0.95],
-                opacity: isMagnetized ? [0.85, 1, 0.85] : [0.55, 0.75, 0.55]
+                scale: [0.95, 1.1, 0.95],
+                opacity: [0.45, 0.75, 0.45]
               }}
-              exit={{ scale: 0.5, opacity: 0, transition: { duration: 0.2 } }}
-              transition={{ repeat: Infinity, duration: isMagnetized ? 0.8 : 1.6, ease: 'easeInOut' }}
-              className="absolute -inset-4 rounded-full blur-xl pointer-events-none"
+              exit={{ scale: 0.5, opacity: 0, transition: { duration: 0.18 } }}
+              transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+              className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-[72px] h-[20px] rounded-full blur-[4px] pointer-events-none"
               style={{
-                background: `radial-gradient(circle, ${activeSkin.accentColor || '#f59e0b'}88 0%, ${activeSkin.accentColor || '#f59e0b'}30 55%, transparent 75%)`
+                background: `radial-gradient(ellipse at center, ${activeSkin.accentColor || '#f59e0b'}80 0%, ${activeSkin.accentColor || '#f59e0b'}25 60%, transparent 85%)`
               }}
             />
-
-            {/* 2. 空间引力向心脉冲波（Inward Gravitational Pulse：从外层空间向伴侣核心收敛拉扯） */}
-            <motion.div
-              initial={{ scale: 1.5, opacity: 0 }}
-              animate={{
-                scale: [1.45, 0.85],
-                opacity: isMagnetized ? [0.9, 0] : [0.65, 0]
-              }}
-              transition={{
-                repeat: Infinity,
-                duration: isMagnetized ? 0.65 : 1.2,
-                ease: 'easeIn'
-              }}
-              className="absolute -inset-3 rounded-full pointer-events-none"
-              style={{
-                border: `1.5px solid ${activeSkin.accentColor || '#f59e0b'}`,
-                boxShadow: `0 0 12px ${activeSkin.accentColor || '#f59e0b'}60, inset 0 0 10px ${activeSkin.accentColor || '#f59e0b'}40`
-              }}
-            />
-
-            {/* 3. 外层引力星环（高精度环带，磁吸时加速自转并激发出星芒） */}
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{
-                scale: isMagnetized ? 1.08 : 1,
-                opacity: isMagnetized ? 1 : 0.85,
-                rotate: 360
-              }}
-              exit={{ scale: 0.7, opacity: 0, transition: { duration: 0.18 } }}
-              transition={{
-                rotate: { repeat: Infinity, duration: isMagnetized ? 3.5 : 9, ease: 'linear' },
-                scale: { type: 'spring', stiffness: 350, damping: 25 },
-                opacity: { duration: 0.2 }
-              }}
-              className="absolute -inset-2.5 rounded-full pointer-events-none"
-              style={{
-                border: `1.5px solid ${activeSkin.accentColor || '#f59e0b'}aa`,
-                boxShadow: isMagnetized 
-                  ? `0 0 20px ${activeSkin.accentColor || '#f59e0b'}aa, inset 0 0 14px ${activeSkin.accentColor || '#f59e0b'}66` 
-                  : `0 0 10px ${activeSkin.accentColor || '#f59e0b'}55`
-              }}
-            >
-              {/* 引力环上的星芒引力焦点点位 */}
-              <div 
-                className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full"
-                style={{
-                  backgroundColor: '#ffffff',
-                  boxShadow: `0 0 8px ${activeSkin.accentColor || '#f59e0b'}, 0 0 14px #ffffff`
-                }}
-              />
-              <div 
-                className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full"
-                style={{
-                  backgroundColor: activeSkin.accentColor || '#f59e0b',
-                  boxShadow: `0 0 6px ${activeSkin.accentColor || '#f59e0b'}`
-                }}
-              />
-            </motion.div>
-
-            {/* 4. 磁吸捕获时爆发的中心十字星芒 (Star Flare) */}
-            {isMagnetized && (
-              <motion.div
-                initial={{ scale: 0, rotate: 0 }}
-                animate={{ scale: [1, 1.25, 1], rotate: 180 }}
-                exit={{ scale: 0 }}
-                transition={{
-                  scale: { repeat: Infinity, duration: 1, ease: 'easeInOut' },
-                  rotate: { repeat: Infinity, duration: 6, ease: 'linear' }
-                }}
-                className="absolute -inset-6 pointer-events-none flex items-center justify-center opacity-85"
-              >
-                <div 
-                  className="w-full h-[2px] rounded-full blur-[0.5px]"
-                  style={{ background: `linear-gradient(90deg, transparent, #ffffff, ${activeSkin.accentColor || '#f59e0b'}, #ffffff, transparent)` }}
-                />
-                <div 
-                  className="absolute h-full w-[2px] rounded-full blur-[0.5px]"
-                  style={{ background: `linear-gradient(180deg, transparent, #ffffff, ${activeSkin.accentColor || '#f59e0b'}, #ffffff, transparent)` }}
-                />
-              </motion.div>
-            )}
           </div>
         )}
 
-        {/* 宠物头顶小想法气泡 (带尾巴小圆点，呈现超萌矢量专属表情) */}
+        {/* 宠物斜上方小想法气泡 (带尾巴小圆点，呈现更精致小巧的纯矢量萌表情) */}
         {((isGestureActive && !isChomping) || showFedThought) && (
           <motion.div
             key={showFedThought ? 'fed-thought' : isMagnetized ? 'magnet-thought' : 'wait-thought'}
-            initial={{ opacity: 0, y: 5, scale: 0.6 }}
+            initial={{ opacity: 0, y: 4, scale: 0.6 }}
             animate={{ 
               opacity: 1, 
-              y: [0, -3, 0],
-              scale: showFedThought ? [1, 1.2, 1.05] : isMagnetized ? 1.15 : 1 
+              y: [0, -2, 0],
+              scale: showFedThought ? [1, 1.15, 1.02] : 1 
             }}
-            exit={{ opacity: 0, y: -4, scale: 0.6, transition: { duration: 0.16 } }}
+            exit={{ opacity: 0, y: -3, scale: 0.6, transition: { duration: 0.15 } }}
             transition={{
-              y: { repeat: Infinity, duration: 1.4, ease: 'easeInOut' },
+              y: { repeat: Infinity, duration: 1.6, ease: 'easeInOut' },
               scale: { type: 'spring', stiffness: 450, damping: 24 }
             }}
-            className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-none select-none z-30 flex flex-col items-center"
+            className={`absolute -top-7 ${isRightSide ? '-left-2 items-end' : '-right-2 items-start'} pointer-events-none select-none z-30 flex flex-col`}
           >
             {/* 想法主气泡 */}
             <div
-              className="px-2 py-1 rounded-full flex items-center justify-center shadow-lg"
+              className="px-1.5 py-0.5 rounded-lg flex items-center justify-center shadow-md"
               style={{
                 backgroundColor: 'color-mix(in srgb, var(--bg-panel) 96%, #ffffff 4%)',
                 backdropFilter: 'blur(16px)',
                 border: '1px solid var(--border-subtle)',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.18)'
+                boxShadow: '0 3px 10px rgba(0,0,0,0.15)'
               }}
             >
               <CuteCompanionThought mood={showFedThought ? 'fed' : isMagnetized ? 'magnet' : 'wait'} />
             </div>
 
-            {/* 漫画风格的小想法尾巴圆点 (从大到小指向宠物头顶) */}
-            <div className="flex flex-col items-center gap-[1.5px] mt-[1.5px]">
+            {/* 漫画风格的小想法尾巴圆点 (从气泡斜向指向宠物) */}
+            <div className={`flex flex-col ${isRightSide ? 'items-end pr-1' : 'items-start pl-1'} gap-[1.5px] mt-[1.5px]`}>
               <span 
                 className="w-1.5 h-1.5 rounded-full" 
                 style={{ 
@@ -748,7 +728,7 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
                 }} 
               />
               <span 
-                className="w-1 h-1 rounded-full" 
+                className="w-1 h-1 rounded-full opacity-80" 
                 style={{ 
                   backgroundColor: 'color-mix(in srgb, var(--bg-panel) 96%, #ffffff 4%)',
                   border: '0.5px solid var(--border-subtle)'
@@ -821,6 +801,7 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
         )}
       </AnimatePresence>
 
+      {/* 跑轮伴侣主按钮 (支持神奇宝贝精灵球捕获弹跳晃动) */}
       <motion.button
         id="floating-companion-ball"
         type="button"
@@ -833,17 +814,27 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
         animate={
           isChomping
             ? { scale: [1, 1.28, 0.9, 1.12, 1], y: [0, -6, 0] }
-            : (isGestureActive && isMagnetized)
-            ? { scale: 1.15, y: -5 }
             : isGestureActive
-            ? { scale: 1.05, y: -3 }
-            : { scale: 1, y: 0 }
+            ? {
+                y: [0, -10, 2, -5, 1, 0, 0, 0, 0],
+                rotate: [0, -12, 10, -7, 4, 0, 0, 0, 0],
+                scale: [1, 1.07, 0.95, 1.03, 1, 1, 1, 1, 1]
+              }
+            : { scale: 1, y: 0, rotate: 0 }
         }
-        transition={{
-          y: { type: 'spring', stiffness: 360, damping: 20 },
-          scale: isChomping ? { duration: 0.45, ease: 'easeOut' } : { duration: 0.2 }
-        }}
-        whileHover={{ scale: isGestureActive ? 1.16 : 1.08 }}
+        transition={
+          isChomping
+            ? { duration: 0.45, ease: 'easeOut' }
+            : isGestureActive
+            ? {
+                repeat: Infinity,
+                duration: 2.8,
+                ease: 'easeInOut',
+                times: [0, 0.1, 0.22, 0.35, 0.45, 0.55, 0.75, 0.9, 1]
+              }
+            : { duration: 0.2 }
+        }
+        whileHover={{ scale: isGestureActive ? 1.08 : 1.08 }}
         whileTap={{ scale: 0.94 }}
         className="relative w-[48px] h-[48px] rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing outline-none focus:outline-none select-none group z-10 overflow-visible touch-none"
         style={buttonStyle}
@@ -879,7 +870,27 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
           </defs>
         </svg>
 
-        <CompanionWidget {...companionProps} />
+        {/* 球内宠物渲染层：实时跟随樱桃转动、转身并在球内走位 */}
+        <motion.div
+          className="relative flex items-center justify-center w-full h-full pointer-events-none"
+          animate={
+            isGestureActive
+              ? {
+                  x: lookInfo.shiftX,
+                  y: lookInfo.shiftY,
+                  rotate: lookInfo.angle,
+                  scaleX: lookInfo.facing
+                }
+              : { x: 0, y: 0, rotate: 0, scaleX: 1 }
+          }
+          transition={{
+            type: 'spring',
+            stiffness: 280,
+            damping: 20
+          }}
+        >
+          <CompanionWidget {...companionProps} />
+        </motion.div>
       </motion.button>
     </div>
   );
