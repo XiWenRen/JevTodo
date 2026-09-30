@@ -142,20 +142,21 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       currentPosRef.current = { x: clientX, y: clientY };
       setCherryPos({ x: clientX, y: clientY });
 
-      // 核心目标：检测与常驻悬浮球的距离 (Magnetic Area to Floating Ball)
-      let detected: GestureActionType = 'none';
-      const ballEl = document.getElementById('floating-companion-ball');
-      if (ballEl) {
-        const ballRect = ballEl.getBoundingClientRect();
-        const ballCenterX = ballRect.left + ballRect.width / 2;
-        const ballCenterY = ballRect.top + ballRect.height / 2;
-        const distToBall = Math.hypot(clientX - ballCenterX, clientY - ballCenterY);
+        // 核心目标：检测与常驻悬浮球的距离，精准匹配 52px 光圈视觉感应半径
+        const AURA_MAGNETIC_RADIUS = 52;
+        let detected: GestureActionType = 'none';
+        const ballEl = document.getElementById('floating-companion-ball');
+        if (ballEl) {
+          const ballRect = ballEl.getBoundingClientRect();
+          const ballCenterX = ballRect.left + ballRect.width / 2;
+          const ballCenterY = ballRect.top + ballRect.height / 2;
+          const distToBall = Math.hypot(clientX - ballCenterX, clientY - ballCenterY);
 
-        // 悬浮球磁吸范围：140px 判定为吸附并喂食
-        if (distToBall < 140) {
-          detected = 'complete';
+          // 精准匹配外圈光圈范围 (52px 判定为吸附光圈内)
+          if (distToBall <= AURA_MAGNETIC_RADIUS) {
+            detected = 'complete';
+          }
         }
-      }
 
       if (detected !== activeTargetRef.current) {
         activeTargetRef.current = detected;
@@ -264,7 +265,7 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
       let target = activeTargetRef.current;
       const releasePos = currentPosRef.current;
 
-      // 如果未完全进入吸附区，但离悬浮球较近 (< 160px)，宽容自动吸附完成投喂
+      // 释放时若在光圈感应范围（<= 52px）内，执行抛物线投喂
       if (target === 'none') {
         const ballEl = document.getElementById('floating-companion-ball');
         if (ballEl) {
@@ -272,7 +273,7 @@ export const TaskGestureOverlay: React.FC<TaskGestureOverlayProps> = ({
           const ballCenterX = ballRect.left + ballRect.width / 2;
           const ballCenterY = ballRect.top + ballRect.height / 2;
           const dist = Math.hypot(releasePos.x - ballCenterX, releasePos.y - ballCenterY);
-          if (dist < 160) {
+          if (dist <= 52) {
             target = 'complete';
           }
         }
