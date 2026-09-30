@@ -35,8 +35,8 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
   const { activeSkin } = useActiveSkin();
   const CompanionWidget = activeSkin.CompanionWidget;
 
-  const [activityState, setActivityState] = useState<CompanionActivityState>('sleeping');
-  const [animDur, setAnimDur] = useState<string>('1.4s');
+  const [activityState, setActivityState] = useState<CompanionActivityState>('walking');
+  const [animDur, setAnimDur] = useState<string>('1.1s');
   const [isHovered, setIsHovered] = useState<boolean>(false);
   const [isPopoverOpen, setIsPopoverOpen] = useState<boolean>(false);
 

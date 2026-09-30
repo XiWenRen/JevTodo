@@ -14,6 +14,7 @@ export interface HamsterWheelProps {
   showSpecular?: boolean;
   showComet?: boolean;
   showZzz?: boolean;
+  showWheel?: boolean; // 是否显示跑轮外环与旋转支架，为 false 时只呈现独立活泼小仓鼠
 }
 
 /**
@@ -32,7 +33,8 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
   showTrack = true,
   showSpecular = true,
   showComet = true,
-  showZzz = true
+  showZzz = true,
+  showWheel = true
 }) => {
   const isStopped = propStopped ?? (activityState === 'stopped');
   const isSettling = propSettling ?? (activityState === 'settling');
@@ -343,10 +345,94 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
           transform: rotate(30deg) translateZ(-1px);
           transform-origin: 0.25em 0.25em;
         }
+
+        /* 纯仓鼠模式（无跑轮）：居中微调与饱满视觉 */
+        .kantner-hamster-wheel-${size}.no-wheel .hamster-facing-right {
+          transform: scaleX(-1.38) scaleY(1.38);
+          transform-origin: 50% 55%;
+        }
+        .kantner-hamster-wheel-${size}.no-wheel .hamster-unit {
+          transform: rotate(2deg) translate(-0.8em, 1.25em);
+        }
+
+        /* ======================================================== */
+        /* 仓鼠跑步、摆头、蹬腿核心 CSS 动画关键帧 (Keyframes) */
+        /* ======================================================== */
+        @keyframes wheelSpinClockwise {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes hamsterAnim {
+          from, to { transform: rotate(4deg) translate(-0.8em, 1.85em); }
+          50% { transform: rotate(0deg) translate(-0.8em, 1.85em); }
+        }
+
+        @keyframes hamsterHeadAnim {
+          from, 25%, 50%, 75%, to { transform: rotate(0deg); }
+          12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(8deg); }
+        }
+
+        @keyframes hamsterEyeAnim {
+          from, 90%, to { transform: scaleY(1); }
+          95% { transform: scaleY(0); }
+        }
+
+        @keyframes hamsterEarAnim {
+          from, 25%, 50%, 75%, to { transform: rotate(0deg); }
+          12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(12deg); }
+        }
+
+        @keyframes hamsterBodyAnim {
+          from, 25%, 50%, 75%, to { transform: rotate(0deg); }
+          12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(-2deg); }
+        }
+
+        @keyframes hamsterFRLimbAnim {
+          from, 25%, 50%, 75%, to { transform: rotate(50deg) translateZ(-1px); }
+          12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(-30deg) translateZ(-1px); }
+        }
+
+        @keyframes hamsterFLLimbAnim {
+          from, 25%, 50%, 75%, to { transform: rotate(-30deg); }
+          12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(50deg); }
+        }
+
+        @keyframes hamsterBRLimbAnim {
+          from, 25%, 50%, 75%, to { transform: rotate(-60deg) translateZ(-1px); }
+          12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(20deg) translateZ(-1px); }
+        }
+
+        @keyframes hamsterBLLimbAnim {
+          from, 25%, 50%, 75%, to { transform: rotate(20deg); }
+          12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(-60deg); }
+        }
+
+        @keyframes hamsterTailAnim {
+          from, 25%, 50%, 75%, to { transform: rotate(30deg) translateZ(-1px); }
+          12.5%, 37.5%, 62.5%, 87.5% { transform: rotate(10deg) translateZ(-1px); }
+        }
+
+        @keyframes hamsterSleepBreath {
+          0%, 100% { transform: rotate(0deg) translate(-0.8em, 2.25em) scale(1, 0.96); }
+          50% { transform: rotate(0deg) translate(-0.8em, 2.33em) scale(0.98, 1.02); }
+        }
+
+        @keyframes zzz-float-a {
+          0% { opacity: 0; transform: translate(0, 0) scale(0.5); }
+          40% { opacity: 0.95; }
+          100% { opacity: 0; transform: translate(6px, -12px) scale(1.18); }
+        }
+
+        @keyframes zzz-float-b {
+          0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+          40% { opacity: 0.95; }
+          100% { opacity: 0; transform: translate(9px, -17px) scale(1.28); }
+        }
       `}</style>
 
-      {/* 能量流光彗星 (奔跑时激发) */}
-      {showComet && (
+      {/* 能量流光彗星 (奔跑时激发，仅在开启跑轮时展示) */}
+      {showWheel && showComet && (
         <div
           className={`kinetic-energy-comet-${size}`}
           style={{
@@ -358,18 +444,20 @@ export const KantnerHamsterWheel: React.FC<HamsterWheelProps> = ({
       )}
 
       {/* 纯 CSS 跑轮仓鼠容器 */}
-      <div className={`kantner-hamster-wheel-${size} ${isStationary ? 'is-stationary' : ''} ${isSleeping ? 'is-sleeping' : isSettling ? 'is-settling' : isStopped ? 'is-stopped' : ''}`}>
-        {/* 跑轮外轨 */}
-        {showTrack && <div className="wheel-track" />}
+      <div className={`kantner-hamster-wheel-${size} ${!showWheel ? 'no-wheel' : ''} ${isStationary ? 'is-stationary' : ''} ${isSleeping ? 'is-sleeping' : isSettling ? 'is-settling' : isStopped ? 'is-stopped' : ''}`}>
+        {/* 跑轮外轨 (仅在 showWheel 时呈现) */}
+        {showWheel && showTrack && <div className="wheel-track" />}
 
-        {/* 跑轮旋转体 */}
-        <div className="wheel-spinner">
-          {showSpecular && <div className="wheel-specular" />}
-          <div className="wheel-grip wheel-grip-t" />
-          <div className="wheel-grip wheel-grip-r" />
-          <div className="wheel-grip wheel-grip-b" />
-          <div className="wheel-grip wheel-grip-l" />
-        </div>
+        {/* 跑轮旋转体 (仅在 showWheel 时呈现) */}
+        {showWheel && (
+          <div className="wheel-spinner">
+            {showSpecular && <div className="wheel-specular" />}
+            <div className="wheel-grip wheel-grip-t" />
+            <div className="wheel-grip wheel-grip-r" />
+            <div className="wheel-grip wheel-grip-b" />
+            <div className="wheel-grip wheel-grip-l" />
+          </div>
+        )}
 
         {/* 仓鼠身体容器 (朝右跑) */}
         <div className="hamster-facing-right">

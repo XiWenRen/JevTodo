@@ -5,12 +5,14 @@ import { LottieCompanionWidget } from '../../../components/companions/LottieComp
 
 const MoodyDogWidget: React.FC<CompanionRenderProps> = (props) => {
   return (
-    <LottieCompanionWidget
-      animationPath="/assets/lottie/moody_dog.json"
-      size={44}
-      activityState={props.activityState}
-      name="Moody Dog"
-    />
+    <div className="relative flex items-center justify-center w-full h-full scale-x-[-1]">
+      <LottieCompanionWidget
+        animationPath="/assets/lottie/moody_dog.json"
+        size={44}
+        activityState={props.activityState}
+        name="Moody Dog"
+      />
+    </div>
   );
 };
 
@@ -23,7 +25,7 @@ const MoodyDogStage: React.FC<CompanionStageProps> = ({
   const stageState = isBreak ? 'sleeping' : isPaused ? 'stopped' : 'running';
 
   return (
-    <div className="relative flex flex-col items-center justify-center">
+    <div className="relative flex flex-col items-center justify-center scale-x-[-1]">
       <LottieCompanionWidget
         animationPath="/assets/lottie/moody_dog.json"
         size={size}

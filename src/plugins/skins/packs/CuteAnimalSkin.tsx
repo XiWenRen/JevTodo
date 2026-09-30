@@ -20,6 +20,10 @@ const AnimalCompanionWidget: React.FC<CompanionRenderProps> = (props) => {
       isStopped={props.isStopped}
       isSettling={props.isSettling}
       isSleeping={props.isSleeping}
+      showWheel={false}
+      showTrack={false}
+      showSpecular={false}
+      showComet={false}
     />
   );
 };
