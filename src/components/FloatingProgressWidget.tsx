@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles, X, RotateCw } from 'lucide-react';
 import { TaskItem } from '../types';
 import { OrganizeOptions } from './JevOrganizeConfirmModal';
 import { useActiveSkin } from '../plugins/skins/SkinRegistry';
@@ -57,7 +57,20 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
   // 计算樱桃总专注完成次数
   const totalCherryCount = tasks.reduce((sum, t) => sum + (t.cherrySubtasks?.length || 0), 0);
 
-  // 生成温暖自然的伴侣对话内容
+  // 投喂成功后的美味满足表情气泡维持状态
+  const [showFedThought, setShowFedThought] = useState(false);
+
+  useEffect(() => {
+    if (isChomping) {
+      setShowFedThought(true);
+      const timer = setTimeout(() => {
+        setShowFedThought(false);
+      }, 1400);
+      return () => clearTimeout(timer);
+    }
+  }, [isChomping]);
+
+  // 生成温暖自然的伴侣纯对话内容，将关键数据直接加粗高光内嵌在文案中
   const getDialogueInfo = () => {
     const hour = new Date().getHours();
     let greeting = '你好主人';
@@ -71,8 +84,11 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     if (totalTasksCount === 0) {
       return {
         greeting,
-        message: '今天还没有待办事项，整个人都很清闲呢~ 点击下方可以随时添加新任务！',
-        buttonText: '开始规划待办',
+        content: (
+          <span>
+            今天清单里还没有安排待办，整个人都很清闲呢。随时在下方输入框添加新任务吧~
+          </span>
+        ),
         canOrganize: false
       };
     }
@@ -80,26 +96,38 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     if (remaining === 0) {
       return {
         greeting,
-        message: `太棒了！今天规划的 ${totalTasksCount} 项工作已经全部顺利搞定，快去好好犒劳一下自己吧 🎉`,
-        buttonText: '重新梳理待办',
-        canOrganize: true
+        content: (
+          <span>
+            今天规划的 <strong className="text-emerald-500 font-semibold">{totalTasksCount} 项工作</strong>已经全部完成啦{totalCherryCount > 0 ? <>（收获 🍒 <strong className="text-rose-500 font-semibold">{totalCherryCount} 颗樱桃</strong>）</> : null}！效率超高，快去休息一下吧 🎉
+          </span>
+        ),
+        canOrganize: true,
+        buttonText: '重新梳理'
       };
     }
 
     if (completedTasksCount === 0) {
       return {
         greeting,
-        message: `今天共有 ${totalTasksCount} 项工作待处理${overdueCount > 0 ? `，其中 ${overdueCount} 项已逾期` : ''}。需要我帮你按优先级梳理一下吗？`,
-        buttonText: rollForwardCount > 0 ? `帮我整理待办 (${rollForwardCount})` : '帮我整理待办',
-        canOrganize: true
+        content: (
+          <span>
+            今天共有 <strong className="text-amber-500 font-semibold">{totalTasksCount} 项待办</strong>待处理{overdueCount > 0 ? <>（其中 <strong className="text-rose-500 font-semibold">{overdueCount} 项已逾期</strong>）</> : null}。需要我帮你按优先级整理排序吗？
+          </span>
+        ),
+        canOrganize: true,
+        buttonText: rollForwardCount > 0 ? `整理 (${rollForwardCount})` : '整理'
       };
     }
 
     return {
       greeting,
-      message: `你今天已经完成 ${completedTasksCount} 项工作，还剩 ${remaining} 项待办${overdueCount > 0 ? `（其中 ${overdueCount} 项已逾期）` : ''}。需要我帮你整理剩余任务吗？`,
-      buttonText: rollForwardCount > 0 ? `帮我整理待办 (${rollForwardCount})` : '帮我整理待办',
-      canOrganize: true
+      content: (
+        <span>
+          你今天已经完成 <strong className="text-emerald-500 font-semibold">{completedTasksCount} 项工作</strong>{totalCherryCount > 0 ? <>（收获 🍒 <strong className="text-rose-500 font-semibold">{totalCherryCount} 颗樱桃</strong>）</> : null}，还剩 <strong className="text-amber-500 font-semibold">{remaining} 项待办</strong>{overdueCount > 0 ? <>（其中 <strong className="text-rose-500 font-semibold">{overdueCount} 项已逾期</strong>）</> : null}。需要我帮你整理剩余任务吗？
+        </span>
+      ),
+      canOrganize: true,
+      buttonText: rollForwardCount > 0 ? `整理 (${rollForwardCount})` : '整理'
     };
   };
 
@@ -484,50 +512,31 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
                 </>
               )}
 
-              {/* 对话框顶部微型状态与关闭按钮 (无大 Title，低调克制) */}
-              <div className="flex items-center justify-between mb-1.5">
-                <div className="flex items-center gap-1.5 text-xs text-[var(--text-sub)]">
-                  <span>{activeSkin.icon || '🐾'}</span>
-                  <span className="font-medium text-[11px] text-[var(--text-main)] opacity-85">{activeSkin.name}</span>
-                </div>
+              {/* 仅保留右上角极小巧的关闭按钮 */}
+              <div className="flex justify-end -mt-0.5 -mr-0.5 mb-1">
                 <button
                   type="button"
                   onClick={() => setIsPopoverOpen(false)}
-                  className="p-1 -mr-1 rounded-full text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] transition-colors cursor-pointer"
+                  className="p-1 rounded-full text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] transition-colors cursor-pointer"
                   title="关闭"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </div>
 
-              {/* 对话正文：问候语 + 关键进度与智能整理建议 */}
-              <div className="space-y-1 my-0.5">
-                <p className="text-xs font-semibold text-[var(--text-main)] leading-tight">
-                  {dialogue.greeting}
-                </p>
-                <p className="text-[11.5px] text-[var(--text-sub)] leading-relaxed">
-                  {dialogue.message}
-                </p>
-              </div>
-
-              {/* 简单的整理操作按钮 (低调优雅，不招摇) */}
-              <button
-                type="button"
-                onClick={handleExecuteReorder}
-                className="w-full mt-2.5 py-1.5 px-3 rounded-xl text-xs font-medium text-[var(--text-main)] bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] active:scale-[0.98] border border-[var(--border-subtle)] flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer select-none"
-              >
-                <span className="text-[12px] opacity-80">🪄</span>
-                <span>{dialogue.buttonText}</span>
-              </button>
-
-              {/* 底部微型数据沉淀 (低调展示樱桃数与完成率) */}
-              <div className="mt-2.5 pt-1.5 border-t border-[var(--border-subtle)]/60 flex items-center justify-between text-[10px] text-[var(--text-faint)] font-mono">
-                <span>今日完成 {completedTasksCount}/{totalTasksCount} ({progressPercent}%)</span>
-                {totalCherryCount > 0 && (
-                  <span className="flex items-center gap-0.5 text-rose-400">
-                    <span>🍒</span>
-                    <span>{totalCherryCount}</span>
-                  </span>
+              {/* 对话正文：关键数据直接在文本中高亮，句末紧随精巧循环箭头整理按钮 */}
+              <div className="text-xs text-[var(--text-sub)] leading-relaxed pr-1 select-text">
+                {dialogue.content}
+                {dialogue.canOrganize && (
+                  <button
+                    type="button"
+                    onClick={handleExecuteReorder}
+                    className="inline-flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-lg bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-amber-500 hover:text-amber-400 border border-[var(--border-subtle)] text-[11px] font-medium transition-all active:scale-95 cursor-pointer shadow-2xs select-none align-middle"
+                    title="点击一键整理待办"
+                  >
+                    <RotateCw className="w-2.5 h-2.5 stroke-[2.4]" />
+                    <span>{dialogue.buttonText}</span>
+                  </button>
                 )}
               </div>
             </motion.div>
@@ -603,30 +612,53 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
           </div>
         )}
 
-        {/* 宠物头顶单个生动表情气泡 (无文字，纯单个表情) */}
-        {isGestureActive && !isChomping && (
+        {/* 宠物头顶小想法气泡 (带尾巴小圆点，展现宠物内心所想：等待时期待，完成后美味满足) */}
+        {((isGestureActive && !isChomping) || showFedThought) && (
           <motion.div
-            key="halo-guide-emoji"
-            initial={{ opacity: 0, y: 6, scale: 0.6 }}
+            key={showFedThought ? 'fed-thought' : isMagnetized ? 'magnet-thought' : 'wait-thought'}
+            initial={{ opacity: 0, y: 5, scale: 0.6 }}
             animate={{ 
               opacity: 1, 
-              y: [0, -3, 0],
-              scale: isMagnetized ? 1.25 : 1 
+              y: [0, -2.5, 0],
+              scale: showFedThought ? [1, 1.22, 1.05] : isMagnetized ? 1.15 : 1 
             }}
-            exit={{ opacity: 0, y: 4, scale: 0.6, transition: { duration: 0.12 } }}
+            exit={{ opacity: 0, y: -4, scale: 0.6, transition: { duration: 0.16 } }}
             transition={{
-              y: { repeat: Infinity, duration: 1.2, ease: 'easeInOut' },
+              y: { repeat: Infinity, duration: 1.4, ease: 'easeInOut' },
               scale: { type: 'spring', stiffness: 450, damping: 24 }
             }}
-            className="absolute -top-7 left-1/2 -translate-x-1/2 w-7 h-7 rounded-full flex items-center justify-center text-sm shadow-md pointer-events-none select-none z-30"
-            style={{
-              backgroundColor: 'color-mix(in srgb, var(--bg-panel) 90%, transparent)',
-              backdropFilter: 'blur(16px)',
-              border: '1px solid var(--border-subtle)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.18)'
-            }}
+            className="absolute -top-9 left-1/2 -translate-x-1/2 pointer-events-none select-none z-30 flex flex-col items-center"
           >
-            <span>{isMagnetized ? '😋' : '🍒'}</span>
+            {/* 想法主气泡 */}
+            <div
+              className="px-2 py-0.5 rounded-full flex items-center justify-center text-xs shadow-md"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--bg-panel) 94%, transparent)',
+                backdropFilter: 'blur(16px)',
+                border: '1px solid var(--border-subtle)',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.14)'
+              }}
+            >
+              <span>{showFedThought ? '😋' : isMagnetized ? '🤤' : '🥺'}</span>
+            </div>
+
+            {/* 漫画风格的小想法尾巴圆点 (从大到小指向宠物头顶) */}
+            <div className="flex flex-col items-center gap-[1.5px] mt-[1.5px]">
+              <span 
+                className="w-1.5 h-1.5 rounded-full" 
+                style={{ 
+                  backgroundColor: 'color-mix(in srgb, var(--bg-panel) 94%, transparent)',
+                  border: '0.8px solid var(--border-subtle)' 
+                }} 
+              />
+              <span 
+                className="w-1 h-1 rounded-full opacity-80" 
+                style={{ 
+                  backgroundColor: 'color-mix(in srgb, var(--bg-panel) 94%, transparent)',
+                  border: '0.6px solid var(--border-subtle)' 
+                }} 
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
