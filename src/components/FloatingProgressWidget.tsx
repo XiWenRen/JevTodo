@@ -70,87 +70,52 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     }
   }, [isChomping]);
 
-// 萌系伴侣专属想法表情 (纯矢量 SVG 设计，圆润灵动超萌，告别生硬丑陋的系统 emoji)
+// 萌系伴侣专属想法表情 (纯净极简矢量设计，清爽治愈，告别油腻谄媚)
 const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ mood }) => {
   if (mood === 'fed') {
-    // 饱餐大满足状态：幸福闭眼微翘长睫毛、圆圆饱满粉嫩鼓腮帮、大满足微笑小猫嘴 ω、嘴角樱桃红斑小光点
+    // 投喂完成：惬意从容闭眼放松，微抿笑意 ( - ◡ - )，安静治愈，不浮夸谄媚
     return (
-      <div className="relative flex items-center justify-center w-5 h-3.5 text-[var(--text-main,#334155)]">
-        <svg viewBox="0 0 28 20" className="w-5 h-3.5 overflow-visible">
-          {/* 左眼：幸福笑弧 + 翘睫毛 */}
-          <path d="M 5 9.5 Q 8 5.5 11 9.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <path d="M 10.5 7 L 12 5.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-
-          {/* 右眼：幸福笑弧 + 翘睫毛 */}
-          <path d="M 17 9.5 Q 20 5.5 23 9.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <path d="M 22.5 7 L 24 5.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-
-          {/* 饱满可爱的圆圆粉腮帮（像把樱桃含在嘴里，鼓鼓的超可爱） */}
-          <circle cx="4.5" cy="11.5" r="2.2" fill="#fb7185" opacity="0.85" />
-          <circle cx="23.5" cy="11.5" r="2.2" fill="#fb7185" opacity="0.85" />
-
-          {/* 大满足小猫波浪嘴 ω */}
-          <path d="M 11.5 11.8 Q 12.8 13.6 14 11.8 Q 15.2 13.6 16.5 11.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-
-          {/* 嘴角沾着的一抹微小樱桃红斑 */}
-          <circle cx="17.2" cy="13.2" r="0.75" fill="#f43f5e" />
-
-          {/* 头顶两颗欢呼跳跃的微型爱心与闪亮星光 */}
-          <path
-            d="M 14 2 C 14 0, 12 0, 12 1.5 C 12 2.6, 14 4.2, 14 4.2 C 14 4.2, 16 2.6, 16 1.5 C 16 0, 14 0, 14 2 Z"
-            fill="#f43f5e"
-          />
-          <circle cx="18" cy="1.2" r="0.7" fill="#f59e0b" />
+      <div className="relative flex items-center justify-center w-5 h-3 text-[var(--text-main,#334155)]">
+        <svg viewBox="0 0 24 14" className="w-5 h-3 overflow-visible">
+          {/* 左眼：惬意细线弯月弧 */}
+          <path d="M 4 7 Q 6.5 4.5 9 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          {/* 右眼：惬意细线弯月弧 */}
+          <path d="M 15 7 Q 17.5 4.5 20 7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          {/* 微抿的满足浅笑 */}
+          <path d="M 10.5 9.5 Q 12 11 13.5 9.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         </svg>
       </div>
     );
   }
 
   if (mood === 'magnet') {
-    // 磁吸靠近状态：双眼四角星芒 ✨、小张嘴嗷呜渴望
+    // 磁吸靠近：灵动好奇轻笑 (• ‿ •)，眼神清亮，自然期待
     return (
-      <div className="relative flex items-center justify-center w-5 h-3.5">
-        <svg viewBox="0 0 28 20" className="w-5 h-3.5 overflow-visible">
-          {/* 左眼闪亮星芒 */}
-          <path
-            d="M 8.5 5 L 9.3 8 L 12 8.8 L 9.3 9.6 L 8.5 12.5 L 7.7 9.6 L 5 8.8 L 7.7 8 Z"
-            fill="#f59e0b"
-          />
-          {/* 右眼闪亮星芒 */}
-          <path
-            d="M 19.5 5 L 20.3 8 L 23 8.8 L 20.3 9.6 L 19.5 12.5 L 18.7 9.6 L 16 8.8 L 18.7 8 Z"
-            fill="#f59e0b"
-          />
-          {/* 粉嫩兴奋小腮红 */}
-          <ellipse cx="4.5" cy="11.5" rx="2.5" ry="1.5" fill="#fb7185" opacity="0.8" />
-          <ellipse cx="23.5" cy="11.5" rx="2.5" ry="1.5" fill="#fb7185" opacity="0.8" />
-          {/* 嗷呜开心小张嘴 (半椭圆，带粉嫩小舌尖) */}
-          <path d="M 11.5 11 Q 14 16 16.5 11 Z" fill="#f43f5e" />
+      <div className="relative flex items-center justify-center w-5 h-3 text-[var(--text-main,#334155)]">
+        <svg viewBox="0 0 24 14" className="w-5 h-3 overflow-visible">
+          {/* 清澈黑曜石豆豆眼（带纯净微白高光） */}
+          <circle cx="6.5" cy="6.5" r="2" fill="currentColor" />
+          <circle cx="5.9" cy="5.9" r="0.7" fill="#ffffff" />
+          <circle cx="17.5" cy="6.5" r="2" fill="currentColor" />
+          <circle cx="16.9" cy="5.9" r="0.7" fill="#ffffff" />
+          {/* 自然微扬的浅笑嘴 */}
+          <path d="M 10.5 9.5 Q 12 11 13.5 9.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
         </svg>
       </div>
     );
   }
 
-  // 等待投喂 (wait)：水汪汪的大萌眼 (黑眼仁+双晶莹高光)、娇憨小三瓣嘴 ω
+  // 等待投喂 (wait)：清爽纯真小豆豆眼 (•  •)，安静陪伴
   return (
-    <div className="relative flex items-center justify-center w-5 h-3.5 text-[var(--text-main,#334155)]">
-      <svg viewBox="0 0 28 20" className="w-5 h-3.5 overflow-visible">
-        {/* 左大萌眼 */}
-        <circle cx="8" cy="8.5" r="3.2" fill="currentColor" />
-        <circle cx="7" cy="7.3" r="1.3" fill="#ffffff" />
-        <circle cx="9.2" cy="9.5" r="0.65" fill="#ffffff" />
-
-        {/* 右大萌眼 */}
-        <circle cx="20" cy="8.5" r="3.2" fill="currentColor" />
-        <circle cx="19" cy="7.3" r="1.3" fill="#ffffff" />
-        <circle cx="21.2" cy="9.5" r="0.65" fill="#ffffff" />
-
-        {/* 淡淡粉红小腮红 */}
-        <ellipse cx="4.5" cy="11.5" rx="2.2" ry="1.3" fill="#fb7185" opacity="0.6" />
-        <ellipse cx="23.5" cy="11.5" rx="2.2" ry="1.3" fill="#fb7185" opacity="0.6" />
-
-        {/* 娇憨小猫三瓣嘴 ω */}
-        <path d="M 11.5 12 Q 12.8 14 14 12 Q 15.2 14 16.5 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    <div className="relative flex items-center justify-center w-5 h-3 text-[var(--text-main,#334155)]">
+      <svg viewBox="0 0 24 14" className="w-5 h-3 overflow-visible">
+        {/* 清澈平静小圆眼 */}
+        <circle cx="6.5" cy="6.5" r="1.8" fill="currentColor" />
+        <circle cx="6" cy="6" r="0.6" fill="#ffffff" />
+        <circle cx="17.5" cy="6.5" r="1.8" fill="currentColor" />
+        <circle cx="17" cy="6" r="0.6" fill="#ffffff" />
+        {/* 平静微翘的小三瓣猫嘴 */}
+        <path d="M 10.2 9.5 Q 11.1 10.5 12 9.5 Q 12.9 10.5 13.8 9.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
       </svg>
     </div>
   );
@@ -468,41 +433,49 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
   const currentCoords = coords || getDefaultPos();
   const isRightSide = currentCoords.x > (typeof window !== 'undefined' ? window.innerWidth / 2 : 300);
 
-  // 计算视线朝向与球内微移动
+  // 计算视线朝向、头部仰俯角度与球内微移动（100% 严密几何数学模型）
   const isHamsterWheel = activeSkin.id === 'cute-animal';
-  const defaultFacingLeft = activeSkin.id === 'black-cat';
 
   const lookInfo = React.useMemo(() => {
     if (!isGestureActive || !cherryTrackPos) {
-      return { shiftX: 0, shiftY: 0, facing: 1 };
+      return { shiftX: 0, shiftY: 0, rotate: 0, facing: lookFacing };
     }
-    // 跑轮皮肤不进行翻转与平移，保证与外圈圆环绝对严丝合缝
+    // 跑轮皮肤保持外圈圆环同心绝对锁定，不进行旋转和翻转
     if (isHamsterWheel) {
-      return { shiftX: 0, shiftY: 0, facing: 1 };
+      return { shiftX: 0, shiftY: 0, rotate: 0, facing: 1 };
     }
 
-    const centerX = currentCoords.x + 24;
-    const centerY = currentCoords.y + 24;
+    // 动态获取悬浮球当前在视口内的实际屏幕几何中心（避免状态偏移）
+    const ballEl = typeof document !== 'undefined' ? document.getElementById('floating-companion-ball') : null;
+    const rect = ballEl ? ballEl.getBoundingClientRect() : null;
+    const centerX = rect ? rect.left + rect.width / 2 : currentCoords.x + 24;
+    const centerY = rect ? rect.top + rect.height / 2 : currentCoords.y + 24;
+
     const dx = cherryTrackPos.x - centerX;
     const dy = cherryTrackPos.y - centerY;
 
-    // 根据宠物天然初始朝向，精确计算水平翻转
-    const isCherryOnLeft = dx < -4;
-    let facing = 1;
-    if (defaultFacingLeft) {
-      // 默认面向左的宠物 (如 PoPoF 黑猫)：樱桃在左时为 1（正常面向左），樱桃在右时为 -1（翻转向右）
-      facing = isCherryOnLeft ? 1 : -1;
-    } else {
-      // 默认面向右的宠物 (如 小狗、神龙)：樱桃在右时为 1（正常面向右），樱桃在左时为 -1（翻转向左）
-      facing = isCherryOnLeft ? -1 : 1;
-    }
+    // 所有伴侣角色初始素材绘制均为面向右侧：
+    // 樱桃在球左侧 (dx < -4) 则面向左 (facing = -1, scaleX = -1)；在球右侧 (dx > 4) 则面向右 (facing = 1, scaleX = 1)
+    let facing = lookFacing;
+    if (dx < -4) facing = -1;
+    else if (dx > 4) facing = 1;
 
-    // 垂直方向轻微跟随探头（范围限制在 ±2px，彻底去除导致画面歪斜的 rotate，修复 y 轴问题）
-    const shiftY = Math.max(-2, Math.min(2, (dy / 200) * 2));
-    const shiftX = Math.max(-2.5, Math.min(2.5, (dx / 200) * 2.5));
+    // 严密仰角算法：计算视线仰俯极角
+    // 樱桃在上方 (dy < 0) 时向上仰头；樱桃在下方 (dy > 0) 时向下俯视
+    const rawAngle = Math.max(-28, Math.min(24, (Math.atan2(dy, Math.abs(dx)) * 180) / Math.PI));
 
-    return { shiftX, shiftY, facing };
-  }, [isGestureActive, cherryTrackPos, currentCoords.x, currentCoords.y, isHamsterWheel, defaultFacingLeft]);
+    // 几何镜像补偿：由于 scaleX: -1 会水平镜像翻转屏幕旋转方向，
+    // 当 facing === 1 时 rotate = rawAngle（负角度逆时针仰头）；
+    // 当 facing === -1 时 rotate = -rawAngle（镜像翻转后视觉上依然为顺时针仰头）！
+    // rotate = facing * rawAngle 确保无论朝左还是朝右，头部永远准确指向樱桃！
+    const rotate = facing * rawAngle;
+
+    // 在球内明显朝樱桃方向探头位移 (限制在 ±5px，清晰可见)
+    const shiftX = Math.max(-5, Math.min(5, (dx / 140) * 5));
+    const shiftY = Math.max(-4, Math.min(4, (dy / 140) * 4));
+
+    return { shiftX, shiftY, rotate, facing };
+  }, [isGestureActive, cherryTrackPos, currentCoords.x, currentCoords.y, isHamsterWheel, lookFacing]);
 
   useEffect(() => {
     if (lookInfo.facing !== lookFacing) {
@@ -892,7 +865,7 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
           </defs>
         </svg>
 
-        {/* 球内宠物渲染层：实时跟随樱桃平滑转向与微幅探头 */}
+        {/* 球内宠物渲染层：实时跟随樱桃平滑转向、头部仰俯与探头走位 */}
         <motion.div
           className="relative flex items-center justify-center w-full h-full pointer-events-none"
           animate={
@@ -900,14 +873,15 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
               ? {
                   x: lookInfo.shiftX,
                   y: lookInfo.shiftY,
+                  rotate: lookInfo.rotate,
                   scaleX: lookInfo.facing
                 }
-              : { x: 0, y: 0, scaleX: 1 }
+              : { x: 0, y: 0, rotate: 0, scaleX: 1 }
           }
           transition={{
             type: 'spring',
-            stiffness: 300,
-            damping: 24
+            stiffness: 280,
+            damping: 20
           }}
         >
           <CompanionWidget {...companionProps} />
