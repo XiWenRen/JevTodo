@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, RotateCw } from 'lucide-react';
+import { Sparkles, SlidersHorizontal } from 'lucide-react';
 import { TaskItem } from '../types';
 import { OrganizeOptions } from './JevOrganizeConfirmModal';
 import { useActiveSkin } from '../plugins/skins/SkinRegistry';
@@ -73,23 +73,34 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
 // 萌系伴侣专属想法表情 (纯矢量 SVG 设计，圆润灵动超萌，告别生硬丑陋的系统 emoji)
 const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ mood }) => {
   if (mood === 'fed') {
-    // 满足/好吃状态：幸福月牙弯眼、粉嘟嘟小腮红、满足小猫嘴、头顶跳动小红心
+    // 饱餐大满足状态：幸福闭眼微翘长睫毛、圆圆饱满粉嫩鼓腮帮、大满足微笑小猫嘴 ω、嘴角樱桃红斑小光点
     return (
       <div className="relative flex items-center justify-center w-5 h-3.5 text-[var(--text-main,#334155)]">
         <svg viewBox="0 0 28 20" className="w-5 h-3.5 overflow-visible">
-          {/* 幸福弯弯笑眼 */}
-          <path d="M 5.5 9 Q 8.5 5.5 11.5 9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          <path d="M 16.5 9 Q 19.5 5.5 22.5 9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          {/* 粉嫩小腮红 */}
-          <ellipse cx="4.5" cy="11.5" rx="2.5" ry="1.5" fill="#fb7185" opacity="0.75" />
-          <ellipse cx="23.5" cy="11.5" rx="2.5" ry="1.5" fill="#fb7185" opacity="0.75" />
-          {/* 可爱小猫嘴 / 满足微笑 */}
-          <path d="M 11.5 12 Q 14 14.5 16.5 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          {/* 头顶微型小红心 */}
+          {/* 左眼：幸福笑弧 + 翘睫毛 */}
+          <path d="M 5 9.5 Q 8 5.5 11 9.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M 10.5 7 L 12 5.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+
+          {/* 右眼：幸福笑弧 + 翘睫毛 */}
+          <path d="M 17 9.5 Q 20 5.5 23 9.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M 22.5 7 L 24 5.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+
+          {/* 饱满可爱的圆圆粉腮帮（像把樱桃含在嘴里，鼓鼓的超可爱） */}
+          <circle cx="4.5" cy="11.5" r="2.2" fill="#fb7185" opacity="0.85" />
+          <circle cx="23.5" cy="11.5" r="2.2" fill="#fb7185" opacity="0.85" />
+
+          {/* 大满足小猫波浪嘴 ω */}
+          <path d="M 11.5 11.8 Q 12.8 13.6 14 11.8 Q 15.2 13.6 16.5 11.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+
+          {/* 嘴角沾着的一抹微小樱桃红斑 */}
+          <circle cx="17.2" cy="13.2" r="0.75" fill="#f43f5e" />
+
+          {/* 头顶两颗欢呼跳跃的微型爱心与闪亮星光 */}
           <path
-            d="M 14 2.2 C 14 -0.5, 11.5 -0.5, 11.5 1.5 C 11.5 2.8, 14 4.8, 14 4.8 C 14 4.8, 16.5 2.8, 16.5 1.5 C 16.5 -0.5, 14 -0.5, 14 2.2 Z"
+            d="M 14 2 C 14 0, 12 0, 12 1.5 C 12 2.6, 14 4.2, 14 4.2 C 14 4.2, 16 2.6, 16 1.5 C 16 0, 14 0, 14 2 Z"
             fill="#f43f5e"
           />
+          <circle cx="18" cy="1.2" r="0.7" fill="#f59e0b" />
         </svg>
       </div>
     );
@@ -321,13 +332,13 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
     return () => window.removeEventListener('pointermove', handleMove);
   }, [isGestureActive]);
 
-  // 当樱桃拖拽手势激活时，唤醒悬浮球宠物待命（以慢走走动状态准备接食）
+  // 当樱桃拖拽手势激活时，唤醒悬浮球宠物待命（高速跑动状态狂奔迎接樱桃）
   useEffect(() => {
     if (isGestureActive) {
       clearAllTimers();
-      setActivityState('walking');
-      setAnimDur('1.1s');
-    } else if (!isPopoverOpen && !isHovered && activityState === 'walking') {
+      setActivityState('running');
+      setAnimDur('0.36s');
+    } else if (!isPopoverOpen && !isHovered) {
       startLinearSlowdown();
     }
   }, [isGestureActive]);
@@ -367,20 +378,20 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
     }
   };
 
-  // 鼠标离开：若气泡未展开，立即进入线性放慢步频 -> 站定 -> 趴下 -> 熟睡流程
+  // 鼠标离开：若气泡未展开且未处于投喂手势，才进入线性放慢步频 -> 站定 -> 趴下 -> 熟睡流程
   const handleMouseLeave = () => {
     setIsHovered(false);
-    if (!isPopoverOpen) {
+    if (!isPopoverOpen && !isGestureActive) {
       startLinearSlowdown();
     }
   };
 
-  // 整理气泡关闭且鼠标未悬停时，也触发平滑线性减速入睡
+  // 整理气泡关闭且鼠标未悬停时，若未处于投喂手势，也触发平滑线性减速入睡
   useEffect(() => {
-    if (!isPopoverOpen && !isHovered && (activityState === 'walking' || activityState === 'running' || activityState === 'decelerating')) {
+    if (!isPopoverOpen && !isHovered && !isGestureActive && (activityState === 'walking' || activityState === 'running' || activityState === 'decelerating')) {
       startLinearSlowdown();
     }
-  }, [isPopoverOpen]);
+  }, [isPopoverOpen, isHovered, isGestureActive]);
 
   // 点击悬浮球：启动冲刺飞奔序列 + 向左展开智能整理微型气泡
   const handleClick = () => {
@@ -457,30 +468,41 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
   const currentCoords = coords || getDefaultPos();
   const isRightSide = currentCoords.x > (typeof window !== 'undefined' ? window.innerWidth / 2 : 300);
 
-  // 计算视线仰角、身体朝向与在球内走动微偏移
+  // 计算视线朝向与球内微移动
+  const isHamsterWheel = activeSkin.id === 'cute-animal';
+  const defaultFacingLeft = activeSkin.id === 'black-cat';
+
   const lookInfo = React.useMemo(() => {
     if (!isGestureActive || !cherryTrackPos) {
-      return { shiftX: 0, shiftY: 0, angle: 0, facing: lookFacing };
+      return { shiftX: 0, shiftY: 0, facing: 1 };
     }
+    // 跑轮皮肤不进行翻转与平移，保证与外圈圆环绝对严丝合缝
+    if (isHamsterWheel) {
+      return { shiftX: 0, shiftY: 0, facing: 1 };
+    }
+
     const centerX = currentCoords.x + 24;
     const centerY = currentCoords.y + 24;
     const dx = cherryTrackPos.x - centerX;
     const dy = cherryTrackPos.y - centerY;
 
-    let facing = lookFacing;
-    if (dx < -6) facing = -1;
-    else if (dx > 6) facing = 1;
+    // 根据宠物天然初始朝向，精确计算水平翻转
+    const isCherryOnLeft = dx < -4;
+    let facing = 1;
+    if (defaultFacingLeft) {
+      // 默认面向左的宠物 (如 PoPoF 黑猫)：樱桃在左时为 1（正常面向左），樱桃在右时为 -1（翻转向右）
+      facing = isCherryOnLeft ? 1 : -1;
+    } else {
+      // 默认面向右的宠物 (如 小狗、神龙)：樱桃在右时为 1（正常面向右），樱桃在左时为 -1（翻转向左）
+      facing = isCherryOnLeft ? -1 : 1;
+    }
 
-    // 头部/身体仰视或俯视角度
-    const angleVal = Math.max(-18, Math.min(18, (dy / 250) * 18));
-    const angle = facing === -1 ? -angleVal : angleVal;
+    // 垂直方向轻微跟随探头（范围限制在 ±2px，彻底去除导致画面歪斜的 rotate，修复 y 轴问题）
+    const shiftY = Math.max(-2, Math.min(2, (dy / 200) * 2));
+    const shiftX = Math.max(-2.5, Math.min(2.5, (dx / 200) * 2.5));
 
-    // 在球内根据樱桃方位轻微走动靠拢
-    const shiftX = Math.max(-7, Math.min(7, (dx / 260) * 7));
-    const shiftY = Math.max(-5, Math.min(5, (dy / 260) * 5));
-
-    return { shiftX, shiftY, angle, facing };
-  }, [isGestureActive, cherryTrackPos, currentCoords.x, currentCoords.y, lookFacing]);
+    return { shiftX, shiftY, facing };
+  }, [isGestureActive, cherryTrackPos, currentCoords.x, currentCoords.y, isHamsterWheel, defaultFacingLeft]);
 
   useEffect(() => {
     if (lookInfo.facing !== lookFacing) {
@@ -638,10 +660,10 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
                   <button
                     type="button"
                     onClick={handleExecuteReorder}
-                    className="inline-flex items-center justify-center w-5 h-5 ml-1.5 rounded-md bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-amber-500 hover:text-amber-400 border border-[var(--border-subtle)] transition-all active:scale-90 cursor-pointer align-middle shadow-2xs hover:rotate-180 duration-300"
+                    className="inline-flex items-center justify-center w-5 h-5 ml-1.5 rounded-md bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-amber-500 hover:text-amber-400 border border-[var(--border-subtle)] transition-all active:scale-95 hover:scale-105 cursor-pointer align-middle shadow-2xs select-none"
                     title="整理其他事情"
                   >
-                    <RotateCw className="w-2.5 h-2.5 stroke-[2.4]" />
+                    <SlidersHorizontal className="w-2.5 h-2.5 stroke-[2.2]" />
                   </button>
                 )}
               </div>
@@ -870,7 +892,7 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
           </defs>
         </svg>
 
-        {/* 球内宠物渲染层：实时跟随樱桃转动、转身并在球内走位 */}
+        {/* 球内宠物渲染层：实时跟随樱桃平滑转向与微幅探头 */}
         <motion.div
           className="relative flex items-center justify-center w-full h-full pointer-events-none"
           animate={
@@ -878,15 +900,14 @@ const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ m
               ? {
                   x: lookInfo.shiftX,
                   y: lookInfo.shiftY,
-                  rotate: lookInfo.angle,
                   scaleX: lookInfo.facing
                 }
-              : { x: 0, y: 0, rotate: 0, scaleX: 1 }
+              : { x: 0, y: 0, scaleX: 1 }
           }
           transition={{
             type: 'spring',
-            stiffness: 280,
-            damping: 20
+            stiffness: 300,
+            damping: 24
           }}
         >
           <CompanionWidget {...companionProps} />
