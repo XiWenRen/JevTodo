@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, X, RotateCw } from 'lucide-react';
+import { Sparkles, RotateCw } from 'lucide-react';
 import { TaskItem } from '../types';
 import { OrganizeOptions } from './JevOrganizeConfirmModal';
 import { useActiveSkin } from '../plugins/skins/SkinRegistry';
@@ -70,6 +70,81 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
     }
   }, [isChomping]);
 
+// 萌系伴侣专属想法表情 (纯矢量 SVG 设计，圆润灵动超萌，告别生硬丑陋的系统 emoji)
+const CuteCompanionThought: React.FC<{ mood: 'wait' | 'magnet' | 'fed' }> = ({ mood }) => {
+  if (mood === 'fed') {
+    // 满足/好吃状态：幸福月牙弯眼、粉嘟嘟小腮红、满足小猫嘴、头顶跳动小红心
+    return (
+      <div className="relative flex items-center justify-center w-7 h-5 text-[var(--text-main,#334155)]">
+        <svg viewBox="0 0 28 20" className="w-7 h-5 overflow-visible">
+          {/* 幸福弯弯笑眼 */}
+          <path d="M 5.5 9 Q 8.5 5.5 11.5 9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <path d="M 16.5 9 Q 19.5 5.5 22.5 9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          {/* 粉嫩小腮红 */}
+          <ellipse cx="4.5" cy="11.5" rx="2.5" ry="1.5" fill="#fb7185" opacity="0.75" />
+          <ellipse cx="23.5" cy="11.5" rx="2.5" ry="1.5" fill="#fb7185" opacity="0.75" />
+          {/* 可爱小猫嘴 / 满足微笑 */}
+          <path d="M 11.5 12 Q 14 14.5 16.5 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          {/* 头顶微型小红心 */}
+          <path
+            d="M 14 2.2 C 14 -0.5, 11.5 -0.5, 11.5 1.5 C 11.5 2.8, 14 4.8, 14 4.8 C 14 4.8, 16.5 2.8, 16.5 1.5 C 16.5 -0.5, 14 -0.5, 14 2.2 Z"
+            fill="#f43f5e"
+          />
+        </svg>
+      </div>
+    );
+  }
+
+  if (mood === 'magnet') {
+    // 磁吸靠近状态：双眼四角星芒 ✨、小张嘴嗷呜渴望
+    return (
+      <div className="relative flex items-center justify-center w-7 h-5">
+        <svg viewBox="0 0 28 20" className="w-7 h-5 overflow-visible">
+          {/* 左眼闪亮星芒 */}
+          <path
+            d="M 8.5 5 L 9.3 8 L 12 8.8 L 9.3 9.6 L 8.5 12.5 L 7.7 9.6 L 5 8.8 L 7.7 8 Z"
+            fill="#f59e0b"
+          />
+          {/* 右眼闪亮星芒 */}
+          <path
+            d="M 19.5 5 L 20.3 8 L 23 8.8 L 20.3 9.6 L 19.5 12.5 L 18.7 9.6 L 16 8.8 L 18.7 8 Z"
+            fill="#f59e0b"
+          />
+          {/* 粉嫩兴奋小腮红 */}
+          <ellipse cx="4.5" cy="11.5" rx="2.5" ry="1.5" fill="#fb7185" opacity="0.8" />
+          <ellipse cx="23.5" cy="11.5" rx="2.5" ry="1.5" fill="#fb7185" opacity="0.8" />
+          {/* 嗷呜开心小张嘴 (半椭圆，带粉嫩小舌尖) */}
+          <path d="M 11.5 11 Q 14 16 16.5 11 Z" fill="#f43f5e" />
+        </svg>
+      </div>
+    );
+  }
+
+  // 等待投喂 (wait)：水汪汪的大萌眼 (黑眼仁+双晶莹高光)、娇憨小三瓣嘴 ω
+  return (
+    <div className="relative flex items-center justify-center w-7 h-5 text-[var(--text-main,#334155)]">
+      <svg viewBox="0 0 28 20" className="w-7 h-5 overflow-visible">
+        {/* 左大萌眼 */}
+        <circle cx="8" cy="8.5" r="3.2" fill="currentColor" />
+        <circle cx="7" cy="7.3" r="1.3" fill="#ffffff" />
+        <circle cx="9.2" cy="9.5" r="0.65" fill="#ffffff" />
+
+        {/* 右大萌眼 */}
+        <circle cx="20" cy="8.5" r="3.2" fill="currentColor" />
+        <circle cx="19" cy="7.3" r="1.3" fill="#ffffff" />
+        <circle cx="21.2" cy="9.5" r="0.65" fill="#ffffff" />
+
+        {/* 淡淡粉红小腮红 */}
+        <ellipse cx="4.5" cy="11.5" rx="2.2" ry="1.3" fill="#fb7185" opacity="0.6" />
+        <ellipse cx="23.5" cy="11.5" rx="2.2" ry="1.3" fill="#fb7185" opacity="0.6" />
+
+        {/* 娇憨小猫三瓣嘴 ω */}
+        <path d="M 11.5 12 Q 12.8 14 14 12 Q 15.2 14 16.5 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+};
+
   // 生成温暖自然的伴侣纯对话内容，将关键数据直接加粗高光内嵌在文案中
   const getDialogueInfo = () => {
     const hour = new Date().getHours();
@@ -86,7 +161,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         greeting,
         content: (
           <span>
-            今天清单里还没有安排待办，整个人都很清闲呢。随时在下方输入框添加新任务吧~
+            {greeting}，今天清单里还没有安排待办，整个人都很清闲呢。随时在下方输入框添加新任务吧~
           </span>
         ),
         canOrganize: false
@@ -98,11 +173,10 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         greeting,
         content: (
           <span>
-            今天规划的 <strong className="text-emerald-500 font-semibold">{totalTasksCount} 项工作</strong>已经全部完成啦{totalCherryCount > 0 ? <>（收获 🍒 <strong className="text-rose-500 font-semibold">{totalCherryCount} 颗樱桃</strong>）</> : null}！效率超高，快去休息一下吧 🎉
+            {greeting}，今天规划的 <strong className="text-emerald-500 font-semibold">{totalTasksCount} 项工作</strong>已经全部完成啦{totalCherryCount > 0 ? <>（收获 🍒 <strong className="text-rose-500 font-semibold">{totalCherryCount} 颗樱桃</strong>）</> : null}！效率超高，快去休息一下吧 🎉 需要我帮你整理其他事情吗？
           </span>
         ),
-        canOrganize: true,
-        buttonText: '重新梳理'
+        canOrganize: true
       };
     }
 
@@ -111,11 +185,10 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
         greeting,
         content: (
           <span>
-            今天共有 <strong className="text-amber-500 font-semibold">{totalTasksCount} 项待办</strong>待处理{overdueCount > 0 ? <>（其中 <strong className="text-rose-500 font-semibold">{overdueCount} 项已逾期</strong>）</> : null}。需要我帮你按优先级整理排序吗？
+            {greeting}，今天共有 <strong className="text-amber-500 font-semibold">{totalTasksCount} 项待办</strong>待处理{overdueCount > 0 ? <>（其中 <strong className="text-rose-500 font-semibold">{overdueCount} 项已逾期</strong>）</> : null}。需要我帮你整理其他事情吗？
           </span>
         ),
-        canOrganize: true,
-        buttonText: rollForwardCount > 0 ? `整理 (${rollForwardCount})` : '整理'
+        canOrganize: true
       };
     }
 
@@ -123,11 +196,10 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
       greeting,
       content: (
         <span>
-          你今天已经完成 <strong className="text-emerald-500 font-semibold">{completedTasksCount} 项工作</strong>{totalCherryCount > 0 ? <>（收获 🍒 <strong className="text-rose-500 font-semibold">{totalCherryCount} 颗樱桃</strong>）</> : null}，还剩 <strong className="text-amber-500 font-semibold">{remaining} 项待办</strong>{overdueCount > 0 ? <>（其中 <strong className="text-rose-500 font-semibold">{overdueCount} 项已逾期</strong>）</> : null}。需要我帮你整理剩余任务吗？
+          {greeting}，你今天已经完成 <strong className="text-emerald-500 font-semibold">{completedTasksCount} 项工作</strong>{totalCherryCount > 0 ? <>（收获 🍒 <strong className="text-rose-500 font-semibold">{totalCherryCount} 颗樱桃</strong>）</> : null}，还剩 <strong className="text-amber-500 font-semibold">{remaining} 项待办</strong>{overdueCount > 0 ? <>（其中 <strong className="text-rose-500 font-semibold">{overdueCount} 项已逾期</strong>）</> : null}。需要我帮你整理其他事情吗？
         </span>
       ),
-      canOrganize: true,
-      buttonText: rollForwardCount > 0 ? `整理 (${rollForwardCount})` : '整理'
+      canOrganize: true
     };
   };
 
@@ -478,7 +550,7 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
               transition={{ type: 'spring', stiffness: 500, damping: 32 }}
               className={`absolute top-1/2 -translate-y-1/2 ${
                 isRightSide ? 'right-[58px]' : 'left-[58px]'
-              } w-[228px] rounded-2xl p-3.5 z-[130] select-none shadow-2xl flex flex-col shrink-0 text-left`}
+              } w-[220px] rounded-2xl px-3.5 py-2.5 z-[130] select-none shadow-2xl flex flex-col shrink-0 text-left`}
               style={{
                 backgroundColor: 'color-mix(in srgb, var(--bg-panel) 96%, transparent)',
                 backdropFilter: 'blur(28px) saturate(180%)',
@@ -512,30 +584,17 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
                 </>
               )}
 
-              {/* 仅保留右上角极小巧的关闭按钮 */}
-              <div className="flex justify-end -mt-0.5 -mr-0.5 mb-1">
-                <button
-                  type="button"
-                  onClick={() => setIsPopoverOpen(false)}
-                  className="p-1 rounded-full text-[var(--text-faint)] hover:text-[var(--text-main)] hover:bg-[var(--chip-hover)] transition-colors cursor-pointer"
-                  title="关闭"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-
-              {/* 对话正文：关键数据直接在文本中高亮，句末紧随精巧循环箭头整理按钮 */}
-              <div className="text-xs text-[var(--text-sub)] leading-relaxed pr-1 select-text">
+              {/* 对话正文：关键数据直接在文本中高亮，无关闭按钮无冗余空白，句末统一为循环图标按钮 */}
+              <div className="text-xs text-[var(--text-sub)] leading-relaxed select-text">
                 {dialogue.content}
                 {dialogue.canOrganize && (
                   <button
                     type="button"
                     onClick={handleExecuteReorder}
-                    className="inline-flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-lg bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-amber-500 hover:text-amber-400 border border-[var(--border-subtle)] text-[11px] font-medium transition-all active:scale-95 cursor-pointer shadow-2xs select-none align-middle"
-                    title="点击一键整理待办"
+                    className="inline-flex items-center justify-center w-5 h-5 ml-1.5 rounded-full bg-amber-500/15 hover:bg-amber-500/25 active:scale-90 text-amber-500 hover:text-amber-400 border border-amber-500/30 transition-all cursor-pointer align-middle shadow-2xs hover:rotate-180 duration-300"
+                    title="整理其他事情"
                   >
                     <RotateCw className="w-2.5 h-2.5 stroke-[2.4]" />
-                    <span>{dialogue.buttonText}</span>
                   </button>
                 )}
               </div>
@@ -545,91 +604,138 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
       </AnimatePresence>
 
       {/* ========================================================= */}
-      {/* 跑轮伴侣主按钮 (支持拖拽移动，周围环绕 SVG 进度边框圆环) */}
-      {/* ========================================================= */}
-      {/* ========================================================= */}
-      {/* 方案一：拟人生态与温润地台（去UI框架化） */}
-      {/* 长按变出樱桃后，伴侣脚下泛起温润微光呼吸地台，伴侣欢欣微踮脚 */}
+      {/* 方案三：引力透镜与星芒引力场（未来感与空间张力，清晰可见） */}
+      {/* 长按变出樱桃后，伴侣周围展开高能引力场，向心收缩拉扯引力波 */}
       {/* ========================================================= */}
       <AnimatePresence>
         {isGestureActive && !isChomping && (
           <div className="absolute inset-0 pointer-events-none z-0 flex items-center justify-center overflow-visible">
-            {/* 1. 伴侣身后柔和的暖心环境辉光 */}
-            <motion.div
-              initial={{ scale: 0.7, opacity: 0 }}
-              animate={{
-                scale: isMagnetized ? [1.1, 1.25, 1.1] : [0.95, 1.1, 0.95],
-                opacity: isMagnetized ? [0.65, 0.85, 0.65] : [0.25, 0.45, 0.25]
-              }}
-              exit={{ scale: 0.7, opacity: 0, transition: { duration: 0.2 } }}
-              transition={{ repeat: Infinity, duration: isMagnetized ? 0.9 : 1.8, ease: 'easeInOut' }}
-              className="absolute -inset-3 rounded-full blur-xl pointer-events-none"
-              style={{
-                background: `radial-gradient(circle, ${activeSkin.accentColor || '#f59e0b'}50 0%, ${activeSkin.accentColor || '#f59e0b'}15 65%, transparent 100%)`
-              }}
-            />
-
-            {/* 2. 伴侣脚下温润有机光斑地台（柔美椭圆微光，随呼吸起伏） */}
+            {/* 1. 核心引力透镜高光辉光（清晰明亮，琥珀金光晕） */}
             <motion.div
               initial={{ scale: 0.6, opacity: 0 }}
               animate={{
-                scale: isMagnetized ? [1.05, 1.2, 1.05] : [0.95, 1.08, 0.95],
-                opacity: isMagnetized ? [0.8, 1, 0.8] : [0.45, 0.75, 0.45]
+                scale: isMagnetized ? [1.15, 1.35, 1.15] : [0.95, 1.15, 0.95],
+                opacity: isMagnetized ? [0.85, 1, 0.85] : [0.55, 0.75, 0.55]
               }}
-              exit={{ scale: 0.5, opacity: 0, transition: { duration: 0.18 } }}
+              exit={{ scale: 0.5, opacity: 0, transition: { duration: 0.2 } }}
               transition={{ repeat: Infinity, duration: isMagnetized ? 0.8 : 1.6, ease: 'easeInOut' }}
-              className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-[76px] h-[22px] rounded-full blur-[4px] pointer-events-none"
+              className="absolute -inset-4 rounded-full blur-xl pointer-events-none"
               style={{
-                background: `radial-gradient(ellipse at center, ${activeSkin.accentColor || '#f59e0b'}80 0%, ${activeSkin.accentColor || '#f59e0b'}25 60%, transparent 85%)`
+                background: `radial-gradient(circle, ${activeSkin.accentColor || '#f59e0b'}88 0%, ${activeSkin.accentColor || '#f59e0b'}30 55%, transparent 75%)`
               }}
             />
 
-            {/* 3. 磁吸靠近时，地台泛起的向外扩散水波涟漪环 */}
+            {/* 2. 空间引力向心脉冲波（Inward Gravitational Pulse：从外层空间向伴侣核心收敛拉扯） */}
             <motion.div
-              initial={{ scale: 0.7, opacity: 0 }}
+              initial={{ scale: 1.5, opacity: 0 }}
               animate={{
-                scale: isMagnetized ? [0.85, 1.3] : [0.9, 1.15],
-                opacity: isMagnetized ? [0.75, 0] : [0.35, 0]
+                scale: [1.45, 0.85],
+                opacity: isMagnetized ? [0.9, 0] : [0.65, 0]
               }}
-              exit={{ opacity: 0 }}
               transition={{
                 repeat: Infinity,
-                duration: isMagnetized ? 0.75 : 1.5,
-                ease: 'easeOut'
+                duration: isMagnetized ? 0.65 : 1.2,
+                ease: 'easeIn'
               }}
-              className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-[64px] h-[18px] rounded-full border border-amber-300/40 pointer-events-none"
+              className="absolute -inset-3 rounded-full pointer-events-none"
+              style={{
+                border: `1.5px solid ${activeSkin.accentColor || '#f59e0b'}`,
+                boxShadow: `0 0 12px ${activeSkin.accentColor || '#f59e0b'}60, inset 0 0 10px ${activeSkin.accentColor || '#f59e0b'}40`
+              }}
             />
+
+            {/* 3. 外层引力星环（高精度环带，磁吸时加速自转并激发出星芒） */}
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{
+                scale: isMagnetized ? 1.08 : 1,
+                opacity: isMagnetized ? 1 : 0.85,
+                rotate: 360
+              }}
+              exit={{ scale: 0.7, opacity: 0, transition: { duration: 0.18 } }}
+              transition={{
+                rotate: { repeat: Infinity, duration: isMagnetized ? 3.5 : 9, ease: 'linear' },
+                scale: { type: 'spring', stiffness: 350, damping: 25 },
+                opacity: { duration: 0.2 }
+              }}
+              className="absolute -inset-2.5 rounded-full pointer-events-none"
+              style={{
+                border: `1.5px solid ${activeSkin.accentColor || '#f59e0b'}aa`,
+                boxShadow: isMagnetized 
+                  ? `0 0 20px ${activeSkin.accentColor || '#f59e0b'}aa, inset 0 0 14px ${activeSkin.accentColor || '#f59e0b'}66` 
+                  : `0 0 10px ${activeSkin.accentColor || '#f59e0b'}55`
+              }}
+            >
+              {/* 引力环上的星芒引力焦点点位 */}
+              <div 
+                className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full"
+                style={{
+                  backgroundColor: '#ffffff',
+                  boxShadow: `0 0 8px ${activeSkin.accentColor || '#f59e0b'}, 0 0 14px #ffffff`
+                }}
+              />
+              <div 
+                className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full"
+                style={{
+                  backgroundColor: activeSkin.accentColor || '#f59e0b',
+                  boxShadow: `0 0 6px ${activeSkin.accentColor || '#f59e0b'}`
+                }}
+              />
+            </motion.div>
+
+            {/* 4. 磁吸捕获时爆发的中心十字星芒 (Star Flare) */}
+            {isMagnetized && (
+              <motion.div
+                initial={{ scale: 0, rotate: 0 }}
+                animate={{ scale: [1, 1.25, 1], rotate: 180 }}
+                exit={{ scale: 0 }}
+                transition={{
+                  scale: { repeat: Infinity, duration: 1, ease: 'easeInOut' },
+                  rotate: { repeat: Infinity, duration: 6, ease: 'linear' }
+                }}
+                className="absolute -inset-6 pointer-events-none flex items-center justify-center opacity-85"
+              >
+                <div 
+                  className="w-full h-[2px] rounded-full blur-[0.5px]"
+                  style={{ background: `linear-gradient(90deg, transparent, #ffffff, ${activeSkin.accentColor || '#f59e0b'}, #ffffff, transparent)` }}
+                />
+                <div 
+                  className="absolute h-full w-[2px] rounded-full blur-[0.5px]"
+                  style={{ background: `linear-gradient(180deg, transparent, #ffffff, ${activeSkin.accentColor || '#f59e0b'}, #ffffff, transparent)` }}
+                />
+              </motion.div>
+            )}
           </div>
         )}
 
-        {/* 宠物头顶小想法气泡 (带尾巴小圆点，展现宠物内心所想：等待时期待，完成后美味满足) */}
+        {/* 宠物头顶小想法气泡 (带尾巴小圆点，呈现超萌矢量专属表情) */}
         {((isGestureActive && !isChomping) || showFedThought) && (
           <motion.div
             key={showFedThought ? 'fed-thought' : isMagnetized ? 'magnet-thought' : 'wait-thought'}
             initial={{ opacity: 0, y: 5, scale: 0.6 }}
             animate={{ 
               opacity: 1, 
-              y: [0, -2.5, 0],
-              scale: showFedThought ? [1, 1.22, 1.05] : isMagnetized ? 1.15 : 1 
+              y: [0, -3, 0],
+              scale: showFedThought ? [1, 1.2, 1.05] : isMagnetized ? 1.15 : 1 
             }}
             exit={{ opacity: 0, y: -4, scale: 0.6, transition: { duration: 0.16 } }}
             transition={{
               y: { repeat: Infinity, duration: 1.4, ease: 'easeInOut' },
               scale: { type: 'spring', stiffness: 450, damping: 24 }
             }}
-            className="absolute -top-9 left-1/2 -translate-x-1/2 pointer-events-none select-none z-30 flex flex-col items-center"
+            className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-none select-none z-30 flex flex-col items-center"
           >
             {/* 想法主气泡 */}
             <div
-              className="px-2 py-0.5 rounded-full flex items-center justify-center text-xs shadow-md"
+              className="px-2 py-1 rounded-full flex items-center justify-center shadow-lg"
               style={{
-                backgroundColor: 'color-mix(in srgb, var(--bg-panel) 94%, transparent)',
+                backgroundColor: 'color-mix(in srgb, var(--bg-panel) 96%, #ffffff 4%)',
                 backdropFilter: 'blur(16px)',
                 border: '1px solid var(--border-subtle)',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.14)'
+                boxShadow: '0 4px 14px rgba(0,0,0,0.18)'
               }}
             >
-              <span>{showFedThought ? '😋' : isMagnetized ? '🤤' : '🥺'}</span>
+              <CuteCompanionThought mood={showFedThought ? 'fed' : isMagnetized ? 'magnet' : 'wait'} />
             </div>
 
             {/* 漫画风格的小想法尾巴圆点 (从大到小指向宠物头顶) */}
@@ -637,15 +743,15 @@ export const FloatingProgressWidget: React.FC<FloatingProgressWidgetProps> = ({
               <span 
                 className="w-1.5 h-1.5 rounded-full" 
                 style={{ 
-                  backgroundColor: 'color-mix(in srgb, var(--bg-panel) 94%, transparent)',
-                  border: '0.8px solid var(--border-subtle)' 
+                  backgroundColor: 'color-mix(in srgb, var(--bg-panel) 96%, #ffffff 4%)',
+                  border: '0.5px solid var(--border-subtle)'
                 }} 
               />
               <span 
-                className="w-1 h-1 rounded-full opacity-80" 
+                className="w-1 h-1 rounded-full" 
                 style={{ 
-                  backgroundColor: 'color-mix(in srgb, var(--bg-panel) 94%, transparent)',
-                  border: '0.6px solid var(--border-subtle)' 
+                  backgroundColor: 'color-mix(in srgb, var(--bg-panel) 96%, #ffffff 4%)',
+                  border: '0.5px solid var(--border-subtle)'
                 }} 
               />
             </div>
