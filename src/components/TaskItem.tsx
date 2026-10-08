@@ -58,6 +58,35 @@ export function getDueDateStatus(task: ITaskItem, referenceNow: Date = new Date(
   };
 }
 
+function toDatetimeLocalString(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const y = date.getFullYear();
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const mm = pad(date.getMinutes());
+  return `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
+function getPickerValueFromStr(dueDateStr: string, fallbackTask?: ITaskItem): string {
+  if (dueDateStr.trim()) {
+    const parsed = extractDateTime(dueDateStr.trim());
+    if (parsed.dueTimestamp) {
+      return toDatetimeLocalString(new Date(parsed.dueTimestamp));
+    }
+  }
+  if (fallbackTask?.dueTimestamp) {
+    return toDatetimeLocalString(new Date(fallbackTask.dueTimestamp));
+  }
+  if (fallbackTask?.dueDateIso) {
+    const d = new Date(fallbackTask.dueDateIso);
+    if (!isNaN(d.getTime())) {
+      return toDatetimeLocalString(d);
+    }
+  }
+  return '';
+}
+
 export const TaskItem: React.FC<TaskItemProps> = ({
   task,
   isGhost = false,
@@ -81,6 +110,22 @@ export const TaskItem: React.FC<TaskItemProps> = ({
   const [showNewNoteInput, setShowNewNoteInput] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
   const [showTagInput, setShowTagInput] = useState(false);
+  const datetimeInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handlePickerChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (!val) {
+      setEditDueDate('');
+      return;
+    }
+    const formatted = val.replace('T', ' ');
+    const parsed = extractDateTime(formatted);
+    if (parsed.dueDate) {
+      setEditDueDate(parsed.dueDate);
+    } else {
+      setEditDueDate(formatted);
+    }
+  };
 
   // Swipe drawer state
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -669,16 +714,36 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           />
 
           <div className="flex items-center gap-2 flex-wrap text-xs">
-            <input
-              type="text"
-              value={editDueDate}
-              onChange={(e) => setEditDueDate(e.target.value)}
-              placeholder="截止时间 (例如: 今天 18:00, 明天 10:00, 2026-09-25 15:00)"
-              className="flex-1 min-w-[130px] text-xs bg-[var(--bg-input)] border border-[var(--border-subtle)] rounded-lg px-2 py-1 text-[var(--text-main)] outline-none focus:border-[var(--accent-bg)]"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveEdit();
-              }}
-            />
+            <div className="relative flex-1 min-w-[150px] flex items-center">
+              <input
+                type="text"
+                value={editDueDate}
+                onChange={(e) => setEditDueDate(e.target.value)}
+                placeholder="截止时间 (输入或点击日历)"
+                className="w-full text-xs bg-[var(--bg-input)] border border-[var(--border-subtle)] rounded-lg pl-2 pr-7 py-1 text-[var(--text-main)] outline-none focus:border-[var(--accent-bg)]"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveEdit();
+                }}
+              />
+              <label 
+                className="absolute right-1 w-6 h-6 flex items-center justify-center cursor-pointer text-[var(--text-sub)] hover:text-rose-500 rounded hover:bg-[var(--chip-bg)] transition-colors"
+                title="选择日期和时间"
+              >
+                <Calendar className="w-3.5 h-3.5 pointer-events-none" />
+                <input
+                  ref={datetimeInputRef}
+                  type="datetime-local"
+                  value={getPickerValueFromStr(editDueDate, task)}
+                  onChange={handlePickerChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  onClick={(e) => {
+                    try {
+                      (e.target as HTMLInputElement).showPicker?.();
+                    } catch {}
+                  }}
+                />
+              </label>
+            </div>
 
             <select
               value={editCategory}
@@ -709,6 +774,21 @@ export const TaskItem: React.FC<TaskItemProps> = ({
           {/* Quick deadline presets */}
           <div className="flex items-center gap-1.5 flex-wrap text-[10px] text-[var(--text-sub)] pt-0.5 select-none">
             <span className="text-[var(--text-faint)]">快速设定:</span>
+            <label className="relative px-1.5 py-0.5 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-medium cursor-pointer transition-colors flex items-center gap-1">
+              <Calendar className="w-3 h-3 pointer-events-none" />
+              <span>日历选时</span>
+              <input
+                type="datetime-local"
+                value={getPickerValueFromStr(editDueDate, task)}
+                onChange={handlePickerChange}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                onClick={(e) => {
+                  try {
+                    (e.target as HTMLInputElement).showPicker?.();
+                  } catch {}
+                }}
+              />
+            </label>
             <button
               type="button"
               onClick={() => setEditDueDate('今天 18:00')}
