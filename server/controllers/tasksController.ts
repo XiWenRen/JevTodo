@@ -64,14 +64,30 @@ export async function handleTasksRequest(req: any, res: any) {
         return res.status(401).json({ error: '请先登录' });
       }
 
-      const body = req.body || {};
+      let body = req.body;
+      if (typeof body === 'string') {
+        try {
+          body = JSON.parse(body);
+        } catch {
+          body = {};
+        }
+      } else if (Buffer.isBuffer(body)) {
+        try {
+          body = JSON.parse(body.toString('utf-8'));
+        } catch {
+          body = {};
+        }
+      }
+      body = body || {};
+
       if (body.action === 'batch_sync' && Array.isArray(body.tasks)) {
         await syncBatchTasksToDB(body.tasks, userId);
         return res.status(200).json({ configured: true, success: true, count: body.tasks.length });
       }
 
-      if (body.task) {
-        await upsertTaskToDB(body.task, userId);
+      const taskData = body.task || (body.id && body.title ? body : null);
+      if (taskData) {
+        await upsertTaskToDB(taskData, userId);
         return res.status(200).json({ configured: true, success: true });
       }
 

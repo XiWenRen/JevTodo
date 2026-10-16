@@ -1272,7 +1272,7 @@ export default function App() {
               <Menu className="w-4 h-4 stroke-[2.2]" />
             </button>
 
-            {/* Single Icon View Switcher with Flip Effect */}
+            {/* Single Icon View Switcher with Smooth Toggle Effect */}
             <button
               type="button"
               onClick={() => {
@@ -1283,16 +1283,25 @@ export default function App() {
                   setActiveView('轨迹');
                 }
               }}
-              className="w-7 h-7 rounded-lg bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--chip-border)] flex items-center justify-center transition-colors shrink-0 shadow-xs cursor-pointer group"
+              className="w-7 h-7 rounded-lg bg-[var(--chip-bg)] hover:bg-[var(--chip-hover)] text-[var(--text-main)] border border-[var(--chip-border)] flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-90 shrink-0 shadow-xs cursor-pointer group"
               title={activeView === '轨迹' ? '切换至任务列表' : '切换至轨迹页面（日历与热点）'}
             >
-              <div className={`transition-transform duration-300 transform ${activeView === '轨迹' ? 'rotate-180' : 'rotate-0'}`}>
-                {activeView === '轨迹' ? (
-                  <ListTodo className="w-4 h-4 text-amber-500" />
-                ) : (
-                  <Calendar className="w-4 h-4 text-indigo-400" />
-                )}
-              </div>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={activeView === '轨迹' ? 'view-list' : 'view-calendar'}
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.6, opacity: 0 }}
+                  transition={{ duration: 0.15, ease: 'easeOut' }}
+                  className="flex items-center justify-center"
+                >
+                  {activeView === '轨迹' ? (
+                    <ListTodo className="w-4 h-4 text-amber-500" />
+                  ) : (
+                    <Calendar className="w-4 h-4 text-indigo-400" />
+                  )}
+                </motion.div>
+              </AnimatePresence>
             </button>
           </div>
 

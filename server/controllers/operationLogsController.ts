@@ -64,14 +64,30 @@ export async function handleOperationLogsRequest(req: any, res: any) {
         return res.status(401).json({ error: '请先登录' });
       }
 
-      const body = req.body || {};
+      let body = req.body;
+      if (typeof body === 'string') {
+        try {
+          body = JSON.parse(body);
+        } catch {
+          body = {};
+        }
+      } else if (Buffer.isBuffer(body)) {
+        try {
+          body = JSON.parse(body.toString('utf-8'));
+        } catch {
+          body = {};
+        }
+      }
+      body = body || {};
+
       if (body.action === 'batch_sync' && Array.isArray(body.logs)) {
         await syncBatchOperationLogsToDB(body.logs, userId);
         return res.status(200).json({ configured: true, success: true, count: body.logs.length });
       }
 
-      if (body.log) {
-        await insertOperationLogToDB(body.log, userId);
+      const logData = body.log || (body.id && body.type ? body : null);
+      if (logData) {
+        await insertOperationLogToDB(logData, userId);
         return res.status(200).json({ configured: true, success: true });
       }
 

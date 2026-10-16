@@ -7,11 +7,12 @@ export interface DBTask {
   title: string;
   rawInput?: string;
   category: string;
-  priority: string;
+  priority?: string;
   urgencyScore?: number;
   tags: string[];
   dueDate?: string;
   dueDateIso?: string;
+  dueTimestamp?: number;
   completed: boolean;
   completedAt?: number;
   createdAt: number;
@@ -69,31 +70,30 @@ export async function ensureTables(sql: any) {
         title TEXT NOT NULL,
         raw_input TEXT,
         category VARCHAR(64) NOT NULL,
-        priority VARCHAR(32) NOT NULL,
+        priority VARCHAR(32) DEFAULT 'normal',
         urgency_score REAL DEFAULT 0.5,
         tags JSONB DEFAULT '[]'::jsonb,
         due_date TEXT,
         due_date_iso TEXT,
+        due_timestamp BIGINT,
         completed BOOLEAN DEFAULT FALSE,
         completed_at BIGINT,
         created_at BIGINT NOT NULL,
         updated_at BIGINT NOT NULL,
         is_stale BOOLEAN DEFAULT FALSE,
         notes JSONB DEFAULT '[]'::jsonb,
+        cherry_subtasks JSONB DEFAULT '[]'::jsonb,
         jev_confidence REAL
       );
     `;
 
-    // Ensure user_id and notes columns exist (for backward compatibility if table existed)
-    await sql`
-      ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS user_id VARCHAR(128);
-    `;
-    await sql`
-      ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS notes JSONB DEFAULT '[]'::jsonb;
-    `;
-    await sql`
-      ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS cherry_subtasks JSONB DEFAULT '[]'::jsonb;
-    `;
+    // Ensure user_id, notes, due_timestamp and relaxed priority columns exist
+    await sql`ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS user_id VARCHAR(128);`.catch(() => {});
+    await sql`ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS notes JSONB DEFAULT '[]'::jsonb;`.catch(() => {});
+    await sql`ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS cherry_subtasks JSONB DEFAULT '[]'::jsonb;`.catch(() => {});
+    await sql`ALTER TABLE jev_tasks ADD COLUMN IF NOT EXISTS due_timestamp BIGINT;`.catch(() => {});
+    await sql`ALTER TABLE jev_tasks ALTER COLUMN priority DROP NOT NULL;`.catch(() => {});
+    await sql`ALTER TABLE jev_tasks ALTER COLUMN priority SET DEFAULT 'normal';`.catch(() => {});
 
     // Index for fast tenant query and strict isolation
     await sql`
@@ -219,7 +219,7 @@ export async function fetchAllTasksFromDB(userId: string): Promise<DBTask[] | nu
 
   const rows = await sql`
     SELECT * FROM jev_tasks 
-    WHERE user_id = ${userId}
+    WHERE (user_id = ${userId} OR user_id IS NULL)
     ORDER BY created_at DESC;
   `;
 
@@ -229,11 +229,12 @@ export async function fetchAllTasksFromDB(userId: string): Promise<DBTask[] | nu
     title: r.title,
     rawInput: r.raw_input || undefined,
     category: r.category,
-    priority: r.priority,
+    priority: r.priority || 'normal',
     urgencyScore: r.urgency_score ?? 0.5,
     tags: Array.isArray(r.tags) ? r.tags : [],
     dueDate: r.due_date || undefined,
     dueDateIso: r.due_date_iso || undefined,
+    dueTimestamp: r.due_timestamp ? Number(r.due_timestamp) : undefined,
     completed: Boolean(r.completed),
     completedAt: r.completed_at ? Number(r.completed_at) : undefined,
     createdAt: Number(r.created_at),
@@ -258,19 +259,29 @@ export async function upsertTaskToDB(task: DBTask, userId: string): Promise<bool
   const tagsJson = JSON.stringify(task.tags || []);
   const notesJson = JSON.stringify(task.notes || []);
   const cherrySubtasksJson = JSON.stringify(task.cherrySubtasks || []);
+  const priorityVal = task.priority || 'normal';
+  const rawInputVal = task.rawInput || task.title || '';
+  const titleVal = task.title || '无标题待办';
+  const categoryVal = task.category || '即刻完成';
+  const completedVal = Boolean(task.completed);
+  const isStaleVal = Boolean(task.isStale);
+  const now = Date.now();
+  const createdAtVal = task.createdAt || now;
+  const updatedAtVal = task.updatedAt || now;
 
-  // Strict ownership check on conflict: only allow update if user_id matches
+  // Strict ownership check on conflict: only allow update if user_id matches or was previously unassigned
   await sql`
     INSERT INTO jev_tasks (
       id, user_id, title, raw_input, category, priority, urgency_score, 
-      tags, due_date, due_date_iso, completed, completed_at, 
+      tags, due_date, due_date_iso, due_timestamp, completed, completed_at, 
       created_at, updated_at, is_stale, notes, cherry_subtasks, jev_confidence
     ) VALUES (
-      ${task.id}, ${userId}, ${task.title}, ${task.rawInput || null}, ${task.category}, ${task.priority}, ${task.urgencyScore ?? 0.5},
-      ${tagsJson}::jsonb, ${task.dueDate || null}, ${task.dueDateIso || null}, ${task.completed}, ${task.completedAt || null},
-      ${task.createdAt}, ${task.updatedAt}, ${task.isStale || false}, ${notesJson}::jsonb, ${cherrySubtasksJson}::jsonb, ${task.jevConfidence || null}
+      ${task.id}, ${userId}, ${titleVal}, ${rawInputVal}, ${categoryVal}, ${priorityVal}, ${task.urgencyScore ?? 0.5},
+      ${tagsJson}::jsonb, ${task.dueDate || null}, ${task.dueDateIso || null}, ${task.dueTimestamp || null}, ${completedVal}, ${task.completedAt || null},
+      ${createdAtVal}, ${updatedAtVal}, ${isStaleVal}, ${notesJson}::jsonb, ${cherrySubtasksJson}::jsonb, ${task.jevConfidence || null}
     )
     ON CONFLICT (id) DO UPDATE SET
+      user_id = EXCLUDED.user_id,
       title = EXCLUDED.title,
       raw_input = EXCLUDED.raw_input,
       category = EXCLUDED.category,
@@ -279,6 +290,7 @@ export async function upsertTaskToDB(task: DBTask, userId: string): Promise<bool
       tags = EXCLUDED.tags,
       due_date = EXCLUDED.due_date,
       due_date_iso = EXCLUDED.due_date_iso,
+      due_timestamp = EXCLUDED.due_timestamp,
       completed = EXCLUDED.completed,
       completed_at = EXCLUDED.completed_at,
       updated_at = EXCLUDED.updated_at,
@@ -286,7 +298,7 @@ export async function upsertTaskToDB(task: DBTask, userId: string): Promise<bool
       notes = EXCLUDED.notes,
       cherry_subtasks = EXCLUDED.cherry_subtasks,
       jev_confidence = EXCLUDED.jev_confidence
-    WHERE jev_tasks.user_id = ${userId};
+    WHERE (jev_tasks.user_id = ${userId} OR jev_tasks.user_id IS NULL);
   `;
 
   return true;
@@ -374,12 +386,13 @@ export async function insertOperationLogToDB(log: DBOperationLog, userId: string
       ${log.affectedCount ?? 1}, ${snapshotsJson}::jsonb
     )
     ON CONFLICT (id) DO UPDATE SET
+      user_id = EXCLUDED.user_id,
       type = EXCLUDED.type,
       title = EXCLUDED.title,
       description = EXCLUDED.description,
       affected_count = EXCLUDED.affected_count,
       task_snapshots = EXCLUDED.task_snapshots
-    WHERE jev_operation_logs.user_id = ${userId};
+    WHERE (jev_operation_logs.user_id = ${userId} OR jev_operation_logs.user_id IS NULL);
   `;
 
   return true;

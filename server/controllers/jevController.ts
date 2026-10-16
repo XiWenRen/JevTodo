@@ -568,6 +568,8 @@ export async function handleJevEvaluate(req: any, res: any) {
     }
     const totalElapsed = Date.now() - requestStart;
 
+    const localTime = resolveJevDateTime(text);
+
     writeJevLogEntry({
       triggerType,
       inputText: text,
@@ -576,7 +578,15 @@ export async function handleJevEvaluate(req: any, res: any) {
       status: "FALLBACK (Cherry Local Engine)",
       durationMs: totalElapsed,
       requestPayload: sentPayload,
-      result: { cleanTitle: defaultTitle, category, urgencyScore, tags: specificTags, source: "cherry-calibrated-local" },
+      result: { 
+        cleanTitle: defaultTitle, 
+        category, 
+        urgencyScore, 
+        tags: specificTags, 
+        dueDate: localTime.dueDate,
+        dueTimestamp: localTime.dueTimestamp,
+        source: "cherry-calibrated-local" 
+      },
       error: lastGatewayError || "Fallback to Cherry local engine"
     });
 
@@ -585,6 +595,9 @@ export async function handleJevEvaluate(req: any, res: any) {
       category,
       urgencyScore,
       tags: specificTags,
+      dueDate: localTime.dueDate,
+      dueDateIso: localTime.dueDateIso,
+      dueTimestamp: localTime.dueTimestamp,
       confidence: 0.93,
       source: "cherry-calibrated-local",
       gatewayError: lastGatewayError,
